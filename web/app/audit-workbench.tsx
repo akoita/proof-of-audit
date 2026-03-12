@@ -86,6 +86,13 @@ function formatEth(wei: number): string {
   return `${(wei / 1e18).toFixed(3)} ETH`;
 }
 
+function shortenHex(value: string, start = 6, end = 4): string {
+  if (value.length <= start + end + 3) {
+    return value;
+  }
+  return `${value.slice(0, start)}...${value.slice(-end)}`;
+}
+
 export function AuditWorkbench() {
   const [contractAddress, setContractAddress] = useState("");
   const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
@@ -94,6 +101,8 @@ export function AuditWorkbench() {
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const selectedFixture =
+    demoFixtures.find((fixture) => fixture.address === contractAddress) ?? null;
 
   useEffect(() => {
     startTransition(() => {
@@ -230,8 +239,33 @@ export function AuditWorkbench() {
             Submit a contract, generate a deterministic report, publish a staked
             attestation, and challenge it with reproducible evidence.
           </p>
+          <div className="hero-inline-metrics">
+            <div>
+              <span>Mode</span>
+              <strong>Local fixture demo</strong>
+            </div>
+            <div>
+              <span>Coverage</span>
+              <strong>4 fixture paths</strong>
+            </div>
+            <div>
+              <span>Resolution</span>
+              <strong>Immediate deterministic review</strong>
+            </div>
+          </div>
           <form className="submit-card" onSubmit={handleSubmit}>
-            <label htmlFor="contractAddress">Contract address</label>
+            <div className="submit-card-heading">
+              <div>
+                <label htmlFor="contractAddress">Audit target</label>
+                <p>
+                  Paste an address or pick one of the local fixtures below to
+                  populate the form.
+                </p>
+              </div>
+              {selectedFixture ? (
+                <span className="fixture-pill">{selectedFixture.label}</span>
+              ) : null}
+            </div>
             <input
               id="contractAddress"
               name="contractAddress"
@@ -239,13 +273,24 @@ export function AuditWorkbench() {
               value={contractAddress}
               onChange={(event) => setContractAddress(event.target.value)}
             />
-            <button type="submit" disabled={isPending}>
-              {isPending ? "Working..." : "Run audit"}
-            </button>
+            <div className="submit-card-footer">
+              <p className="helper-copy">
+                {selectedFixture
+                  ? `${selectedFixture.contract_name} selected from local Anvil fixtures.`
+                  : "No fixture selected. You can still submit any deployed contract address."}
+              </p>
+              <button type="submit" disabled={isPending}>
+                {isPending ? "Working..." : "Run audit"}
+              </button>
+            </div>
           </form>
           {error ? <p className="error-banner">{error}</p> : null}
         </div>
         <div className="signal-panel">
+          <div className="panel-kicker">
+            <span>Live demo configuration</span>
+            <strong>Operator view</strong>
+          </div>
           <div className="signal-row">
             <span>Supported checks</span>
             <strong>Reentrancy, access control, unchecked calls</strong>
@@ -258,10 +303,23 @@ export function AuditWorkbench() {
             <span>Challenge path</span>
             <strong>Deterministic verifier, immediate resolution</strong>
           </div>
+          <div className="signal-note">
+            Local fixtures are deployed to Anvil and surfaced through the API,
+            so the UI reflects live addresses instead of baked-in demo values.
+          </div>
         </div>
       </section>
 
-      <section className="benchmark-strip">
+      <section className="fixture-section">
+        <div className="section-heading section-heading-wide">
+          <div>
+            <p>Demo fixtures</p>
+            <strong className="section-subtitle">
+              Pick a live local contract to drive the audit flow
+            </strong>
+          </div>
+          <span>{demoFixtures.length} loaded</span>
+        </div>
         {demoFixtures.length === 0 ? (
           <article className="benchmark-empty">
             <p>No local demo fixtures detected.</p>
@@ -271,19 +329,24 @@ export function AuditWorkbench() {
             </span>
           </article>
         ) : (
-          demoFixtures.map((fixture) => (
-            <button
-              key={fixture.address}
-              className="benchmark-card"
-              data-selected={fixture.address === contractAddress}
-              type="button"
-              onClick={() => setContractAddress(fixture.address)}
-            >
-              <span>{fixture.label}</span>
-              <strong>{fixture.address}</strong>
-              <p>{fixture.note}</p>
-            </button>
-          ))
+          <div className="benchmark-strip">
+            {demoFixtures.map((fixture) => (
+              <button
+                key={fixture.address}
+                className="benchmark-card"
+                data-selected={fixture.address === contractAddress}
+                type="button"
+                onClick={() => setContractAddress(fixture.address)}
+              >
+                <div className="benchmark-card-topline">
+                  <span>{fixture.label}</span>
+                  <em>{fixture.entry_contract}</em>
+                </div>
+                <strong title={fixture.address}>{shortenHex(fixture.address, 8, 6)}</strong>
+                <p>{fixture.note}</p>
+              </button>
+            ))}
+          </div>
         )}
       </section>
 
@@ -295,11 +358,14 @@ export function AuditWorkbench() {
           </div>
           {activeAudit ? (
             <>
+              <div className="audit-summary-bar">
+                <span>{activeAudit.report.benchmark_id}</span>
+                <span>{activeAudit.report.confidence} confidence</span>
+                <span title={activeAudit.contract_address}>
+                  {shortenHex(activeAudit.contract_address, 8, 6)}
+                </span>
+              </div>
               <h2>{activeAudit.report.summary}</h2>
-              <p className="muted">
-                {activeAudit.contract_address} · {activeAudit.report.benchmark_id} ·{" "}
-                {activeAudit.report.confidence} confidence
-              </p>
               <div className="stat-row">
                 <div>
                   <span>Findings</span>
@@ -311,7 +377,9 @@ export function AuditWorkbench() {
                 </div>
                 <div>
                   <span>Report hash</span>
-                  <strong>{activeAudit.report.report_hash.slice(0, 10)}...</strong>
+                  <strong title={activeAudit.report.report_hash}>
+                    {shortenHex(activeAudit.report.report_hash, 10, 6)}
+                  </strong>
                 </div>
               </div>
 
@@ -339,25 +407,32 @@ export function AuditWorkbench() {
               </div>
 
               <div className="action-row">
-                <button
-                  type="button"
-                  onClick={handlePublish}
-                  disabled={isPending || activeAudit.status !== "draft"}
-                >
-                  Publish stake
-                </button>
-                <input
-                  value={proofUri}
-                  onChange={(event) => setProofUri(event.target.value)}
-                  disabled={isPending || activeAudit.status !== "published"}
-                />
-                <button
-                  type="button"
-                  onClick={handleChallenge}
-                  disabled={isPending || activeAudit.status !== "published"}
-                >
-                  Challenge with PoC
-                </button>
+                <div className="action-card">
+                  <span>Publish</span>
+                  <strong>Stake {formatEth(10_000_000_000_000_000)}</strong>
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    disabled={isPending || activeAudit.status !== "draft"}
+                  >
+                    Publish stake
+                  </button>
+                </div>
+                <div className="action-card action-card-wide">
+                  <span>Challenge proof</span>
+                  <input
+                    value={proofUri}
+                    onChange={(event) => setProofUri(event.target.value)}
+                    disabled={isPending || activeAudit.status !== "published"}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleChallenge}
+                    disabled={isPending || activeAudit.status !== "published"}
+                  >
+                    Challenge with PoC
+                  </button>
+                </div>
               </div>
 
               {activeAudit.onchain ? (
@@ -370,8 +445,8 @@ export function AuditWorkbench() {
                     {activeAudit.onchain.agent_identity} staked{" "}
                     {formatEth(activeAudit.onchain.stake_wei)} behind this report.
                   </p>
-                  <p className="mono">
-                    publish tx: {activeAudit.onchain.publish_tx_hash}
+                  <p className="mono" title={activeAudit.onchain.publish_tx_hash}>
+                    publish tx: {shortenHex(activeAudit.onchain.publish_tx_hash, 12, 8)}
                   </p>
                 </div>
               ) : null}
@@ -383,8 +458,9 @@ export function AuditWorkbench() {
                     <span>{activeAudit.challenge.status}</span>
                   </div>
                   <p className="muted">{activeAudit.challenge.proof_uri}</p>
-                  <p className="mono">
-                    challenge tx: {activeAudit.challenge.challenge_tx_hash}
+                  <p className="mono" title={activeAudit.challenge.challenge_tx_hash}>
+                    challenge tx:{" "}
+                    {shortenHex(activeAudit.challenge.challenge_tx_hash, 12, 8)}
                   </p>
                 </div>
               ) : null}
@@ -411,13 +487,16 @@ export function AuditWorkbench() {
                   key={audit.id}
                   type="button"
                   className="recent-item"
+                  data-selected={audit.id === activeAudit?.id}
                   onClick={() => setActiveAudit(audit)}
                 >
                   <div className="card-header">
                     <p>{audit.report.benchmark_id}</p>
                     <span>{audit.status}</span>
                   </div>
-                  <strong>{audit.contract_address}</strong>
+                  <strong title={audit.contract_address}>
+                    {shortenHex(audit.contract_address, 8, 6)}
+                  </strong>
                   <p>{audit.report.summary}</p>
                 </button>
               ))
