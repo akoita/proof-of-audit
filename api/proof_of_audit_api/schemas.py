@@ -48,11 +48,18 @@ class ChallengeModel(BaseModel):
     submitted_at: str
     verifier: str
     status: str
+    resolution: str | None = None
+    resolved_at: str | None = None
+    resolved_by: str | None = None
+    beneficiary_address: str | None = None
+    payout_wei: int | None = None
     challenge_hash: str | None = None
     challenge_bond_wei: int | None = None
     chain_id: int | None = None
     challenge_tx_hash: str
     challenge_tx_url: str | None = None
+    resolve_tx_hash: str | None = None
+    resolve_tx_url: str | None = None
 
 
 class AuditRecordModel(BaseModel):
@@ -114,6 +121,11 @@ class PublishAuditRequest(BaseModel):
 class ChallengeAuditRequest(BaseModel):
     proof_uri: str
     challenger: str = "anonymous-challenger"
+
+
+class ResolveAuditRequest(BaseModel):
+    upheld: bool
+    resolved_by: str = "arbiter"
 
 
 class ErrorResponse(BaseModel):

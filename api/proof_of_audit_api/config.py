@@ -33,6 +33,7 @@ class ContractConfig:
     arbiter: str | None
     rpc_url: str | None
     publisher_private_key: str | None
+    arbiter_private_key: str | None
     demo_fixtures_file: Path | None
     required_stake_wei: int
     required_challenge_bond_wei: int
@@ -62,6 +63,9 @@ class ContractConfig:
             or source.get("BASE_SEPOLIA_RPC_URL")
             or None,
             publisher_private_key=source.get("PROOF_OF_AUDIT_PRIVATE_KEY") or None,
+            arbiter_private_key=source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_PRIVATE_KEY")
+            or None,
             demo_fixtures_file=resolve_demo_fixtures_file(
                 Path(source["PROOF_OF_AUDIT_DEMO_FIXTURES_FILE"])
                 if source.get("PROOF_OF_AUDIT_DEMO_FIXTURES_FILE")

@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR="/home/koita/dev/hackatons/proof-of-audit"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 RPC_URL="${ANVIL_RPC_URL:-http://127.0.0.1:8545}"
 CHAIN_ID="${ANVIL_CHAIN_ID:-31337}"
 NETWORK="${PROOF_OF_AUDIT_NETWORK:-anvil-local}"
@@ -10,6 +11,7 @@ DEPLOYER_PRIVATE_KEY="${LOCAL_DEPLOYER_PRIVATE_KEY:-${DEPLOYER_PRIVATE_KEY:-0xac
 CATALOG_FILE="${ROOT_DIR}/demo/fixtures.catalog.json"
 MANIFEST_FILE="${ROOT_DIR}/deployments/demo-fixtures.localhost.json"
 API_ENV_FILE="${ROOT_DIR}/api/.env.local"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
   echo "Anvil or another RPC node is not reachable at ${RPC_URL}" >&2
@@ -53,7 +55,7 @@ UNCHECKED_TREASURY_DEPLOYMENT="$(deploy_contract "demo/contracts/UncheckedTreasu
 
 cd "${ROOT_DIR}"
 
-python3 scripts/write-demo-fixtures-manifest.py \
+"${PYTHON_BIN}" scripts/write-demo-fixtures-manifest.py \
   --catalog-file "${CATALOG_FILE}" \
   --manifest-file "${MANIFEST_FILE}" \
   --api-env-file "${API_ENV_FILE}" \

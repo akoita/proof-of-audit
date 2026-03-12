@@ -14,6 +14,7 @@ from proof_of_audit_api.publisher import (
     OnchainChallengeError,
     OnchainConfigurationError,
     OnchainPublishError,
+    OnchainResolveError,
 )
 from proof_of_audit_api.schemas import (
     AuditListResponse,
@@ -25,6 +26,7 @@ from proof_of_audit_api.schemas import (
     HealthResponse,
     PublicContractConfigResponse,
     PublishAuditRequest,
+    ResolveAuditRequest,
 )
 from proof_of_audit_api.service import AuditService
 
@@ -50,7 +52,7 @@ def create_app(
         allow_headers=["*"],
     )
     app.state.audit_service = audit_service or AuditService(
-        data_root or DATA_ROOT,
+        data_root or Path(os.environ.get("PROOF_OF_AUDIT_DATA_ROOT", DATA_ROOT)),
         contract_config=contract_config,
     )
     if audit_service is not None:
@@ -222,6 +224,46 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail={"error": "challenge_failed", "message": str(exc)},
+            ) from exc
+        return AuditRecordModel.model_validate(record)
+
+    @app.post(
+        "/audits/{audit_id}/resolve",
+        response_model=AuditRecordModel,
+        responses={
+            status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
+            status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
+        },
+    )
+    def resolve_audit(
+        audit_id: str, payload: ResolveAuditRequest, request: Request
+    ) -> AuditRecordModel:
+        service = _service(request)
+        try:
+            record = service.resolve_audit(
+                audit_id,
+                upheld=payload.upheld,
+                resolved_by=payload.resolved_by,
+            )
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "audit_not_found"},
+            ) from None
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        except OnchainConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "onchain_not_configured", "message": str(exc)},
+            ) from exc
+        except OnchainResolveError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "resolve_failed", "message": str(exc)},
             ) from exc
         return AuditRecordModel.model_validate(record)
 

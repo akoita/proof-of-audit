@@ -20,6 +20,7 @@ class OnchainTestContext:
     contract: Contract
     contract_config: ContractConfig
     publisher: ProofOfAuditPublisher
+    arbiter_client: ProofOfAuditPublisher
 
 
 def build_onchain_test_context() -> OnchainTestContext:
@@ -29,6 +30,7 @@ def build_onchain_test_context() -> OnchainTestContext:
     deployer_key = backend.account_keys[0]
     deployer_address = web3.eth.account.from_key(deployer_key).address
     arbiter_address = tester.get_accounts()[1]
+    arbiter_key = backend.account_keys[1]
 
     contract_factory = web3.eth.contract(
         abi=load_contract_abi(),
@@ -64,15 +66,22 @@ def build_onchain_test_context() -> OnchainTestContext:
             "PROOF_OF_AUDIT_EXPLORER_BASE_URL": "http://127.0.0.1:8545",
             "PROOF_OF_AUDIT_ARBITER": arbiter_address,
             "PROOF_OF_AUDIT_PRIVATE_KEY": deployer_key.to_hex(),
+            "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": arbiter_key.to_hex(),
             "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": str(10**16),
             "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": str(5 * 10**15),
             "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "86400",
         }
     )
     publisher = ProofOfAuditPublisher(contract_config, web3=web3)
+    arbiter_client = ProofOfAuditPublisher(
+        contract_config,
+        web3=web3,
+        private_key=arbiter_key.to_hex(),
+    )
     return OnchainTestContext(
         web3=web3,
         contract=publisher.contract,
         contract_config=contract_config,
         publisher=publisher,
+        arbiter_client=arbiter_client,
     )
