@@ -9,6 +9,24 @@ The fastest local development loop is:
 3. let the deployment script write fresh local config for the API and web app
 4. run the API and frontend against those generated values
 
+### Condensed local flow
+
+```bash
+# 0. Start the local chain
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/start-anvil.sh
+
+# 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
+./scripts/deploy-local.sh
+
+# 2. Start the API (loads api/.env.local automatically)
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
+
+# 3. Start the frontend in a separate terminal (loads web/.env.local automatically)
+cd /home/koita/dev/hackatons/proof-of-audit/web
+pnpm dev
+```
+
 ### Start Anvil
 
 ```bash

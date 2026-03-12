@@ -41,44 +41,31 @@ This repo implements a compact, coherent v1:
 
 ## Quick start
 
-### Local deployment loop
+### Run locally
 
 ```bash
+# 0. Start the local chain
 cd /home/koita/dev/hackatons/proof-of-audit
 ./scripts/start-anvil.sh
-```
 
-In a second shell:
-
-```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
 ./scripts/deploy-local.sh
+
+# 2. Start the API (loads api/.env.local automatically)
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
-```
 
-Then start the frontend:
-
-```bash
+# 3. Start the frontend in a separate terminal (loads web/.env.local automatically)
 cd /home/koita/dev/hackatons/proof-of-audit/web
 pnpm dev
 ```
 
-The local deploy script automatically updates ignored config files for the API and web app.
+Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract to the local Anvil chain, then writes ignored local config for dependent components:
 
-What `./scripts/deploy-local.sh` actually does:
+- `deployments/localhost.json`
+- `api/.env.local`
+- `web/.env.local`
 
-- deploys the `ProofOfAudit` smart contract to the local Anvil chain
-- reads the deployed contract address from Foundry broadcast output
-- writes ignored local config files for dependent components:
-  - `deployments/localhost.json`
-  - `api/.env.local`
-  - `web/.env.local`
-
-What it does not do:
-
-- it does not start the API server
-- it does not start the Next.js frontend
-- it does not deploy Python or web services anywhere
+It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
 
 ### Contracts
 
