@@ -37,6 +37,10 @@ class OnchainChallengeError(OnchainTransactionError):
     """Raised when a challenge transaction cannot be executed or verified."""
 
 
+class OnchainResolveError(OnchainTransactionError):
+    """Raised when a resolution transaction cannot be executed or verified."""
+
+
 class OnchainConfigurationError(OnchainTransactionError):
     """Raised when API-side contract transaction submission is not configured."""
 
@@ -58,6 +62,16 @@ class ChallengeResult:
     challenge_bond_wei: int
 
 
+@dataclass(frozen=True)
+class ResolutionResult:
+    audit_id: int
+    tx_hash: str
+    chain_id: int
+    resolution: str
+    beneficiary_address: str
+    payout_wei: int
+
+
 def load_contract_artifact() -> dict[str, Any]:
     return json.loads(ARTIFACT_FILE.read_text(encoding="utf-8"))
 
@@ -75,9 +89,10 @@ class ProofOfAuditPublisher:
         self,
         contract_config: ContractConfig,
         web3: Web3 | None = None,
+        private_key: str | None = None,
     ) -> None:
         self.contract_config = contract_config
-        self.private_key = self._require_private_key(contract_config)
+        self.private_key = private_key or self._require_private_key(contract_config)
         self.web3 = web3 or self._build_web3(contract_config)
         self.account = self.web3.eth.account.from_key(self.private_key)
         self.contract = self._build_contract(contract_config)
@@ -85,15 +100,15 @@ class ProofOfAuditPublisher:
 
     @classmethod
     def from_config_if_ready(
-        cls, contract_config: ContractConfig
+        cls, contract_config: ContractConfig, private_key: str | None = None
     ) -> "ProofOfAuditPublisher | None":
         if not (
             contract_config.contract_address
             and contract_config.rpc_url
-            and contract_config.publisher_private_key
+            and (private_key or contract_config.publisher_private_key)
         ):
             return None
-        return cls(contract_config)
+        return cls(contract_config, private_key=private_key)
 
     def publish_audit(
         self,
@@ -218,6 +233,48 @@ class ProofOfAuditPublisher:
             challenge_bond_wei=challenge_bond_wei,
         )
 
+    def resolve_challenge(self, *, audit_id: int, upheld: bool) -> ResolutionResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        resolve_call = self.contract.functions.resolveChallenge(audit_id, upheld)
+
+        try:
+            receipt = self._submit_transaction(
+                resolve_call,
+                value_wei=0,
+                chain_id=runtime_chain_id,
+                action_label="resolve challenge",
+                error_cls=OnchainResolveError,
+            )
+        except OnchainResolveError:
+            raise
+
+        if receipt["status"] != 1:
+            raise OnchainResolveError("Resolution transaction reverted on-chain.")
+
+        events = self.contract.events.ChallengeResolved().process_receipt(receipt)
+        if not events:
+            raise OnchainResolveError(
+                "Resolution transaction succeeded but ChallengeResolved event was missing."
+            )
+        event = events[0]["args"]
+        event_audit_id = int(event["auditId"])
+        if event_audit_id != audit_id:
+            raise OnchainResolveError(
+                "Resolution transaction emitted an unexpected audit id."
+            )
+        resolution = self._resolution_label(int(event["resolution"]))
+        beneficiary_address = Web3.to_checksum_address(event["beneficiary"])
+        payout_wei = int(event["payout"])
+        self._verify_onchain_resolution(audit_id=audit_id, resolution=resolution)
+        return ResolutionResult(
+            audit_id=audit_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+            resolution=resolution,
+            beneficiary_address=beneficiary_address,
+            payout_wei=payout_wei,
+        )
+
     def _verify_onchain_record(
         self,
         *,
@@ -269,10 +326,24 @@ class ProofOfAuditPublisher:
                 "On-chain challenge hash did not match challenge input."
             )
 
+    def _verify_onchain_resolution(
+        self,
+        *,
+        audit_id: int,
+        resolution: str,
+    ) -> None:
+        record = self.contract.functions.getAudit(audit_id).call()
+        if int(record[10]) != 3:
+            raise OnchainResolveError("On-chain audit state is not Resolved.")
+        if self._resolution_label(int(record[11])) != resolution:
+            raise OnchainResolveError(
+                "On-chain resolution did not match resolution transaction output."
+            )
+
     def _build_contract(self, contract_config: ContractConfig) -> Contract:
         if not contract_config.contract_address:
             raise OnchainConfigurationError(
-                "PROOF_OF_AUDIT_CONTRACT_ADDRESS is required for publishing."
+                "PROOF_OF_AUDIT_CONTRACT_ADDRESS is required for API-side contract transactions."
             )
         return self.web3.eth.contract(
             address=Web3.to_checksum_address(contract_config.contract_address),
@@ -378,3 +449,10 @@ class ProofOfAuditPublisher:
 
     def _build_challenge_hash(self, proof_uri: str) -> str:
         return "0x" + sha256(proof_uri.encode("utf-8")).hexdigest()
+
+    def _resolution_label(self, resolution: int) -> str:
+        if resolution == 1:
+            return "upheld"
+        if resolution == 2:
+            return "rejected"
+        return "none"

@@ -34,6 +34,7 @@ class AuditServiceTest(unittest.TestCase):
                 Path(tmpdir),
                 contract_config=onchain.contract_config,
                 publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
             )
             created = service.create_audit(
                 onchain.web3.eth.accounts[2],
@@ -95,6 +96,27 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["challenge_hash"],
             )
 
+            resolved = service.resolve_audit(
+                created["id"],
+                upheld=True,
+                resolved_by="arbiter-operator",
+            )
+            self.assertEqual(resolved["status"], "resolved")
+            self.assertEqual(resolved["challenge"]["status"], "upheld")
+            self.assertEqual(resolved["challenge"]["resolution"], "upheld")
+            self.assertEqual(
+                resolved["challenge"]["beneficiary_address"],
+                onchain.web3.to_checksum_address(onchain.contract.functions.getAudit(1).call()[12]),
+            )
+            self.assertTrue(
+                resolved["challenge"]["resolve_tx_url"].startswith(
+                    "http://127.0.0.1:8545/tx/0x"
+                )
+            )
+            resolved_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(resolved_record[10]), 3)
+            self.assertEqual(int(resolved_record[11]), 1)
+
     def test_challenge_requires_publish(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
@@ -119,6 +141,7 @@ class AuditServiceTest(unittest.TestCase):
                 Path(tmpdir),
                 contract_config=onchain.contract_config,
                 publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
             )
             created = service.create_audit(
                 onchain.web3.eth.accounts[2],
@@ -136,6 +159,30 @@ class AuditServiceTest(unittest.TestCase):
                     created["id"],
                     "ipfs://second-poc",
                     challenger="second-whitehat",
+                )
+
+    def test_resolution_requires_challenge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            with self.assertRaisesRegex(
+                ValueError, "audit must be challenged before resolution"
+            ):
+                service.resolve_audit(
+                    created["id"],
+                    upheld=False,
+                    resolved_by="arbiter-operator",
                 )
 
     def test_publish_requires_onchain_configuration(self) -> None:

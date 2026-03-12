@@ -21,12 +21,17 @@ class AuditService:
         data_root: Path,
         contract_config: ContractConfig | None = None,
         publisher: ProofOfAuditPublisher | None = None,
+        arbiter_client: ProofOfAuditPublisher | None = None,
     ) -> None:
         self.store = JsonStore(data_root)
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(self.contract_config.demo_fixtures_file)
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config
+        )
+        self.arbiter_client = arbiter_client or ProofOfAuditPublisher.from_config_if_ready(
+            self.contract_config,
+            private_key=self.contract_config.arbiter_private_key,
         )
 
     def create_audit(
@@ -134,6 +139,44 @@ class AuditService:
             ),
         }
         record["status"] = "challenged"
+        self.store.write(audit_id, record)
+        return record
+
+    def resolve_audit(
+        self, audit_id: str, upheld: bool, resolved_by: str
+    ) -> dict[str, Any]:
+        record = self._require_audit(audit_id)
+        if record["status"] != "challenged" or record["challenge"] is None:
+            raise ValueError("audit must be challenged before resolution")
+        onchain_audit_id = record.get("onchain", {}).get("audit_id")
+        if not isinstance(onchain_audit_id, int):
+            raise ValueError("challenged audit is missing its on-chain audit id")
+        if self.arbiter_client is None:
+            raise OnchainConfigurationError(
+                "On-chain resolution is not configured for this API instance."
+            )
+
+        resolution_result = self.arbiter_client.resolve_challenge(
+            audit_id=onchain_audit_id,
+            upheld=upheld,
+        )
+        challenge = record["challenge"]
+        challenge.update(
+            {
+                "status": resolution_result.resolution,
+                "resolution": resolution_result.resolution,
+                "resolved_at": datetime.now(UTC).isoformat(),
+                "resolved_by": resolved_by,
+                "beneficiary_address": resolution_result.beneficiary_address,
+                "payout_wei": resolution_result.payout_wei,
+                "resolve_tx_hash": resolution_result.tx_hash,
+                "resolve_tx_url": self.contract_config.transaction_url(
+                    resolution_result.tx_hash
+                ),
+                "verifier": "arbiter-resolution",
+            }
+        )
+        record["status"] = "resolved"
         self.store.write(audit_id, record)
         return record
 

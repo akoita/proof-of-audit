@@ -61,11 +61,18 @@ type AuditRecord = {
     submitted_at: string;
     verifier: string;
     status: string;
+    resolution?: string | null;
+    resolved_at?: string | null;
+    resolved_by?: string | null;
+    beneficiary_address?: string | null;
+    payout_wei?: number | null;
     challenge_hash?: string | null;
     challenge_bond_wei?: number | null;
     chain_id?: number | null;
     challenge_tx_hash: string;
     challenge_tx_url?: string | null;
+    resolve_tx_hash?: string | null;
+    resolve_tx_url?: string | null;
   };
 };
 
@@ -515,7 +522,10 @@ export function AuditWorkbench() {
         <article className="panel report-panel">
           <div className="section-heading">
             <p>Current audit</p>
-            <span data-tone={statusTone(activeAudit?.status ?? "none")}>
+            <span
+              data-testid="current-audit-status"
+              data-tone={statusTone(activeAudit?.status ?? "none")}
+            >
               {activeAudit?.status ?? "none"}
             </span>
           </div>
@@ -702,7 +712,10 @@ export function AuditWorkbench() {
                 <div className="challenge-card">
                   <div className="section-heading">
                     <p>Challenge status</p>
-                    <span data-tone={statusTone(activeAudit.challenge.status)}>
+                    <span
+                      data-testid="challenge-status"
+                      data-tone={statusTone(activeAudit.challenge.status)}
+                    >
                       {activeAudit.challenge.status}
                     </span>
                   </div>
@@ -744,7 +757,26 @@ export function AuditWorkbench() {
                     ) : (
                       <span className="muted">Challenge tx confirmed on the local chain.</span>
                     )}
+                    {activeAudit.challenge.resolve_tx_url &&
+                    isExplorerLink(activeAudit.challenge.resolve_tx_url) ? (
+                      <a
+                        href={activeAudit.challenge.resolve_tx_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View resolution transaction
+                      </a>
+                    ) : null}
                   </div>
+                  {activeAudit.challenge.resolution ? (
+                    <p className="muted">
+                      Resolution {activeAudit.challenge.resolution} by{" "}
+                      {activeAudit.challenge.resolved_by ?? "arbiter"} with payout{" "}
+                      {activeAudit.challenge.payout_wei
+                        ? formatEth(activeAudit.challenge.payout_wei)
+                        : "pending"}.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </>

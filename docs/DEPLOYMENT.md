@@ -59,7 +59,7 @@ This script:
 - writes `deployments/localhost.json`
 - writes `api/.env.local`
 - writes `web/.env.local`
-- includes the localhost publisher private key in `api/.env.local` so the API can submit real local publish and challenge transactions
+- includes the localhost publisher and arbiter private keys in `api/.env.local` so the API can submit real local publish, challenge, and resolve transactions
 
 Generated files are ignored by Git and are meant for local development only.
 
@@ -150,6 +150,7 @@ The API can target the deployed contract with:
 - `PROOF_OF_AUDIT_CONTRACT_ADDRESS`
 - `PROOF_OF_AUDIT_RPC_URL`
 - `PROOF_OF_AUDIT_PRIVATE_KEY`
+- `PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY`
 
 ## Dry run
 

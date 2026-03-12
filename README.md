@@ -116,6 +116,19 @@ Web defaults:
 - `http://127.0.0.1:3000`
 - expects the API server to already be running
 
+### Run end-to-end tests
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit/web
+pnpm install
+pnpm exec playwright install --with-deps chromium
+
+cd /home/koita/dev/hackatons/proof-of-audit
+make test-e2e
+```
+
+The e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the API and Next.js app on isolated ports, and exercises submit, publish, challenge, and resolve against the real stack.
+
 ## API shape
 
 - `GET /health`
@@ -126,6 +139,7 @@ Web defaults:
 - `GET /audits/:id`
 - `POST /audits/:id/publish`
 - `POST /audits/:id/challenge`
+- `POST /audits/:id/resolve`
 
 ### Example create audit request
 
@@ -160,6 +174,7 @@ Core commands:
 cd /home/koita/dev/hackatons/proof-of-audit
 python3 -m pip install -r api/requirements.txt
 make test-python
+make test-e2e
 cd contracts && forge test
 cd ../web && pnpm build
 ```

@@ -103,6 +103,13 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(challenged.status_code, 400)
         self.assertEqual(challenged.json()["error"], "invalid_payload")
 
+        resolved = self.client.post(
+            f"/audits/{audit_id}/resolve",
+            json={"upheld": True, "resolved_by": "arbiter-operator"},
+        )
+        self.assertEqual(resolved.status_code, 400)
+        self.assertEqual(resolved.json()["error"], "invalid_payload")
+
     def test_publish_unknown_audit_returns_404(self) -> None:
         response = self.client.post(
             "/audits/does-not-exist/publish",
@@ -124,12 +131,14 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         onchain = build_onchain_test_context()
+        self.onchain = onchain
         self.chain_id = onchain.contract_config.chain_id
         self.target_address = onchain.web3.eth.accounts[2]
         service = AuditService(
             Path(self.tempdir.name) / "data",
             contract_config=onchain.contract_config,
             publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
         )
         app = create_app(audit_service=service)
         self.client = TestClient(app)
@@ -180,3 +189,18 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         )
         self.assertEqual(duplicate.status_code, 400)
         self.assertEqual(duplicate.json()["error"], "invalid_payload")
+
+        resolved = self.client.post(
+            f"/audits/{audit_id}/resolve",
+            json={"upheld": True, "resolved_by": "arbiter-operator"},
+        )
+        self.assertEqual(resolved.status_code, 200)
+        resolved_payload = resolved.json()
+        self.assertEqual(resolved_payload["status"], "resolved")
+        self.assertEqual(resolved_payload["challenge"]["status"], "upheld")
+        self.assertEqual(resolved_payload["challenge"]["resolution"], "upheld")
+        self.assertTrue(resolved_payload["challenge"]["resolve_tx_hash"].startswith("0x"))
+
+        audit_record = self.onchain.contract.functions.getAudit(1).call()
+        self.assertEqual(int(audit_record[10]), 3)
+        self.assertEqual(int(audit_record[11]), 1)

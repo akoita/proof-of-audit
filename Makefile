@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures install-api-deps test-contracts test-python
+.PHONY: anvil deploy-local deploy-demo-fixtures install-api-deps test-contracts test-python test-e2e
 
 PYTHON ?= python3
 
@@ -20,3 +20,6 @@ test-contracts:
 test-python:
 	PYTHONPATH=agent:api $(PYTHON) -m unittest discover -s agent/tests
 	PYTHONPATH=agent:api $(PYTHON) -m unittest discover -s api/tests
+
+test-e2e:
+	cd web && PYTHON_BIN=$(PYTHON) pnpm exec playwright test
