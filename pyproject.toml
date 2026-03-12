@@ -28,6 +28,9 @@ include = ["proof_of_audit_agent*", "proof_of_audit_api*"]
 
 [tool.pytest.ini_options]
 addopts = "--capture=no"
+markers = [
+  "system_e2e: boots the real API and chain stack and drives it over HTTP",
+]
 testpaths = [
   "agent/tests",
   "api/tests",

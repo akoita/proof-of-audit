@@ -30,6 +30,21 @@ jobs:
       - name: Run Foundry tests
         run: forge test --root contracts
 
+  system-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API dependencies
+        run: python -m pip install setuptools wheel && python -m pip install --no-build-isolation -e '.[dev]'
+      - name: Ensure system e2e scripts are executable
+        run: chmod +x scripts/run-system-e2e-stack.sh scripts/start-anvil.sh scripts/deploy-local.sh scripts/deploy-demo-fixtures.sh
+      - name: Run system end-to-end tests
+        run: PYTHON_BIN=python make test-system-e2e
+
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -75,6 +90,6 @@ jobs:
         working-directory: web
         run: pnpm exec playwright install --with-deps chromium
       - name: Ensure e2e scripts are executable
-        run: chmod +x scripts/run-e2e-stack.sh
-      - name: Run end-to-end tests
-        run: PYTHON_BIN=python make test-e2e
+        run: chmod +x scripts/run-e2e-stack.sh scripts/start-anvil.sh scripts/deploy-local.sh scripts/deploy-demo-fixtures.sh
+      - name: Run UI end-to-end tests
+        run: PYTHON_BIN=python make test-ui-e2e

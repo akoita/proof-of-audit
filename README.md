@@ -121,7 +121,16 @@ Web defaults:
 - `http://127.0.0.1:3000`
 - expects the API server to already be running
 
-### Run end-to-end tests
+### Run system end-to-end tests
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+make test-system-e2e
+```
+
+The system e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the real API on an isolated port, and drives the submit, publish, challenge, and resolve lifecycle over HTTP.
+
+### Run UI end-to-end tests
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit/web
@@ -129,10 +138,10 @@ pnpm install
 pnpm exec playwright install --with-deps chromium
 
 cd /home/koita/dev/hackatons/proof-of-audit
-make test-e2e
+make test-ui-e2e
 ```
 
-The e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the API and Next.js app on isolated ports, and exercises submit, publish, deterministic challenge verification, and on-chain resolution against the real stack.
+The UI e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the API and Next.js app on isolated ports, and validates the browser flow against the real stack.
 
 ## API shape
 
@@ -188,6 +197,8 @@ cd /home/koita/dev/hackatons/proof-of-audit
 python3 -m pip install setuptools wheel
 python3 -m pip install --no-build-isolation -e '.[dev]'
 make test-python
+make test-system-e2e
+make test-ui-e2e
 make test-e2e
 cd contracts && forge test
 cd ../web && pnpm build
