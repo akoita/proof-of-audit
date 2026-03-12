@@ -13,7 +13,7 @@ Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web c
 The current implementation focuses on:
 
 - benchmark-driven smart contract audit reports
-- publish and challenge flows backed by a stake
+- real publish transactions and challenge flows backed by a stake
 - a browser-based demo path for submit, publish, and review
 - a compact Foundry contract with tested stake accounting
 
@@ -67,6 +67,8 @@ Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract
 - `deployments/localhost.json`
 - `api/.env.local`
 - `web/.env.local`
+
+For localhost only, the generated `api/.env.local` also includes the Anvil publisher key so `POST /audits/:id/publish` can submit a real local transaction without extra manual exports.
 
 It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
 

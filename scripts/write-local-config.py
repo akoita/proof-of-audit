@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--network", default="anvil-local")
     parser.add_argument("--explorer-base-url", default="http://127.0.0.1:8545")
     parser.add_argument("--api-url", default="http://127.0.0.1:8080")
+    parser.add_argument("--publisher-private-key", required=True)
     parser.add_argument("--required-stake-wei", default="10000000000000000")
     parser.add_argument("--required-challenge-bond-wei", default="5000000000000000")
     parser.add_argument("--challenge-window-seconds", default="86400")
@@ -54,6 +55,7 @@ def main() -> None:
             "PROOF_OF_AUDIT_EXPLORER_BASE_URL": args.explorer_base_url,
             "PROOF_OF_AUDIT_ARBITER": args.arbiter,
             "PROOF_OF_AUDIT_RPC_URL": args.rpc_url,
+            "PROOF_OF_AUDIT_PRIVATE_KEY": args.publisher_private_key,
             "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": args.required_stake_wei,
             "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": args.required_challenge_bond_wei,
             "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": args.challenge_window_seconds,
@@ -78,4 +80,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

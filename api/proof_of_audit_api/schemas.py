@@ -26,6 +26,7 @@ class AuditReportModel(BaseModel):
 
 
 class OnchainPublicationModel(BaseModel):
+    audit_id: int | None = None
     network: str
     chain_id: int
     contract_address: str | None = None

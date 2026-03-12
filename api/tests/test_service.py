@@ -4,7 +4,9 @@ from pathlib import Path
 import json
 
 from proof_of_audit_api.config import ContractConfig
+from proof_of_audit_api.publisher import OnchainConfigurationError
 from proof_of_audit_api.service import AuditService
+from helpers import build_onchain_test_context
 
 
 class AuditServiceTest(unittest.TestCase):
@@ -27,32 +29,36 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_create_publish_and_challenge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
             service = AuditService(
                 Path(tmpdir),
-                contract_config=ContractConfig.from_env(
-                    {"PROOF_OF_AUDIT_CONTRACT_ADDRESS": "0xfeedface"}
-                ),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
             )
             created = service.create_audit(
-                "0x1000000000000000000000000000000000000001",
+                onchain.web3.eth.accounts[2],
                 submitted_by="judge",
             )
 
             self.assertEqual(created["status"], "draft")
-            self.assertEqual(created["report"]["benchmark_id"], "reentrancy-bank")
+            self.assertEqual(created["report"]["benchmark_id"], "unknown")
 
             published = service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
             self.assertEqual(published["status"], "published")
-            self.assertEqual(published["onchain"]["network"], "base-sepolia")
-            self.assertEqual(published["onchain"]["chain_id"], 84532)
+            self.assertEqual(published["onchain"]["network"], "eth-tester")
             self.assertEqual(
-                published["onchain"]["contract_address"], "0xfeedface"
+                published["onchain"]["chain_id"], onchain.contract_config.chain_id
+            )
+            self.assertEqual(
+                published["onchain"]["contract_address"],
+                onchain.contract_config.contract_address,
             )
             self.assertTrue(
                 published["onchain"]["publish_tx_url"].startswith(
-                    "https://sepolia.basescan.org/tx/0x"
+                    "http://127.0.0.1:8545/tx/0x"
                 )
             )
+            self.assertEqual(published["onchain"]["audit_id"], 1)
 
             challenged = service.challenge_audit(
                 created["id"],
@@ -63,7 +69,7 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(challenged["challenge"]["status"], "accepted")
             self.assertTrue(
                 challenged["challenge"]["challenge_tx_url"].startswith(
-                    "https://sepolia.basescan.org/tx/0x"
+                    "http://127.0.0.1:8545/tx/0x"
                 )
             )
 
@@ -83,6 +89,23 @@ class AuditServiceTest(unittest.TestCase):
                     "ipfs://demo-poc",
                     challenger="whitehat",
                 )
+
+    def test_publish_requires_onchain_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=ContractConfig.from_env({}),
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+
+            with self.assertRaisesRegex(
+                OnchainConfigurationError,
+                "On-chain publishing is not configured",
+            ):
+                service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
 
     def test_lists_demo_fixtures_from_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -28,6 +28,7 @@ type AuditRecord = {
     max_severity: number;
   };
   onchain: null | {
+    audit_id?: number;
     network: string;
     agent_identity: string;
     stake_wei: number;

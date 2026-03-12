@@ -11,11 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install API dependencies
         run: python -m pip install -r api/requirements.txt
+      - name: Build contract artifacts for Python integration tests
+        run: forge build --root contracts
       - name: Run Python tests
         run: make test-python
 
