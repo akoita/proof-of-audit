@@ -86,17 +86,19 @@ forge test
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
-python3 -m pip install -r api/requirements.txt
+python3 -m pip install setuptools wheel
+python3 -m pip install --no-build-isolation -e '.[dev]'
 make test-python
 ```
 
-The Python suite runs with `pytest`.
+The Python suite runs with `pytest`, configured via `pyproject.toml`.
 
 ### Run the API
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
-python3 -m pip install -r api/requirements.txt
+python3 -m pip install setuptools wheel
+python3 -m pip install --no-build-isolation -e '.[dev]'
 PYTHONPATH=agent:api python3 -m proof_of_audit_api.app
 ```
 
@@ -183,7 +185,8 @@ Core commands:
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
-python3 -m pip install -r api/requirements.txt
+python3 -m pip install setuptools wheel
+python3 -m pip install --no-build-isolation -e '.[dev]'
 make test-python
 make test-e2e
 cd contracts && forge test
@@ -207,7 +210,7 @@ The live contract address is still pending until a funded deployer and RPC crede
 ## Notes
 
 - The contract path is runnable and tested in this environment.
-- The Python agent uses the system Python, and the API dependencies are listed in `api/requirements.txt`.
+- The Python agent and API install from the root `pyproject.toml`.
 - The web app uses a direct browser connection to the Python API, so the API exposes permissive local-demo CORS headers.
 
 ## Security

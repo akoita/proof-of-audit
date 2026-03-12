@@ -12,7 +12,8 @@ deploy-demo-fixtures:
 	./scripts/deploy-demo-fixtures.sh
 
 install-api-deps:
-	$(PYTHON) -m pip install -r api/requirements.txt
+	$(PYTHON) -m pip install setuptools wheel
+	$(PYTHON) -m pip install --no-build-isolation -e '.[dev]'
 
 test-contracts:
 	forge test --root contracts
