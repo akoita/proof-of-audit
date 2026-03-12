@@ -2,7 +2,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from pathlib import Path
 from typing import Mapping
+
+DEFAULT_API_ENV_FILE = Path(__file__).resolve().parents[1] / ".env.local"
+
+
+def load_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    return values
 
 
 @dataclass(frozen=True)
@@ -19,8 +36,16 @@ class ContractConfig:
     challenge_window_seconds: int
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "ContractConfig":
-        source = env or os.environ
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        env_file: Path | None = None,
+    ) -> "ContractConfig":
+        if env is None:
+            source: dict[str, str] = load_env_file(env_file or DEFAULT_API_ENV_FILE)
+            source.update(os.environ)
+        else:
+            source = dict(env)
         return cls(
             network=source.get("PROOF_OF_AUDIT_NETWORK", "base-sepolia"),
             chain_id=int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532")),

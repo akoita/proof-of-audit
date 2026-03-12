@@ -1,5 +1,74 @@
 # Deployment
 
+## Localhost with Anvil
+
+The fastest local development loop is:
+
+1. start Anvil
+2. deploy `ProofOfAudit` to localhost
+3. let the deployment script write fresh local config for the API and web app
+4. run the API and frontend against those generated values
+
+### Start Anvil
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/start-anvil.sh
+```
+
+Defaults:
+
+- RPC URL: `http://127.0.0.1:8545`
+- chain id: `31337`
+- deployer key: first default Anvil key, unless overridden
+- arbiter: first default Anvil account, unless overridden
+
+### Deploy locally and sync config
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/deploy-local.sh
+```
+
+This script:
+
+- deploys the contract to the running local chain
+- verifies that bytecode exists at the deployed address
+- writes `deployments/localhost.json`
+- writes `api/.env.local`
+- writes `web/.env.local`
+
+Generated files are ignored by Git and are meant for local development only.
+
+### Run the API against the generated local config
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
+```
+
+The API automatically loads `api/.env.local` if it exists.
+
+### Run the frontend against the generated local config
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit/web
+pnpm dev
+```
+
+Next.js automatically loads `web/.env.local`.
+
+### Local overrides
+
+You can override defaults without committing secrets:
+
+```bash
+export ANVIL_RPC_URL=http://127.0.0.1:8545
+export PROOF_OF_AUDIT_ARBITER=0xYourLocalArbiter
+export LOCAL_DEPLOYER_PRIVATE_KEY=0xYourLocalPrivateKey
+./scripts/deploy-local.sh
+```
+
 ## Base Sepolia
 
 Proof-of-Audit is configured to deploy to Base Sepolia with the following defaults:
