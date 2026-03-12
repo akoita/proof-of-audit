@@ -17,5 +17,6 @@ node_modules/
 .next/
 dist/
 coverage/
+deployments/localhost.json
 api/data/*.json
 !api/data/.gitkeep

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from proof_of_audit_api.config import ContractConfig
+from proof_of_audit_api.config import ContractConfig, DEFAULT_API_ENV_FILE
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
@@ -26,8 +26,11 @@ from proof_of_audit_api.service import AuditService
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 
-def create_app(data_root: Path | None = None) -> FastAPI:
-    contract_config = ContractConfig.from_env()
+def create_app(
+    data_root: Path | None = None,
+    env_file: Path | None = DEFAULT_API_ENV_FILE,
+) -> FastAPI:
+    contract_config = ContractConfig.from_env(env_file=env_file)
     app = FastAPI(
         title="Proof-of-Audit API",
         version="0.2.0",

@@ -41,6 +41,30 @@ This repo implements a compact, coherent v1:
 
 ## Quick start
 
+### Local deployment loop
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/start-anvil.sh
+```
+
+In a second shell:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/deploy-local.sh
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
+```
+
+Then start the frontend:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit/web
+pnpm dev
+```
+
+The local deploy script automatically updates ignored config files for the API and web app.
+
 ### Contracts
 
 ```bash

@@ -1,6 +1,8 @@
 import unittest
+from pathlib import Path
+import tempfile
 
-from proof_of_audit_api.config import ContractConfig
+from proof_of_audit_api.config import ContractConfig, load_env_file
 
 
 class ContractConfigTest(unittest.TestCase):
@@ -43,3 +45,27 @@ class ContractConfigTest(unittest.TestCase):
             config.transaction_url("0x123"),
             "https://sepolia.basescan.org/tx/0x123",
         )
+
+    def test_reads_env_file_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_file = Path(tmpdir) / ".env.local"
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                        "PROOF_OF_AUDIT_CHAIN_ID=31337",
+                        "PROOF_OF_AUDIT_CONTRACT_ADDRESS=0xlocal",
+                        "PROOF_OF_AUDIT_RPC_URL=http://127.0.0.1:8545",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(load_env_file(env_file)["PROOF_OF_AUDIT_NETWORK"], "anvil-local")
+            config = ContractConfig.from_env(env_file=env_file)
+
+            self.assertEqual(config.network, "anvil-local")
+            self.assertEqual(config.chain_id, 31337)
+            self.assertEqual(config.contract_address, "0xlocal")
+            self.assertEqual(config.rpc_url, "http://127.0.0.1:8545")
+            self.assertTrue(config.deployment_ready)

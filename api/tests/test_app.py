@@ -10,7 +10,10 @@ from proof_of_audit_api.app import create_app
 class AuditApiAppTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
-        app = create_app(Path(self.tempdir.name))
+        app = create_app(
+            Path(self.tempdir.name),
+            env_file=Path(self.tempdir.name) / ".env.local",
+        )
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
