@@ -66,11 +66,33 @@ class AuditServiceTest(unittest.TestCase):
                 challenger="whitehat",
             )
             self.assertEqual(challenged["status"], "challenged")
-            self.assertEqual(challenged["challenge"]["status"], "accepted")
+            self.assertEqual(challenged["challenge"]["status"], "opened")
+            self.assertEqual(
+                challenged["challenge"]["challenger_address"],
+                onchain.publisher.account.address,
+            )
+            self.assertEqual(
+                challenged["challenge"]["challenge_bond_wei"],
+                onchain.contract_config.required_challenge_bond_wei,
+            )
             self.assertTrue(
                 challenged["challenge"]["challenge_tx_url"].startswith(
                     "http://127.0.0.1:8545/tx/0x"
                 )
+            )
+            audit_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(audit_record[10]), 2)
+            self.assertEqual(
+                int(audit_record[7]),
+                onchain.contract_config.required_challenge_bond_wei,
+            )
+            self.assertEqual(
+                onchain.web3.to_checksum_address(audit_record[12]),
+                onchain.publisher.account.address,
+            )
+            self.assertEqual(
+                onchain.web3.to_hex(audit_record[13]),
+                challenged["challenge"]["challenge_hash"],
             )
 
     def test_challenge_requires_publish(self) -> None:
@@ -88,6 +110,32 @@ class AuditServiceTest(unittest.TestCase):
                     created["id"],
                     "ipfs://demo-poc",
                     challenger="whitehat",
+                )
+
+    def test_duplicate_challenge_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+            )
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+            service.challenge_audit(
+                created["id"],
+                "ipfs://demo-poc",
+                challenger="whitehat",
+            )
+
+            with self.assertRaisesRegex(ValueError, "already been challenged"):
+                service.challenge_audit(
+                    created["id"],
+                    "ipfs://second-poc",
+                    challenger="second-whitehat",
                 )
 
     def test_publish_requires_onchain_configuration(self) -> None:

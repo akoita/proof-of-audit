@@ -251,7 +251,7 @@ export function AuditWorkbench() {
             </div>
             <div>
               <span>Resolution</span>
-              <strong>Immediate deterministic review</strong>
+              <strong>On-chain challenge opening</strong>
             </div>
           </div>
           <form className="submit-card" onSubmit={handleSubmit}>
@@ -302,7 +302,7 @@ export function AuditWorkbench() {
           </div>
           <div className="signal-row">
             <span>Challenge path</span>
-            <strong>Deterministic verifier, immediate resolution</strong>
+            <strong>Real challenge transactions, resolution follows</strong>
           </div>
           <div className="signal-note">
             Local fixtures are deployed to Anvil and surfaced through the API,

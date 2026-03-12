@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from eth_tester import EthereumTester, PyEVMBackend
 from web3 import EthereumTesterProvider, Web3
+from web3.contract import Contract
 
 from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.publisher import (
@@ -16,6 +17,7 @@ from proof_of_audit_api.publisher import (
 @dataclass(frozen=True)
 class OnchainTestContext:
     web3: Web3
+    contract: Contract
     contract_config: ContractConfig
     publisher: ProofOfAuditPublisher
 
@@ -70,6 +72,7 @@ def build_onchain_test_context() -> OnchainTestContext:
     publisher = ProofOfAuditPublisher(contract_config, web3=web3)
     return OnchainTestContext(
         web3=web3,
+        contract=publisher.contract,
         contract_config=contract_config,
         publisher=publisher,
     )

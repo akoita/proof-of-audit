@@ -43,10 +43,14 @@ class OnchainPublicationModel(BaseModel):
 
 class ChallengeModel(BaseModel):
     challenger: str
+    challenger_address: str | None = None
     proof_uri: str
     submitted_at: str
     verifier: str
     status: str
+    challenge_hash: str | None = None
+    challenge_bond_wei: int | None = None
+    chain_id: int | None = None
     challenge_tx_hash: str
     challenge_tx_url: str | None = None
 

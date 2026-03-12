@@ -59,7 +59,7 @@ This script:
 - writes `deployments/localhost.json`
 - writes `api/.env.local`
 - writes `web/.env.local`
-- includes the localhost publisher private key in `api/.env.local` so the API can submit real local publish transactions
+- includes the localhost publisher private key in `api/.env.local` so the API can submit real local publish and challenge transactions
 
 Generated files are ignored by Git and are meant for local development only.
 
