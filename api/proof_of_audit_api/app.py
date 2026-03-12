@@ -15,6 +15,7 @@ from proof_of_audit_api.schemas import (
     AuditRecordModel,
     ChallengeAuditRequest,
     CreateAuditRequest,
+    DemoFixtureListResponse,
     ErrorResponse,
     HealthResponse,
     PublicContractConfigResponse,
@@ -97,6 +98,15 @@ def create_app(
     def list_audits(request: Request) -> AuditListResponse:
         service = _service(request)
         return AuditListResponse(items=service.list_audits())
+
+    @app.get(
+        "/fixtures",
+        response_model=DemoFixtureListResponse,
+        responses={status.HTTP_200_OK: {"model": DemoFixtureListResponse}},
+    )
+    def list_demo_fixtures(request: Request) -> DemoFixtureListResponse:
+        service = _service(request)
+        return DemoFixtureListResponse(items=service.list_demo_fixtures())
 
     @app.get(
         "/audits/{audit_id}",

@@ -16,8 +16,8 @@ class AuditService:
         self, data_root: Path, contract_config: ContractConfig | None = None
     ) -> None:
         self.store = JsonStore(data_root)
-        self.worker = AuditWorker()
         self.contract_config = contract_config or ContractConfig.from_env()
+        self.worker = AuditWorker(self.contract_config.demo_fixtures_file)
 
     def create_audit(
         self, contract_address: str, submitted_by: str = "anonymous"
@@ -43,6 +43,9 @@ class AuditService:
     def list_audits(self) -> list[dict[str, Any]]:
         records = self.store.list_all()
         return sorted(records, key=lambda record: record["created_at"], reverse=True)
+
+    def list_demo_fixtures(self) -> list[dict[str, Any]]:
+        return self.worker.list_demo_fixtures()
 
     def publish_audit(
         self, audit_id: str, stake_wei: int, agent_identity: str

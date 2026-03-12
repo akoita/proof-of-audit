@@ -27,6 +27,7 @@ class ContractConfigTest(unittest.TestCase):
                 "PROOF_OF_AUDIT_ARBITER": "0xarbiter",
                 "PROOF_OF_AUDIT_RPC_URL": "https://rpc.example",
                 "PROOF_OF_AUDIT_PRIVATE_KEY": "secret",
+                "PROOF_OF_AUDIT_DEMO_FIXTURES_FILE": "/tmp/demo-fixtures.json",
                 "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": "123",
                 "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": "45",
                 "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "67",
@@ -37,6 +38,7 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.arbiter, "0xarbiter")
         self.assertEqual(config.rpc_url, "https://rpc.example")
         self.assertEqual(config.publisher_private_key, "secret")
+        self.assertIsNone(config.demo_fixtures_file)
         self.assertEqual(config.required_stake_wei, 123)
         self.assertEqual(config.required_challenge_bond_wei, 45)
         self.assertEqual(config.challenge_window_seconds, 67)
@@ -56,16 +58,22 @@ class ContractConfigTest(unittest.TestCase):
                         "PROOF_OF_AUDIT_CHAIN_ID=31337",
                         "PROOF_OF_AUDIT_CONTRACT_ADDRESS=0xlocal",
                         "PROOF_OF_AUDIT_RPC_URL=http://127.0.0.1:8545",
+                        f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={tmpdir}/fixtures.json",
                     ]
                 ),
                 encoding="utf-8",
             )
+            fixtures_file = Path(tmpdir) / "fixtures.json"
+            fixtures_file.write_text('{"fixtures":[]}\n', encoding="utf-8")
 
-            self.assertEqual(load_env_file(env_file)["PROOF_OF_AUDIT_NETWORK"], "anvil-local")
+            self.assertEqual(
+                load_env_file(env_file)["PROOF_OF_AUDIT_NETWORK"], "anvil-local"
+            )
             config = ContractConfig.from_env(env_file=env_file)
 
             self.assertEqual(config.network, "anvil-local")
             self.assertEqual(config.chain_id, 31337)
             self.assertEqual(config.contract_address, "0xlocal")
             self.assertEqual(config.rpc_url, "http://127.0.0.1:8545")
+            self.assertEqual(config.demo_fixtures_file, fixtures_file)
             self.assertTrue(config.deployment_ready)

@@ -6,8 +6,9 @@ The fastest local development loop is:
 
 1. start Anvil
 2. deploy `ProofOfAudit` to localhost
-3. let the deployment script write fresh local config for the API and web app
-4. run the API and frontend against those generated values
+3. deploy the demo fixtures to localhost
+4. let the deployment scripts write fresh local config for the API and web app
+5. run the API and frontend against those generated values
 
 ### Condensed local flow
 
@@ -19,10 +20,13 @@ cd /home/koita/dev/hackatons/proof-of-audit
 # 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
 ./scripts/deploy-local.sh
 
-# 2. Start the API (loads api/.env.local automatically)
+# 2. Deploy the demo fixtures and write the local fixture manifest
+./scripts/deploy-demo-fixtures.sh
+
+# 3. Start the API (loads api/.env.local automatically)
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 
-# 3. Start the frontend in a separate terminal (loads web/.env.local automatically)
+# 4. Start the frontend in a separate terminal (loads web/.env.local automatically)
 cd /home/koita/dev/hackatons/proof-of-audit/web
 pnpm dev
 ```
@@ -66,6 +70,29 @@ This script does not:
 - deploy backend or frontend services
 
 It only handles the on-chain localhost deployment plus local config synchronization for the dependent app components.
+
+### Deploy local demo fixtures
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/deploy-demo-fixtures.sh
+```
+
+This script:
+
+- deploys the demo fixture contracts to the running local Anvil chain
+- verifies that bytecode exists at the deployed addresses
+- writes `deployments/demo-fixtures.localhost.json`
+- updates `api/.env.local` with `PROOF_OF_AUDIT_DEMO_FIXTURES_FILE`
+
+This script does not:
+
+- start Anvil
+- start the API server
+- start the frontend dev server
+- deploy backend or frontend services
+
+It only handles local demo fixture deployment and fixture manifest synchronization.
 
 ### Run the API against the generated local config
 

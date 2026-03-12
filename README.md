@@ -51,10 +51,13 @@ cd /home/koita/dev/hackatons/proof-of-audit
 # 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
 ./scripts/deploy-local.sh
 
-# 2. Start the API (loads api/.env.local automatically)
+# 2. Deploy the local demo fixtures and write the fixture manifest
+./scripts/deploy-demo-fixtures.sh
+
+# 3. Start the API (loads api/.env.local automatically)
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 
-# 3. Start the frontend in a separate terminal (loads web/.env.local automatically)
+# 4. Start the frontend in a separate terminal (loads web/.env.local automatically)
 cd /home/koita/dev/hackatons/proof-of-audit/web
 pnpm dev
 ```
@@ -66,6 +69,8 @@ Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract
 - `web/.env.local`
 
 It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
+
+Note: `./scripts/deploy-demo-fixtures.sh` deploys the local benchmark contracts to Anvil, writes `deployments/demo-fixtures.localhost.json`, and updates `api/.env.local` so the API can expose those live fixture addresses to the web app.
 
 ### Contracts
 
@@ -113,6 +118,7 @@ Web defaults:
 
 - `GET /health`
 - `GET /config`
+- `GET /fixtures`
 - `GET /audits`
 - `POST /audits`
 - `GET /audits/:id`

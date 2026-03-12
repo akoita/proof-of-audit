@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+import json
 
 from fastapi.testclient import TestClient
 
@@ -10,9 +11,37 @@ from proof_of_audit_api.app import create_app
 class AuditApiAppTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
+        data_root = Path(self.tempdir.name) / "data"
+        data_root.mkdir()
+        fixtures_file = Path(self.tempdir.name) / "demo-fixtures.localhost.json"
+        fixtures_file.write_text(
+            json.dumps(
+                {
+                    "fixtures": [
+                        {
+                            "id": "vulnerable-bank",
+                            "label": "Vulnerable Bank",
+                            "contract_name": "VulnerableBank",
+                            "entry_contract": "VulnerableBank",
+                            "benchmark_id": "reentrancy-bank",
+                            "address": "0x1000000000000000000000000000000000000001",
+                            "note": "High-confidence reentrancy finding",
+                            "source_path": "demo/contracts/VulnerableBank.sol",
+                        }
+                    ]
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        env_file = Path(self.tempdir.name) / ".env.local"
+        env_file.write_text(
+            f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}\n",
+            encoding="utf-8",
+        )
         app = create_app(
-            Path(self.tempdir.name),
-            env_file=Path(self.tempdir.name) / ".env.local",
+            data_root,
+            env_file=env_file,
         )
         self.client = TestClient(app)
 
@@ -33,6 +62,14 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["network"], "base-sepolia")
         self.assertEqual(payload["chain_id"], 84532)
         self.assertFalse(payload["deployment_ready"])
+
+    def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
+        response = self.client.get("/fixtures")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["items"]), 1)
+        self.assertEqual(payload["items"][0]["benchmark_id"], "reentrancy-bank")
 
     def test_full_audit_flow(self) -> None:
         created = self.client.post(

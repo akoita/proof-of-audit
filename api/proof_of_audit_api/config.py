@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Mapping
 
+from proof_of_audit_agent.fixtures import DEFAULT_DEMO_FIXTURES_FILE, resolve_demo_fixtures_file
+
 DEFAULT_API_ENV_FILE = Path(__file__).resolve().parents[1] / ".env.local"
 
 
@@ -31,6 +33,7 @@ class ContractConfig:
     arbiter: str | None
     rpc_url: str | None
     publisher_private_key: str | None
+    demo_fixtures_file: Path | None
     required_stake_wei: int
     required_challenge_bond_wei: int
     challenge_window_seconds: int
@@ -59,6 +62,11 @@ class ContractConfig:
             or source.get("BASE_SEPOLIA_RPC_URL")
             or None,
             publisher_private_key=source.get("PROOF_OF_AUDIT_PRIVATE_KEY") or None,
+            demo_fixtures_file=resolve_demo_fixtures_file(
+                Path(source["PROOF_OF_AUDIT_DEMO_FIXTURES_FILE"])
+                if source.get("PROOF_OF_AUDIT_DEMO_FIXTURES_FILE")
+                else DEFAULT_DEMO_FIXTURES_FILE
+            ),
             required_stake_wei=int(
                 source.get("PROOF_OF_AUDIT_REQUIRED_STAKE_WEI", "10000000000000000")
             ),

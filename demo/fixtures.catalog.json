@@ -1,0 +1,40 @@
+{
+  "fixtures": [
+    {
+      "id": "vulnerable-bank",
+      "label": "Vulnerable Bank",
+      "contract_name": "VulnerableBank",
+      "entry_contract": "VulnerableBank",
+      "benchmark_id": "reentrancy-bank",
+      "note": "High-confidence reentrancy finding",
+      "source_path": "demo/contracts/VulnerableBank.sol"
+    },
+    {
+      "id": "admin-setter",
+      "label": "Admin Setter",
+      "contract_name": "AdminSetter",
+      "entry_contract": "AdminSetter",
+      "benchmark_id": "admin-setter",
+      "note": "High-confidence access control finding",
+      "source_path": "demo/contracts/AdminSetter.sol"
+    },
+    {
+      "id": "clean-vault",
+      "label": "Clean Vault",
+      "contract_name": "CleanVault",
+      "entry_contract": "CleanVault",
+      "benchmark_id": "clean-vault",
+      "note": "Clean benchmark with medium confidence",
+      "source_path": "demo/contracts/CleanVault.sol"
+    },
+    {
+      "id": "unchecked-treasury",
+      "label": "Unchecked Treasury",
+      "contract_name": "UncheckedTreasury",
+      "entry_contract": "UncheckedTreasury",
+      "benchmark_id": "unchecked-treasury",
+      "note": "Imported registry and unchecked external call",
+      "source_path": "demo/contracts/UncheckedTreasury.sol"
+    }
+  ]
+}

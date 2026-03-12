@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+import json
 
 from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.service import AuditService
@@ -82,6 +83,44 @@ class AuditServiceTest(unittest.TestCase):
                     "ipfs://demo-poc",
                     challenger="whitehat",
                 )
+
+    def test_lists_demo_fixtures_from_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fixtures_file = Path(tmpdir) / "demo-fixtures.localhost.json"
+            fixtures_file.write_text(
+                json.dumps(
+                    {
+                        "fixtures": [
+                            {
+                                "id": "clean-vault",
+                                "label": "Clean Vault",
+                                "contract_name": "CleanVault",
+                                "entry_contract": "CleanVault",
+                                "benchmark_id": "clean-vault",
+                                "address": "0x4444000000000000000000000000000000000004",
+                                "note": "Clean benchmark with medium confidence",
+                                "source_path": "demo/contracts/CleanVault.sol",
+                            }
+                        ]
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=ContractConfig.from_env(
+                    {"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE": str(fixtures_file)}
+                ),
+            )
+
+            fixtures = service.list_demo_fixtures()
+
+            self.assertEqual(len(fixtures), 1)
+            self.assertEqual(fixtures[0]["label"], "Clean Vault")
+            self.assertEqual(
+                fixtures[0]["address"], "0x4444000000000000000000000000000000000004"
+            )
 
 
 if __name__ == "__main__":
