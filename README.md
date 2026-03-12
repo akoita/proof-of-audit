@@ -158,6 +158,7 @@ cd ../web && pnpm build
 
 See the project roadmap in `docs/ROADMAP.md`.
 See deployment setup in `docs/DEPLOYMENT.md`.
+See submission UX guidance in `docs/SUBMISSION_UX.md`.
 
 ## Deployment status
 

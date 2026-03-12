@@ -17,6 +17,7 @@ Goal: move from benchmark-only reports to a stronger agent-backed audit and chal
 1. Integrate `agent-forge` as the audit execution backend behind the worker interface.
 2. Expand the benchmark suite and report schema for multiple finding categories and severities.
 3. Implement a deterministic challenge verifier that can evaluate reproducible PoCs.
+4. Add deployable demo fixtures and source-aware inputs for multi-contract audit targets.
 
 ## Phase 3: Product and Platform Hardening
 
@@ -25,6 +26,7 @@ Goal: make the API, frontend, and storage path durable enough for repeated demos
 1. Migrate the API from `http.server` to FastAPI with typed schemas and cleaner middleware.
 2. Persist audits, reports, and challenge state in a durable application store.
 3. Connect the web application to deployed contract data and explorer links.
+4. Add a multi-source submission UX for addresses, source bundles, and repository imports.
 
 ## Phase 4: Release Readiness
 
@@ -41,4 +43,3 @@ Goal: improve trust, test coverage, and operator confidence.
 - Branch naming should follow `codex/<type>/<issue-number>-<short-slug>`.
 - Changes land through pull requests after CI passes.
 - Branches should be deleted after merge.
-
