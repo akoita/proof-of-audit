@@ -22,6 +22,15 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_public_config_endpoint(self) -> None:
+        response = self.client.get("/config")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["network"], "base-sepolia")
+        self.assertEqual(payload["chain_id"], 84532)
+        self.assertFalse(payload["deployment_ready"])
+
     def test_full_audit_flow(self) -> None:
         created = self.client.post(
             "/audits",

@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .env.*
+!.env.example
 .venv/
 __pycache__/
 *.pyc
@@ -18,4 +19,3 @@ dist/
 coverage/
 api/data/*.json
 !api/data/.gitkeep
-

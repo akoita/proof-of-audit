@@ -6,14 +6,18 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import JsonStore
 
 
 class AuditService:
-    def __init__(self, data_root: Path) -> None:
+    def __init__(
+        self, data_root: Path, contract_config: ContractConfig | None = None
+    ) -> None:
         self.store = JsonStore(data_root)
         self.worker = AuditWorker()
+        self.contract_config = contract_config or ContractConfig.from_env()
 
     def create_audit(
         self, contract_address: str, submitted_by: str = "anonymous"
@@ -52,7 +56,10 @@ class AuditService:
         )
         record["status"] = "published"
         record["onchain"] = {
-            "network": "base-sepolia",
+            "network": self.contract_config.network,
+            "chain_id": self.contract_config.chain_id,
+            "contract_address": self.contract_config.contract_address,
+            "explorer_base_url": self.contract_config.explorer_base_url,
             "agent_identity": agent_identity,
             "stake_wei": stake_wei,
             "report_hash": report["report_hash"],
@@ -60,6 +67,7 @@ class AuditService:
             "max_severity": report["max_severity"],
             "finding_count": len(report["findings"]),
             "publish_tx_hash": fake_tx,
+            "publish_tx_url": self.contract_config.transaction_url(fake_tx),
         }
         self.store.write(audit_id, record)
         return record
@@ -81,6 +89,7 @@ class AuditService:
             "verifier": "deterministic-demo-verifier",
             "status": "accepted" if "poc" in proof_uri.lower() else "pending-review",
             "challenge_tx_hash": tx_hash,
+            "challenge_tx_url": self.contract_config.transaction_url(tx_hash),
         }
         record["status"] = "challenged"
         self.store.write(audit_id, record)
