@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
@@ -16,6 +17,7 @@ from proof_of_audit_api.schemas import (
     CreateAuditRequest,
     ErrorResponse,
     HealthResponse,
+    PublicContractConfigResponse,
     PublishAuditRequest,
 )
 from proof_of_audit_api.service import AuditService
@@ -25,6 +27,7 @@ DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 
 def create_app(data_root: Path | None = None) -> FastAPI:
+    contract_config = ContractConfig.from_env()
     app = FastAPI(
         title="Proof-of-Audit API",
         version="0.2.0",
@@ -36,7 +39,11 @@ def create_app(data_root: Path | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
-    app.state.audit_service = AuditService(data_root or DATA_ROOT)
+    app.state.audit_service = AuditService(
+        data_root or DATA_ROOT,
+        contract_config=contract_config,
+    )
+    app.state.contract_config = contract_config
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(
@@ -63,6 +70,21 @@ def create_app(data_root: Path | None = None) -> FastAPI:
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/config", response_model=PublicContractConfigResponse)
+    def config(request: Request) -> PublicContractConfigResponse:
+        contract_config = request.app.state.contract_config
+        return PublicContractConfigResponse(
+            network=contract_config.network,
+            chain_id=contract_config.chain_id,
+            contract_address=contract_config.contract_address,
+            explorer_base_url=contract_config.explorer_base_url,
+            arbiter=contract_config.arbiter,
+            required_stake_wei=contract_config.required_stake_wei,
+            required_challenge_bond_wei=contract_config.required_challenge_bond_wei,
+            challenge_window_seconds=contract_config.challenge_window_seconds,
+            deployment_ready=contract_config.deployment_ready,
+        )
 
     @app.get(
         "/audits",

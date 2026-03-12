@@ -86,6 +86,7 @@ Web defaults:
 ## API shape
 
 - `GET /health`
+- `GET /config`
 - `GET /audits`
 - `POST /audits`
 - `GET /audits/:id`
@@ -130,6 +131,17 @@ cd ../web && pnpm build
 ```
 
 See the project roadmap in `docs/ROADMAP.md`.
+See deployment setup in `docs/DEPLOYMENT.md`.
+
+## Deployment status
+
+Base Sepolia deployment settings and manifest scaffolding are included in this repository.
+
+- manifest: `deployments/base-sepolia.json`
+- deploy script: `scripts/deploy-base-sepolia.sh`
+- Foundry deployment script: `contracts/script/DeployProofOfAudit.s.sol`
+
+The live contract address is still pending until a funded deployer and RPC credentials are available.
 
 ## Notes
 

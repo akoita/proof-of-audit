@@ -1,0 +1,12 @@
+{
+  "network": "base-sepolia",
+  "chain_id": 84532,
+  "contract_name": "ProofOfAudit",
+  "address": null,
+  "status": "pending_live_deployment",
+  "arbiter": null,
+  "required_stake_wei": "10000000000000000",
+  "required_challenge_bond_wei": "5000000000000000",
+  "challenge_window_seconds": 86400,
+  "notes": "Run scripts/deploy-base-sepolia.sh with funded deployer credentials, then replace address and arbiter."
+}

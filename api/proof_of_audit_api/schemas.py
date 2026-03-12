@@ -27,6 +27,9 @@ class AuditReportModel(BaseModel):
 
 class OnchainPublicationModel(BaseModel):
     network: str
+    chain_id: int
+    contract_address: str | None = None
+    explorer_base_url: str
     agent_identity: str
     stake_wei: int
     report_hash: str
@@ -34,6 +37,7 @@ class OnchainPublicationModel(BaseModel):
     max_severity: int
     finding_count: int
     publish_tx_hash: str
+    publish_tx_url: str | None = None
 
 
 class ChallengeModel(BaseModel):
@@ -43,6 +47,7 @@ class ChallengeModel(BaseModel):
     verifier: str
     status: str
     challenge_tx_hash: str
+    challenge_tx_url: str | None = None
 
 
 class AuditRecordModel(BaseModel):
@@ -62,6 +67,18 @@ class AuditListResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class PublicContractConfigResponse(BaseModel):
+    network: str
+    chain_id: int
+    contract_address: str | None = None
+    explorer_base_url: str
+    arbiter: str | None = None
+    required_stake_wei: int
+    required_challenge_bond_wei: int
+    challenge_window_seconds: int
+    deployment_ready: bool
 
 
 class CreateAuditRequest(BaseModel):
