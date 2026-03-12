@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR="/home/koita/dev/hackatons/proof-of-audit"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 CONTRACTS_DIR="${ROOT_DIR}/contracts"
 RPC_URL="${ANVIL_RPC_URL:-http://127.0.0.1:8545}"
 CHAIN_ID="${ANVIL_CHAIN_ID:-31337}"
@@ -15,6 +16,7 @@ REQUIRED_STAKE_WEI="${PROOF_OF_AUDIT_REQUIRED_STAKE_WEI:-10000000000000000}"
 REQUIRED_CHALLENGE_BOND_WEI="${PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI:-5000000000000000}"
 CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
 BROADCAST_FILE="${CONTRACTS_DIR}/broadcast/DeployProofOfAudit.s.sol/${CHAIN_ID}/run-latest.json"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
   echo "Anvil or another RPC node is not reachable at ${RPC_URL}" >&2
@@ -36,7 +38,7 @@ forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit \
   --broadcast
 
 CONTRACT_ADDRESS="$(
-  python3 - "${BROADCAST_FILE}" <<'PY'
+  "${PYTHON_BIN}" - "${BROADCAST_FILE}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -57,7 +59,7 @@ cast code "${CONTRACT_ADDRESS}" --rpc-url "${RPC_URL}" >/dev/null
 
 cd "${ROOT_DIR}"
 
-python3 scripts/write-local-config.py \
+"${PYTHON_BIN}" scripts/write-local-config.py \
   --contract-address "${CONTRACT_ADDRESS}" \
   --arbiter "${ARBITER}" \
   --rpc-url "${RPC_URL}" \
