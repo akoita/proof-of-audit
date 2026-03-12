@@ -1,128 +1,184 @@
 from __future__ import annotations
 
-import json
 import os
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
 
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uvicorn
+
+from proof_of_audit_api.schemas import (
+    AuditListResponse,
+    AuditRecordModel,
+    ChallengeAuditRequest,
+    CreateAuditRequest,
+    ErrorResponse,
+    HealthResponse,
+    PublishAuditRequest,
+)
 from proof_of_audit_api.service import AuditService
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
-SERVICE = AuditService(DATA_ROOT)
 
 
-class AuditRequestHandler(BaseHTTPRequestHandler):
-    server_version = "ProofOfAuditHTTP/0.1"
+def create_app(data_root: Path | None = None) -> FastAPI:
+    app = FastAPI(
+        title="Proof-of-Audit API",
+        version="0.2.0",
+        description="API for creating, publishing, and challenging audit records.",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
+    app.state.audit_service = AuditService(data_root or DATA_ROOT)
 
-    def do_OPTIONS(self) -> None:  # noqa: N802
-        self.send_response(HTTPStatus.NO_CONTENT.value)
-        self._send_default_headers("application/json", "0")
-        self.end_headers()
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
+        del request
+        if isinstance(exc.detail, dict):
+            return JSONResponse(status_code=exc.status_code, content=exc.detail)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": "http_error", "message": str(exc.detail)},
+        )
 
-    def do_GET(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
-        segments = self._segments(path)
-        if segments == ["health"]:
-            self._send_json({"status": "ok"})
-            return
-        if segments == ["audits"]:
-            self._send_json({"items": SERVICE.list_audits()})
-            return
-        if len(segments) == 2 and segments[0] == "audits":
-            record = SERVICE.get_audit(segments[1])
-            if record is None:
-                self._send_json(
-                    {"error": "audit_not_found"}, status=HTTPStatus.NOT_FOUND
-                )
-                return
-            self._send_json(record)
-            return
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        del request
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"error": "validation_error", "detail": exc.errors()},
+        )
 
-        self._send_json({"error": "not_found"}, status=HTTPStatus.NOT_FOUND)
+    @app.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse(status="ok")
 
-    def do_POST(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
-        segments = self._segments(path)
-        body = self._json_body()
+    @app.get(
+        "/audits",
+        response_model=AuditListResponse,
+        responses={status.HTTP_200_OK: {"model": AuditListResponse}},
+    )
+    def list_audits(request: Request) -> AuditListResponse:
+        service = _service(request)
+        return AuditListResponse(items=service.list_audits())
 
+    @app.get(
+        "/audits/{audit_id}",
+        response_model=AuditRecordModel,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_audit(audit_id: str, request: Request) -> AuditRecordModel:
+        service = _service(request)
+        record = service.get_audit(audit_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "audit_not_found"},
+            )
+        return AuditRecordModel.model_validate(record)
+
+    @app.post(
+        "/audits",
+        response_model=AuditRecordModel,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_audit(
+        payload: CreateAuditRequest, request: Request
+    ) -> AuditRecordModel:
+        service = _service(request)
+        record = service.create_audit(
+            payload.contract_address, submitted_by=payload.submitted_by
+        )
+        return AuditRecordModel.model_validate(record)
+
+    @app.post(
+        "/audits/{audit_id}/publish",
+        response_model=AuditRecordModel,
+        responses={
+            status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
+            status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
+        },
+    )
+    def publish_audit(
+        audit_id: str, payload: PublishAuditRequest, request: Request
+    ) -> AuditRecordModel:
+        service = _service(request)
         try:
-            if segments == ["audits"]:
-                contract_address = body["contract_address"]
-                submitted_by = body.get("submitted_by", "anonymous")
-                record = SERVICE.create_audit(contract_address, submitted_by)
-                self._send_json(record, status=HTTPStatus.CREATED)
-                return
-
-            if len(segments) == 3 and segments[0] == "audits" and segments[2] == "publish":
-                record = SERVICE.publish_audit(
-                    segments[1],
-                    stake_wei=int(body.get("stake_wei", 10_000_000_000_000_000)),
-                    agent_identity=body.get("agent_identity", "auditor-agent-v1"),
-                )
-                self._send_json(record)
-                return
-
-            if len(segments) == 3 and segments[0] == "audits" and segments[2] == "challenge":
-                record = SERVICE.challenge_audit(
-                    segments[1],
-                    proof_uri=body["proof_uri"],
-                    challenger=body.get("challenger", "anonymous-challenger"),
-                )
-                self._send_json(record)
-                return
-        except KeyError as exc:
-            self._send_json(
-                {"error": "missing_field", "field": str(exc)},
-                status=HTTPStatus.BAD_REQUEST,
+            record = service.publish_audit(
+                audit_id,
+                stake_wei=payload.stake_wei,
+                agent_identity=payload.agent_identity,
             )
-            return
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "audit_not_found"},
+            ) from None
         except ValueError as exc:
-            self._send_json(
-                {"error": "invalid_payload", "message": str(exc)},
-                status=HTTPStatus.BAD_REQUEST,
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        return AuditRecordModel.model_validate(record)
+
+    @app.post(
+        "/audits/{audit_id}/challenge",
+        response_model=AuditRecordModel,
+        responses={
+            status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
+            status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
+        },
+    )
+    def challenge_audit(
+        audit_id: str, payload: ChallengeAuditRequest, request: Request
+    ) -> AuditRecordModel:
+        service = _service(request)
+        try:
+            record = service.challenge_audit(
+                audit_id,
+                proof_uri=payload.proof_uri,
+                challenger=payload.challenger,
             )
-            return
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "audit_not_found"},
+            ) from None
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        return AuditRecordModel.model_validate(record)
 
-        self._send_json({"error": "not_found"}, status=HTTPStatus.NOT_FOUND)
+    return app
 
-    def log_message(self, format: str, *args: object) -> None:
-        return
 
-    def _json_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
-        if length == 0:
-            return {}
-        raw = self.rfile.read(length)
-        return json.loads(raw.decode("utf-8"))
-
-    def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
-        data = json.dumps(payload, indent=2).encode("utf-8")
-        self.send_response(status.value)
-        self._send_default_headers("application/json", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
-    def _send_default_headers(self, content_type: str, content_length: str) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", content_length)
-
-    @staticmethod
-    def _segments(path: str) -> list[str]:
-        return [segment for segment in path.split("/") if segment]
+def _service(request: Request) -> AuditService:
+    return request.app.state.audit_service
 
 
 def main() -> None:
     host = os.environ.get("PROOF_OF_AUDIT_HOST", "127.0.0.1")
     port = int(os.environ.get("PROOF_OF_AUDIT_PORT", "8080"))
-    server = ThreadingHTTPServer((host, port), AuditRequestHandler)
-    print(f"Proof-of-Audit API listening on http://{host}:{port}")
-    server.serve_forever()
+    uvicorn.run(
+        "proof_of_audit_api.app:create_app",
+        factory=True,
+        host=host,
+        port=port,
+        reload=False,
+    )
 
 
 if __name__ == "__main__":

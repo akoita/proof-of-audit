@@ -5,9 +5,10 @@ Thanks for your interest in improving Proof-of-Audit.
 ## Development setup
 
 1. Install Python 3.12+, Foundry, Node.js, and pnpm.
-2. Run Python tests from the repository root with `make test-python`.
-3. Run contract tests with `cd contracts && forge test`.
-4. Run the web build with `cd web && pnpm install && pnpm build`.
+2. Install API dependencies with `python3 -m pip install -r api/requirements.txt`.
+3. Run Python tests from the repository root with `make test-python`.
+4. Run contract tests with `cd contracts && forge test`.
+5. Run the web build with `cd web && pnpm install && pnpm build`.
 
 ## Issue-driven workflow
 
@@ -58,4 +59,3 @@ After a pull request is merged:
 1. delete the remote branch
 2. delete the local task branch
 3. return to `main` and pull the latest changes
-
