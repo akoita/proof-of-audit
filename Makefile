@@ -18,8 +18,7 @@ test-contracts:
 	forge test --root contracts
 
 test-python:
-	PYTHONPATH=agent:api $(PYTHON) -m unittest discover -s agent/tests
-	PYTHONPATH=agent:api $(PYTHON) -m unittest discover -s api/tests
+	PYTHONPATH=agent:api $(PYTHON) -m pytest
 
 test-e2e:
 	cd web && PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} pnpm exec playwright test

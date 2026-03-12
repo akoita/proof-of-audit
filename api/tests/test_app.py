@@ -89,6 +89,11 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(created.status_code, 201)
         created_payload = created.json()
         audit_id = created_payload["id"]
+        self.assertEqual(created_payload["report"]["finding_count"], 1)
+        self.assertEqual(
+            created_payload["report"]["findings"][0]["finding_id"],
+            "reentrancy-bank.withdraw.reentrancy",
+        )
 
         listed = self.client.get("/audits")
         self.assertEqual(listed.status_code, 200)
@@ -130,6 +135,30 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         payload = response.json()
         self.assertEqual(payload["detail"][0]["loc"][-1], "contract_address")
+
+    def test_richer_multi_finding_report_shape_is_exposed(self) -> None:
+        response = self.client.post(
+            "/audits",
+            json={
+                "contract_address": "0x1000000000000000000000000000000000000004",
+                "submitted_by": "schema-check",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["report"]["benchmark_id"], "dual-risk-vault")
+        self.assertEqual(payload["report"]["finding_count"], 2)
+        self.assertEqual(payload["report"]["severity_breakdown"]["high"], 1)
+        self.assertEqual(payload["report"]["severity_breakdown"]["medium"], 1)
+        self.assertEqual(
+            payload["report"]["findings"][0]["category"],
+            "access_control",
+        )
+        self.assertEqual(
+            payload["report"]["findings"][1]["affected_function"],
+            "emergencyPayout(uint256)",
+        )
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

@@ -90,6 +90,8 @@ python3 -m pip install -r api/requirements.txt
 make test-python
 ```
 
+The Python suite runs with `pytest`.
+
 ### Run the API
 
 ```bash
@@ -156,6 +158,7 @@ The e2e harness starts a dedicated Anvil instance, deploys the local contract an
 - `0x1000000000000000000000000000000000000001`: reentrancy bug
 - `0x1000000000000000000000000000000000000002`: missing access control
 - `0x1000000000000000000000000000000000000003`: clean contract
+- `0x1000000000000000000000000000000000000004`: multi-finding vault with access control and unchecked payout issues
 
 Unknown contracts return a low-confidence informational report instead of fabricated vulnerabilities.
 

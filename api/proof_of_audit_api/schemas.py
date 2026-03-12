@@ -6,11 +6,20 @@ from pydantic import BaseModel, Field
 
 
 class FindingModel(BaseModel):
+    finding_id: str
     title: str
     severity: str
+    category: str
     description: str
+    impact: str
     recommendation: str
     detector: str
+    confidence: str
+    affected_function: str | None = None
+    source_path: str | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    evidence_uri: str | None = None
 
 
 class AuditReportModel(BaseModel):
@@ -23,6 +32,8 @@ class AuditReportModel(BaseModel):
     report_hash: str
     metadata_hash: str
     max_severity: int
+    finding_count: int
+    severity_breakdown: dict[str, int]
 
 
 class OnchainPublicationModel(BaseModel):

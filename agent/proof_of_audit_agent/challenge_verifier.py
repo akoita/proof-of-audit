@@ -66,6 +66,14 @@ CHALLENGE_CASES = {
         summary="The submitted PoC confirms the unchecked external call already captured in the audit.",
         detail="The verifier rejects this challenge because the benchmark report already attested to the same failure mode.",
     ),
+    "dual-risk-vault": ChallengeCase(
+        case_id="dual-risk-vault-confirmed-finding",
+        benchmark_id="dual-risk-vault",
+        expected_proof_uri="ipfs://dual-risk-vault/owner-takeover",
+        resolution="rejected",
+        summary="The submitted PoC confirms one of the already reported benchmark findings in the multi-issue vault.",
+        detail="The verifier rejects this challenge because the report already covers the unauthorized owner rotation in the Dual Risk Vault fixture.",
+    ),
 }
 
 

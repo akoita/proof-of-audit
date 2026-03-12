@@ -31,6 +31,16 @@
       "source_path": "demo/contracts/CleanVault.sol"
     },
     {
+      "id": "dual-risk-vault",
+      "label": "Dual Risk Vault",
+      "contract_name": "DualRiskVault",
+      "entry_contract": "DualRiskVault",
+      "benchmark_id": "dual-risk-vault",
+      "challenge_proof_uri": "ipfs://dual-risk-vault/owner-takeover",
+      "note": "Multi-finding benchmark with access control and unchecked payout issues",
+      "source_path": "demo/contracts/DualRiskVault.sol"
+    },
+    {
       "id": "unchecked-treasury",
       "label": "Unchecked Treasury",
       "contract_name": "UncheckedTreasury",

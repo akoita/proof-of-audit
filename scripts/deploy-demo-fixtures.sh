@@ -51,6 +51,25 @@ deploy_contract() {
 VULNERABLE_BANK_DEPLOYMENT="$(deploy_contract "demo/contracts/VulnerableBank.sol" "VulnerableBank")"
 ADMIN_SETTER_DEPLOYMENT="$(deploy_contract "demo/contracts/AdminSetter.sol" "AdminSetter")"
 CLEAN_VAULT_DEPLOYMENT="$(deploy_contract "demo/contracts/CleanVault.sol" "CleanVault")"
+DUAL_RISK_VAULT_DEPLOYMENT="$(
+  forge create \
+    --root "${ROOT_DIR}" \
+    --contracts demo/contracts \
+    --use 0.8.28 \
+    --rpc-url "${RPC_URL}" \
+    --private-key "${DEPLOYER_PRIVATE_KEY}" \
+    --broadcast \
+    "demo/contracts/DualRiskVault.sol:DualRiskVault" \
+    --constructor-args 0x000000000000000000000000000000000000dEaD
+)"
+echo "${DUAL_RISK_VAULT_DEPLOYMENT}" >&2
+DUAL_RISK_VAULT_ADDRESS="$(printf '%s\n' "${DUAL_RISK_VAULT_DEPLOYMENT}" | awk '/Deployed to:/ {print $3}')"
+if [[ -z "${DUAL_RISK_VAULT_ADDRESS}" ]]; then
+  echo "Failed to determine deployed address for DualRiskVault" >&2
+  exit 1
+fi
+cast code "${DUAL_RISK_VAULT_ADDRESS}" --rpc-url "${RPC_URL}" >/dev/null
+DUAL_RISK_VAULT_DEPLOYMENT="DualRiskVault=${DUAL_RISK_VAULT_ADDRESS}"
 UNCHECKED_TREASURY_DEPLOYMENT="$(deploy_contract "demo/contracts/UncheckedTreasury.sol" "UncheckedTreasury")"
 
 cd "${ROOT_DIR}"
@@ -65,6 +84,7 @@ cd "${ROOT_DIR}"
   --deployed-contract "${VULNERABLE_BANK_DEPLOYMENT}" \
   --deployed-contract "${ADMIN_SETTER_DEPLOYMENT}" \
   --deployed-contract "${CLEAN_VAULT_DEPLOYMENT}" \
+  --deployed-contract "${DUAL_RISK_VAULT_DEPLOYMENT}" \
   --deployed-contract "${UNCHECKED_TREASURY_DEPLOYMENT}"
 
 echo
