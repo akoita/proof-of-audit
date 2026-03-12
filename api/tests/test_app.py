@@ -6,6 +6,8 @@ import json
 from fastapi.testclient import TestClient
 
 from proof_of_audit_api.app import create_app
+from proof_of_audit_api.service import AuditService
+from helpers import build_onchain_test_context
 
 
 class AuditApiAppTest(unittest.TestCase):
@@ -91,20 +93,8 @@ class AuditApiAppTest(unittest.TestCase):
             f"/audits/{audit_id}/publish",
             json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
         )
-        self.assertEqual(published.status_code, 200)
-        self.assertEqual(published.json()["status"], "published")
-
-        challenged = self.client.post(
-            f"/audits/{audit_id}/challenge",
-            json={"proof_uri": "ipfs://demo-poc", "challenger": "whitehat"},
-        )
-        self.assertEqual(challenged.status_code, 200)
-        self.assertEqual(challenged.json()["status"], "challenged")
-        self.assertEqual(challenged.json()["challenge"]["status"], "accepted")
-
-        fetched = self.client.get(f"/audits/{audit_id}")
-        self.assertEqual(fetched.status_code, 200)
-        self.assertEqual(fetched.json()["id"], audit_id)
+        self.assertEqual(published.status_code, 503)
+        self.assertEqual(published.json()["error"], "onchain_not_configured")
 
     def test_publish_unknown_audit_returns_404(self) -> None:
         response = self.client.post(
@@ -121,3 +111,44 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         payload = response.json()
         self.assertEqual(payload["detail"][0]["loc"][-1], "contract_address")
+
+
+class AuditApiOnchainPublishTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        onchain = build_onchain_test_context()
+        self.chain_id = onchain.contract_config.chain_id
+        self.target_address = onchain.web3.eth.accounts[2]
+        service = AuditService(
+            Path(self.tempdir.name) / "data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+        )
+        app = create_app(audit_service=service)
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        self.tempdir.cleanup()
+
+    def test_publish_persists_real_transaction_data(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+        )
+        self.assertEqual(published.status_code, 200)
+        payload = published.json()
+        self.assertEqual(payload["status"], "published")
+        self.assertEqual(payload["onchain"]["audit_id"], 1)
+        self.assertTrue(payload["onchain"]["publish_tx_hash"].startswith("0x"))
+        self.assertEqual(payload["onchain"]["stake_wei"], 10**16)
+        self.assertEqual(payload["onchain"]["chain_id"], self.chain_id)

@@ -65,6 +65,7 @@ python3 scripts/write-local-config.py \
   --network "${NETWORK}" \
   --explorer-base-url "${EXPLORER_BASE_URL}" \
   --api-url "${API_URL}" \
+  --publisher-private-key "${DEPLOYER_PRIVATE_KEY}" \
   --required-stake-wei "${REQUIRED_STAKE_WEI}" \
   --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
   --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}"

@@ -7,17 +7,28 @@ from typing import Any
 from uuid import uuid4
 
 from proof_of_audit_api.config import ContractConfig
+from proof_of_audit_api.publisher import (
+    OnchainConfigurationError,
+    OnchainPublishError,
+    ProofOfAuditPublisher,
+)
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import JsonStore
 
 
 class AuditService:
     def __init__(
-        self, data_root: Path, contract_config: ContractConfig | None = None
+        self,
+        data_root: Path,
+        contract_config: ContractConfig | None = None,
+        publisher: ProofOfAuditPublisher | None = None,
     ) -> None:
         self.store = JsonStore(data_root)
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(self.contract_config.demo_fixtures_file)
+        self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
+            self.contract_config
+        )
 
     def create_audit(
         self, contract_address: str, submitted_by: str = "anonymous"
@@ -53,14 +64,24 @@ class AuditService:
         record = self._require_audit(audit_id)
         if record["status"] != "draft":
             raise ValueError("audit must be in draft status before publish")
+        if self.publisher is None:
+            raise OnchainConfigurationError(
+                "On-chain publishing is not configured for this API instance."
+            )
         report = record["report"]
-        fake_tx = (
-            "0x" + sha256(f"publish:{audit_id}:{stake_wei}".encode("utf-8")).hexdigest()
+        publish_result = self.publisher.publish_audit(
+            target_address=record["contract_address"],
+            report_hash=report["report_hash"],
+            metadata_hash=report["metadata_hash"],
+            max_severity=report["max_severity"],
+            finding_count=len(report["findings"]),
+            stake_wei=stake_wei,
         )
         record["status"] = "published"
         record["onchain"] = {
+            "audit_id": publish_result.audit_id,
             "network": self.contract_config.network,
-            "chain_id": self.contract_config.chain_id,
+            "chain_id": publish_result.chain_id,
             "contract_address": self.contract_config.contract_address,
             "explorer_base_url": self.contract_config.explorer_base_url,
             "agent_identity": agent_identity,
@@ -69,8 +90,10 @@ class AuditService:
             "metadata_hash": report["metadata_hash"],
             "max_severity": report["max_severity"],
             "finding_count": len(report["findings"]),
-            "publish_tx_hash": fake_tx,
-            "publish_tx_url": self.contract_config.transaction_url(fake_tx),
+            "publish_tx_hash": publish_result.tx_hash,
+            "publish_tx_url": self.contract_config.transaction_url(
+                publish_result.tx_hash
+            ),
         }
         self.store.write(audit_id, record)
         return record

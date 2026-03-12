@@ -10,6 +10,11 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from proof_of_audit_api.config import ContractConfig, DEFAULT_API_ENV_FILE
+from proof_of_audit_api.publisher import (
+    OnchainConfigurationError,
+    OnchainPublishError,
+    ProofOfAuditPublisher,
+)
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
@@ -30,6 +35,7 @@ DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 def create_app(
     data_root: Path | None = None,
     env_file: Path | None = DEFAULT_API_ENV_FILE,
+    audit_service: AuditService | None = None,
 ) -> FastAPI:
     contract_config = ContractConfig.from_env(env_file=env_file)
     app = FastAPI(
@@ -43,10 +49,12 @@ def create_app(
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
-    app.state.audit_service = AuditService(
+    app.state.audit_service = audit_service or AuditService(
         data_root or DATA_ROOT,
         contract_config=contract_config,
     )
+    if audit_service is not None:
+        contract_config = audit_service.contract_config
     app.state.contract_config = contract_config
 
     @app.exception_handler(HTTPException)
@@ -164,6 +172,16 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        except OnchainConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "onchain_not_configured", "message": str(exc)},
+            ) from exc
+        except OnchainPublishError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "publish_failed", "message": str(exc)},
             ) from exc
         return AuditRecordModel.model_validate(record)
 
