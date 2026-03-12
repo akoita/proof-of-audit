@@ -65,6 +65,21 @@ pnpm dev
 
 The local deploy script automatically updates ignored config files for the API and web app.
 
+What `./scripts/deploy-local.sh` actually does:
+
+- deploys the `ProofOfAudit` smart contract to the local Anvil chain
+- reads the deployed contract address from Foundry broadcast output
+- writes ignored local config files for dependent components:
+  - `deployments/localhost.json`
+  - `api/.env.local`
+  - `web/.env.local`
+
+What it does not do:
+
+- it does not start the API server
+- it does not start the Next.js frontend
+- it does not deploy Python or web services anywhere
+
 ### Contracts
 
 ```bash

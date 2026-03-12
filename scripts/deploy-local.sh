@@ -22,6 +22,8 @@ cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
   exit 1
 }
 
+echo "Deploying ProofOfAudit to local RPC at ${RPC_URL}..."
+
 cd "${CONTRACTS_DIR}"
 
 PROOF_OF_AUDIT_ARBITER="${ARBITER}" \
@@ -69,8 +71,9 @@ python3 scripts/write-local-config.py \
 
 echo
 echo "Local deployment complete."
+echo "Deployed component: ProofOfAudit smart contract on the local chain."
 echo "Contract address: ${CONTRACT_ADDRESS}"
 echo "API config written to: ${ROOT_DIR}/api/.env.local"
 echo "Web config written to: ${ROOT_DIR}/web/.env.local"
 echo "Deployment manifest written to: ${ROOT_DIR}/deployments/localhost.json"
-
+echo "No API or frontend process was started by this script."

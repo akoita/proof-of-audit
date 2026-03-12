@@ -32,13 +32,22 @@ cd /home/koita/dev/hackatons/proof-of-audit
 
 This script:
 
-- deploys the contract to the running local chain
+- deploys the `ProofOfAudit` smart contract to the running local Anvil chain
 - verifies that bytecode exists at the deployed address
 - writes `deployments/localhost.json`
 - writes `api/.env.local`
 - writes `web/.env.local`
 
 Generated files are ignored by Git and are meant for local development only.
+
+This script does not:
+
+- start Anvil
+- start the API server
+- start the frontend dev server
+- deploy backend or frontend services
+
+It only handles the on-chain localhost deployment plus local config synchronization for the dependent app components.
 
 ### Run the API against the generated local config
 
