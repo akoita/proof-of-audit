@@ -48,6 +48,10 @@ class ChallengeModel(BaseModel):
     submitted_at: str
     verifier: str
     status: str
+    verification_status: str | None = None
+    verification_summary: str | None = None
+    verification_detail: str | None = None
+    verification_case_id: str | None = None
     resolution: str | None = None
     resolved_at: str | None = None
     resolved_by: str | None = None
@@ -84,6 +88,7 @@ class DemoFixtureModel(BaseModel):
     entry_contract: str
     benchmark_id: str
     address: str
+    challenge_proof_uri: str
     note: str
     source_path: str
 

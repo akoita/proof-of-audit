@@ -17,6 +17,7 @@ class DemoFixture:
     entry_contract: str
     benchmark_id: str
     address: str
+    challenge_proof_uri: str
     note: str
     source_path: str
 
@@ -29,6 +30,7 @@ class DemoFixture:
             entry_contract=payload["entry_contract"],
             benchmark_id=payload["benchmark_id"],
             address=payload["address"].lower(),
+            challenge_proof_uri=payload.get("challenge_proof_uri", "ipfs://benchmark-proof"),
             note=payload["note"],
             source_path=payload["source_path"],
         )
@@ -41,6 +43,7 @@ class DemoFixture:
             "entry_contract": self.entry_contract,
             "benchmark_id": self.benchmark_id,
             "address": self.address,
+            "challenge_proof_uri": self.challenge_proof_uri,
             "note": self.note,
             "source_path": self.source_path,
         }

@@ -9,8 +9,10 @@ from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.publisher import (
     OnchainConfigurationError,
     OnchainPublishError,
+    OnchainResolveError,
     ProofOfAuditPublisher,
 )
+from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import JsonStore
 
@@ -26,6 +28,7 @@ class AuditService:
         self.store = JsonStore(data_root)
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(self.contract_config.demo_fixtures_file)
+        self.challenge_verifier = DeterministicChallengeVerifier()
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config
         )
@@ -106,7 +109,7 @@ class AuditService:
         self, audit_id: str, proof_uri: str, challenger: str
     ) -> dict[str, Any]:
         record = self._require_audit(audit_id)
-        if record["status"] == "challenged":
+        if record["challenge"] is not None or record["status"] in {"challenged", "resolved"}:
             raise ValueError("audit has already been challenged")
         if record["status"] != "published" or record["onchain"] is None:
             raise ValueError("audit must be published before challenge")
@@ -123,13 +126,21 @@ class AuditService:
             proof_uri=proof_uri,
             challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
         )
-        record["challenge"] = {
+        verification_result = self.challenge_verifier.verify(
+            record["report"]["benchmark_id"],
+            proof_uri,
+        )
+        challenge_record = {
             "challenger": challenger,
             "challenger_address": challenge_result.challenger_address,
             "proof_uri": proof_uri,
             "submitted_at": datetime.now(UTC).isoformat(),
-            "verifier": "awaiting-resolution",
+            "verifier": verification_result.verifier,
             "status": "opened",
+            "verification_status": verification_result.status,
+            "verification_summary": verification_result.summary,
+            "verification_detail": verification_result.detail,
+            "verification_case_id": verification_result.case_id,
             "challenge_hash": challenge_result.challenge_hash,
             "challenge_bond_wei": challenge_result.challenge_bond_wei,
             "chain_id": challenge_result.chain_id,
@@ -138,7 +149,42 @@ class AuditService:
                 challenge_result.tx_hash
             ),
         }
-        record["status"] = "challenged"
+
+        if (
+            verification_result.status == "verified"
+            and verification_result.upheld is not None
+            and self.arbiter_client is not None
+        ):
+            try:
+                resolution_result = self.arbiter_client.resolve_challenge(
+                    audit_id=onchain_audit_id,
+                    upheld=verification_result.upheld,
+                )
+            except OnchainResolveError as exc:
+                challenge_record["verification_detail"] = (
+                    f"{verification_result.detail} Automatic on-chain resolution failed: {exc}"
+                )
+                record["status"] = "challenged"
+            else:
+                challenge_record.update(
+                    {
+                        "status": resolution_result.resolution,
+                        "resolution": resolution_result.resolution,
+                        "resolved_at": datetime.now(UTC).isoformat(),
+                        "resolved_by": "deterministic-verifier",
+                        "beneficiary_address": resolution_result.beneficiary_address,
+                        "payout_wei": resolution_result.payout_wei,
+                        "resolve_tx_hash": resolution_result.tx_hash,
+                        "resolve_tx_url": self.contract_config.transaction_url(
+                            resolution_result.tx_hash
+                        ),
+                    }
+                )
+                record["status"] = "resolved"
+        else:
+            record["status"] = "challenged"
+
+        record["challenge"] = challenge_record
         self.store.write(audit_id, record)
         return record
 
@@ -173,7 +219,6 @@ class AuditService:
                 "resolve_tx_url": self.contract_config.transaction_url(
                     resolution_result.tx_hash
                 ),
-                "verifier": "arbiter-resolution",
             }
         )
         record["status"] = "resolved"

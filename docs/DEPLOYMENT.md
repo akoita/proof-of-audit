@@ -85,6 +85,7 @@ This script:
 - verifies that bytecode exists at the deployed addresses
 - writes `deployments/demo-fixtures.localhost.json`
 - updates `api/.env.local` with `PROOF_OF_AUDIT_DEMO_FIXTURES_FILE`
+- includes the suggested deterministic challenge proof URI for each fixture in the generated manifest
 
 This script does not:
 
@@ -112,6 +113,17 @@ pnpm dev
 ```
 
 Next.js automatically loads `web/.env.local`.
+
+### Local deterministic challenge proofs
+
+The demo fixtures ship with curated PoC URIs that the API verifier knows how to evaluate deterministically:
+
+- `ipfs://reentrancy-bank/withdraw-drain`
+- `ipfs://admin-setter/unauthorized-admin-change`
+- `ipfs://unchecked-treasury/unchecked-call-failure`
+- `ipfs://clean-vault/missed-reentrancy`
+
+If the submitted PoC matches the curated fixture artifact, the API records a verifier outcome and, when the local arbiter key is configured, resolves the on-chain challenge immediately.
 
 ### Local overrides
 
