@@ -1,5 +1,9 @@
 # Proof-of-Audit
 
+[![CI](https://github.com/akoita/proof-of-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/akoita/proof-of-audit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Status: Prototype](https://img.shields.io/badge/status-prototype-orange)
+
 Proof-of-Audit is a monorepo for an agent that audits smart contracts, publishes a staked attestation on-chain, and can be challenged with deterministic evidence.
 
 ## Overview
