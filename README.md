@@ -121,6 +121,8 @@ cd contracts && forge test
 cd ../web && pnpm build
 ```
 
+See the project roadmap in `docs/ROADMAP.md`.
+
 ## Notes
 
 - The contract path is runnable and tested in this environment.
