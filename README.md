@@ -14,7 +14,7 @@ The current implementation focuses on:
 
 - benchmark-driven smart contract audit reports
 - real publish transactions and challenge flows backed by a stake
-- a browser-based demo path for submit, publish, and review
+- a browser-based demo path for submit, publish, review, and explorer-linked chain state
 - a compact Foundry contract with tested stake accounting
 
 ## Status
