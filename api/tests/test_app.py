@@ -27,6 +27,7 @@ class AuditApiAppTest(unittest.TestCase):
                             "entry_contract": "VulnerableBank",
                             "benchmark_id": "reentrancy-bank",
                             "address": "0x1000000000000000000000000000000000000001",
+                            "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
                             "note": "High-confidence reentrancy finding",
                             "source_path": "demo/contracts/VulnerableBank.sol",
                         }
@@ -72,6 +73,10 @@ class AuditApiAppTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["benchmark_id"], "reentrancy-bank")
+        self.assertEqual(
+            payload["items"][0]["challenge_proof_uri"],
+            "ipfs://reentrancy-bank/withdraw-drain",
+        )
 
     def test_full_audit_flow(self) -> None:
         created = self.client.post(
@@ -133,7 +138,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         onchain = build_onchain_test_context()
         self.onchain = onchain
         self.chain_id = onchain.contract_config.chain_id
-        self.target_address = onchain.web3.eth.accounts[2]
+        self.target_address = "0x1000000000000000000000000000000000000001"
         service = AuditService(
             Path(self.tempdir.name) / "data",
             contract_config=onchain.contract_config,
@@ -171,36 +176,57 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
 
         challenged = self.client.post(
             f"/audits/{audit_id}/challenge",
-            json={"proof_uri": "ipfs://demo-poc", "challenger": "whitehat-demo"},
+            json={
+                "proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 200)
+        challenge_payload = challenged.json()
+        self.assertEqual(challenge_payload["status"], "resolved")
+        self.assertEqual(challenge_payload["challenge"]["status"], "rejected")
+        self.assertEqual(challenge_payload["challenge"]["resolution"], "rejected")
+        self.assertEqual(
+            challenge_payload["challenge"]["verification_status"],
+            "verified",
+        )
+        self.assertEqual(
+            challenge_payload["challenge"]["challenger_address"],
+            self.client.app.state.audit_service.publisher.account.address,
+        )
+        self.assertTrue(challenge_payload["challenge"]["challenge_tx_hash"].startswith("0x"))
+        self.assertTrue(challenge_payload["challenge"]["resolve_tx_hash"].startswith("0x"))
+
+        audit_record = self.onchain.contract.functions.getAudit(1).call()
+        self.assertEqual(int(audit_record[10]), 3)
+        self.assertEqual(int(audit_record[11]), 2)
+
+    def test_invalid_challenge_evidence_stays_open(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": "0x1000000000000000000000000000000000000003",
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={"proof_uri": "ipfs://wrong-proof", "challenger": "whitehat-demo"},
         )
         self.assertEqual(challenged.status_code, 200)
         challenge_payload = challenged.json()
         self.assertEqual(challenge_payload["status"], "challenged")
         self.assertEqual(challenge_payload["challenge"]["status"], "opened")
         self.assertEqual(
-            challenge_payload["challenge"]["challenger_address"],
-            self.client.app.state.audit_service.publisher.account.address,
+            challenge_payload["challenge"]["verification_status"],
+            "invalid_evidence",
         )
-        self.assertTrue(challenge_payload["challenge"]["challenge_tx_hash"].startswith("0x"))
-
-        duplicate = self.client.post(
-            f"/audits/{audit_id}/challenge",
-            json={"proof_uri": "ipfs://second-poc", "challenger": "whitehat-2"},
-        )
-        self.assertEqual(duplicate.status_code, 400)
-        self.assertEqual(duplicate.json()["error"], "invalid_payload")
-
-        resolved = self.client.post(
-            f"/audits/{audit_id}/resolve",
-            json={"upheld": True, "resolved_by": "arbiter-operator"},
-        )
-        self.assertEqual(resolved.status_code, 200)
-        resolved_payload = resolved.json()
-        self.assertEqual(resolved_payload["status"], "resolved")
-        self.assertEqual(resolved_payload["challenge"]["status"], "upheld")
-        self.assertEqual(resolved_payload["challenge"]["resolution"], "upheld")
-        self.assertTrue(resolved_payload["challenge"]["resolve_tx_hash"].startswith("0x"))
-
-        audit_record = self.onchain.contract.functions.getAudit(1).call()
-        self.assertEqual(int(audit_record[10]), 3)
-        self.assertEqual(int(audit_record[11]), 1)

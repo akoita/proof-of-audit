@@ -14,6 +14,7 @@ The current implementation focuses on:
 
 - benchmark-driven smart contract audit reports
 - real publish transactions and challenge flows backed by a stake
+- deterministic challenge verification for curated fixture PoCs
 - a browser-based demo path for submit, publish, review, and explorer-linked chain state
 - a compact Foundry contract with tested stake accounting
 
@@ -68,11 +69,11 @@ Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract
 - `api/.env.local`
 - `web/.env.local`
 
-For localhost only, the generated `api/.env.local` also includes the Anvil publisher key so `POST /audits/:id/publish` and `POST /audits/:id/challenge` can submit real local transactions without extra manual exports.
+For localhost only, the generated `api/.env.local` also includes the Anvil publisher and arbiter keys so `POST /audits/:id/publish`, `POST /audits/:id/challenge`, and deterministic auto-resolution can submit real local transactions without extra manual exports.
 
 It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
 
-Note: `./scripts/deploy-demo-fixtures.sh` deploys the local benchmark contracts to Anvil, writes `deployments/demo-fixtures.localhost.json`, and updates `api/.env.local` so the API can expose those live fixture addresses to the web app.
+Note: `./scripts/deploy-demo-fixtures.sh` deploys the local benchmark contracts to Anvil, writes `deployments/demo-fixtures.localhost.json`, and updates `api/.env.local` so the API can expose those live fixture addresses and suggested challenge PoC URIs to the web app.
 
 ### Contracts
 
@@ -127,7 +128,7 @@ cd /home/koita/dev/hackatons/proof-of-audit
 make test-e2e
 ```
 
-The e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the API and Next.js app on isolated ports, and exercises submit, publish, challenge, and resolve against the real stack.
+The e2e harness starts a dedicated Anvil instance, deploys the local contract and demo fixtures, runs the API and Next.js app on isolated ports, and exercises submit, publish, deterministic challenge verification, and on-chain resolution against the real stack.
 
 ## API shape
 
@@ -164,7 +165,14 @@ Unknown contracts return a low-confidence informational report instead of fabric
 2. The audit worker maps the address to a deterministic benchmark report.
 3. The API persists the report and prepares on-chain publication metadata.
 4. The contract records the staked attestation and challenge lifecycle.
-5. A challenger can submit evidence, and the contract resolves stake payouts.
+5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts.
+
+### Demo challenge artifacts
+
+- `ipfs://reentrancy-bank/withdraw-drain`: confirms the reported reentrancy finding and should reject the challenge
+- `ipfs://admin-setter/unauthorized-admin-change`: confirms the reported access control finding and should reject the challenge
+- `ipfs://unchecked-treasury/unchecked-call-failure`: confirms the reported unchecked call finding and should reject the challenge
+- `ipfs://clean-vault/missed-reentrancy`: demonstrates a missed issue against the clean benchmark and should uphold the challenge
 
 ## Development
 

@@ -6,6 +6,7 @@
       "contract_name": "VulnerableBank",
       "entry_contract": "VulnerableBank",
       "benchmark_id": "reentrancy-bank",
+      "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
       "note": "High-confidence reentrancy finding",
       "source_path": "demo/contracts/VulnerableBank.sol"
     },
@@ -15,6 +16,7 @@
       "contract_name": "AdminSetter",
       "entry_contract": "AdminSetter",
       "benchmark_id": "admin-setter",
+      "challenge_proof_uri": "ipfs://admin-setter/unauthorized-admin-change",
       "note": "High-confidence access control finding",
       "source_path": "demo/contracts/AdminSetter.sol"
     },
@@ -24,6 +26,7 @@
       "contract_name": "CleanVault",
       "entry_contract": "CleanVault",
       "benchmark_id": "clean-vault",
+      "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
       "note": "Clean benchmark with medium confidence",
       "source_path": "demo/contracts/CleanVault.sol"
     },
@@ -33,6 +36,7 @@
       "contract_name": "UncheckedTreasury",
       "entry_contract": "UncheckedTreasury",
       "benchmark_id": "unchecked-treasury",
+      "challenge_proof_uri": "ipfs://unchecked-treasury/unchecked-call-failure",
       "note": "Imported registry and unchecked external call",
       "source_path": "demo/contracts/UncheckedTreasury.sol"
     }

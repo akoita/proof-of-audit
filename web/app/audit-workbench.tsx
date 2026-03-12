@@ -61,6 +61,10 @@ type AuditRecord = {
     submitted_at: string;
     verifier: string;
     status: string;
+    verification_status?: string | null;
+    verification_summary?: string | null;
+    verification_detail?: string | null;
+    verification_case_id?: string | null;
     resolution?: string | null;
     resolved_at?: string | null;
     resolved_by?: string | null;
@@ -83,6 +87,7 @@ type DemoFixture = {
   entry_contract: string;
   benchmark_id: string;
   address: string;
+  challenge_proof_uri: string;
   note: string;
   source_path: string;
 };
@@ -150,6 +155,12 @@ function statusTone(status: string) {
   switch (status) {
     case "published":
       return "confirmed";
+    case "resolved":
+      return "confirmed";
+    case "upheld":
+      return "warning";
+    case "rejected":
+      return "confirmed";
     case "challenged":
       return "warning";
     case "opened":
@@ -162,6 +173,9 @@ function statusTone(status: string) {
 }
 
 function lifecycleLabel(audit: AuditRecord) {
+  if (audit.status === "resolved" && audit.challenge?.resolution) {
+    return `Challenge ${audit.challenge.resolution}`;
+  }
   if (audit.challenge) {
     return "Challenge opened on-chain";
   }
@@ -169,6 +183,21 @@ function lifecycleLabel(audit: AuditRecord) {
     return "Published on-chain";
   }
   return "Draft report prepared";
+}
+
+function suggestedProofUriForBenchmark(benchmarkId: string): string {
+  switch (benchmarkId) {
+    case "clean-vault":
+      return "ipfs://clean-vault/missed-reentrancy";
+    case "reentrancy-bank":
+      return "ipfs://reentrancy-bank/withdraw-drain";
+    case "admin-setter":
+      return "ipfs://admin-setter/unauthorized-admin-change";
+    case "unchecked-treasury":
+      return "ipfs://unchecked-treasury/unchecked-call-failure";
+    default:
+      return "ipfs://benchmark-proof";
+  }
 }
 
 function relativeTimeLabel(timestamp: string) {
@@ -225,6 +254,7 @@ export function AuditWorkbench() {
       }
       if (!contractAddress && fixturePayload.items.length > 0) {
         setContractAddress(fixturePayload.items[0].address);
+        setProofUri(fixturePayload.items[0].challenge_proof_uri);
       }
     } catch (nextError) {
       setLoadError(
@@ -336,6 +366,7 @@ export function AuditWorkbench() {
 
   function syncAudit(nextAudit: AuditRecord) {
     setActiveAudit(nextAudit);
+    setProofUri(suggestedProofUriForBenchmark(nextAudit.report.benchmark_id));
     setRecentAudits((current) =>
       [nextAudit, ...current.filter((audit) => audit.id !== nextAudit.id)].sort(
         (left, right) => right.created_at.localeCompare(left.created_at),
@@ -502,7 +533,10 @@ export function AuditWorkbench() {
                 className="benchmark-card"
                 data-selected={fixture.address === contractAddress}
                 type="button"
-                onClick={() => setContractAddress(fixture.address)}
+                onClick={() => {
+                  setContractAddress(fixture.address);
+                  setProofUri(fixture.challenge_proof_uri);
+                }}
               >
                 <div className="benchmark-card-topline">
                   <span>{fixture.label}</span>
@@ -641,6 +675,13 @@ export function AuditWorkbench() {
                       ? "Challenging..."
                       : "Challenge with PoC"}
                   </button>
+                  <p className="muted">
+                    Suggested artifact for this benchmark:{" "}
+                    <code>
+                      {selectedFixture?.challenge_proof_uri ??
+                        suggestedProofUriForBenchmark(activeAudit.report.benchmark_id)}
+                    </code>
+                  </p>
                 </div>
               </div>
 
@@ -777,6 +818,15 @@ export function AuditWorkbench() {
                         : "pending"}.
                     </p>
                   ) : null}
+                  {activeAudit.challenge.verification_summary ? (
+                    <p className="muted">
+                      {activeAudit.challenge.verification_status ?? "verification"}:{" "}
+                      {activeAudit.challenge.verification_summary}
+                    </p>
+                  ) : null}
+                  {activeAudit.challenge.verification_detail ? (
+                    <p className="muted">{activeAudit.challenge.verification_detail}</p>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -808,7 +858,7 @@ export function AuditWorkbench() {
                   type="button"
                   className="recent-item"
                   data-selected={audit.id === activeAudit?.id}
-                  onClick={() => setActiveAudit(audit)}
+                  onClick={() => syncAudit(audit)}
                 >
                   <div className="card-header">
                     <p>{audit.report.benchmark_id}</p>

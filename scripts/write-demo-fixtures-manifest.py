@@ -72,6 +72,7 @@ def main() -> None:
                 "entry_contract": fixture["entry_contract"],
                 "benchmark_id": fixture["benchmark_id"],
                 "address": address,
+                "challenge_proof_uri": fixture["challenge_proof_uri"],
                 "note": fixture["note"],
                 "source_path": fixture["source_path"],
             }

@@ -69,6 +69,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(challenged["status"], "challenged")
             self.assertEqual(challenged["challenge"]["status"], "opened")
             self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "verifier_unavailable",
+            )
+            self.assertEqual(
                 challenged["challenge"]["challenger_address"],
                 onchain.publisher.account.address,
             )
@@ -116,6 +120,102 @@ class AuditServiceTest(unittest.TestCase):
             resolved_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(resolved_record[10]), 3)
             self.assertEqual(int(resolved_record[11]), 1)
+
+    def test_verified_clean_fixture_challenge_auto_resolves_upheld(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://clean-vault/missed-reentrancy",
+                challenger="whitehat",
+            )
+
+            self.assertEqual(challenged["status"], "resolved")
+            self.assertEqual(challenged["challenge"]["status"], "upheld")
+            self.assertEqual(challenged["challenge"]["resolution"], "upheld")
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "verified",
+            )
+            self.assertEqual(
+                challenged["challenge"]["resolved_by"],
+                "deterministic-verifier",
+            )
+            resolved_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(resolved_record[10]), 3)
+            self.assertEqual(int(resolved_record[11]), 1)
+
+    def test_verified_report_confirmation_auto_resolves_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://reentrancy-bank/withdraw-drain",
+                challenger="whitehat",
+            )
+
+            self.assertEqual(challenged["status"], "resolved")
+            self.assertEqual(challenged["challenge"]["status"], "rejected")
+            self.assertEqual(challenged["challenge"]["resolution"], "rejected")
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "verified",
+            )
+            resolved_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(resolved_record[10]), 3)
+            self.assertEqual(int(resolved_record[11]), 2)
+
+    def test_invalid_evidence_stays_open_for_manual_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://wrong-proof",
+                challenger="whitehat",
+            )
+
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(challenged["challenge"]["status"], "opened")
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "invalid_evidence",
+            )
 
     def test_challenge_requires_publish(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
