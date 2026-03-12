@@ -10,6 +10,18 @@ type Finding = {
   detector: string;
 };
 
+type PublicContractConfig = {
+  network: string;
+  chain_id: number;
+  contract_address: string | null;
+  explorer_base_url: string;
+  arbiter: string | null;
+  required_stake_wei: number;
+  required_challenge_bond_wei: number;
+  challenge_window_seconds: number;
+  deployment_ready: boolean;
+};
+
 type AuditRecord = {
   id: string;
   contract_address: string;
@@ -30,6 +42,9 @@ type AuditRecord = {
   onchain: null | {
     audit_id?: number;
     network: string;
+    chain_id: number;
+    contract_address?: string | null;
+    explorer_base_url: string;
     agent_identity: string;
     stake_wei: number;
     report_hash: string;
@@ -37,14 +52,20 @@ type AuditRecord = {
     max_severity: number;
     finding_count: number;
     publish_tx_hash: string;
+    publish_tx_url?: string | null;
   };
   challenge: null | {
     challenger: string;
+    challenger_address?: string | null;
     proof_uri: string;
     submitted_at: string;
     verifier: string;
     status: string;
+    challenge_hash?: string | null;
+    challenge_bond_wei?: number | null;
+    chain_id?: number | null;
     challenge_tx_hash: string;
+    challenge_tx_url?: string | null;
   };
 };
 
@@ -87,6 +108,16 @@ function formatEth(wei: number): string {
   return `${(wei / 1e18).toFixed(3)} ETH`;
 }
 
+function formatWindow(seconds: number): string {
+  if (seconds % 86400 === 0) {
+    return `${seconds / 86400} day`;
+  }
+  if (seconds % 3600 === 0) {
+    return `${seconds / 3600} hr`;
+  }
+  return `${seconds}s`;
+}
+
 function shortenHex(value: string, start = 6, end = 4): string {
   if (value.length <= start + end + 3) {
     return value;
@@ -94,47 +125,115 @@ function shortenHex(value: string, start = 6, end = 4): string {
   return `${value.slice(0, start)}...${value.slice(-end)}`;
 }
 
+function isExplorerLink(url: string | null | undefined): url is string {
+  if (!url) {
+    return false;
+  }
+  return !url.includes("127.0.0.1") && !url.includes("localhost");
+}
+
+function addressUrl(baseUrl: string | null | undefined, address: string | null | undefined) {
+  if (!isExplorerLink(baseUrl) || !address) {
+    return null;
+  }
+  return `${baseUrl}/address/${address}`;
+}
+
+function statusTone(status: string) {
+  switch (status) {
+    case "published":
+      return "confirmed";
+    case "challenged":
+      return "warning";
+    case "opened":
+      return "warning";
+    case "draft":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+function lifecycleLabel(audit: AuditRecord) {
+  if (audit.challenge) {
+    return "Challenge opened on-chain";
+  }
+  if (audit.onchain) {
+    return "Published on-chain";
+  }
+  return "Draft report prepared";
+}
+
+function relativeTimeLabel(timestamp: string) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function AuditWorkbench() {
   const [contractAddress, setContractAddress] = useState("");
   const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
+  const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(
+    null,
+  );
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectedFixture =
     demoFixtures.find((fixture) => fixture.address === contractAddress) ?? null;
+  const publishStake = contractConfig?.required_stake_wei ?? 10_000_000_000_000_000;
+  const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
 
   useEffect(() => {
     startTransition(() => {
-      void loadRecentAudits();
+      void loadWorkbench();
     });
   }, []);
 
-  async function loadRecentAudits() {
+  async function loadWorkbench() {
+    setLoadError(null);
     try {
-      const [auditPayload, fixturePayload] = await Promise.all([
+      const [auditPayload, fixturePayload, configPayload] = await Promise.all([
         apiFetch<{ items: AuditRecord[] }>("/audits"),
         apiFetch<{ items: DemoFixture[] }>("/fixtures"),
+        apiFetch<PublicContractConfig>("/config"),
       ]);
       setRecentAudits(auditPayload.items);
       setDemoFixtures(fixturePayload.items);
-      if (!activeAudit && auditPayload.items.length > 0) {
-        setActiveAudit(auditPayload.items[0]);
+      setContractConfig(configPayload);
+      if (auditPayload.items.length > 0) {
+        setActiveAudit((current) => current ?? auditPayload.items[0]);
       }
       if (!contractAddress && fixturePayload.items.length > 0) {
         setContractAddress(fixturePayload.items[0].address);
       }
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : "Failed to load audits",
+    } catch (nextError) {
+      setLoadError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to load Proof-of-Audit workbench data",
       );
+    } finally {
+      setIsLoaded(true);
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setActiveAction("Generating deterministic audit report");
 
     startTransition(() => {
       void (async () => {
@@ -146,14 +245,15 @@ export function AuditWorkbench() {
               submitted_by: "web-demo",
             }),
           });
-          setActiveAudit(created);
-          setRecentAudits((current) => [created, ...current]);
+          syncAudit(created);
         } catch (submitError) {
           setError(
             submitError instanceof Error
               ? submitError.message
               : "Failed to create audit",
           );
+        } finally {
+          setActiveAction(null);
         }
       })();
     });
@@ -164,6 +264,7 @@ export function AuditWorkbench() {
       return;
     }
     setError(null);
+    setActiveAction("Submitting publish transaction");
 
     startTransition(() => {
       void (async () => {
@@ -173,7 +274,7 @@ export function AuditWorkbench() {
             {
               method: "POST",
               body: JSON.stringify({
-                stake_wei: 10_000_000_000_000_000,
+                stake_wei: publishStake,
                 agent_identity: "auditor-agent-v1",
               }),
             },
@@ -185,6 +286,8 @@ export function AuditWorkbench() {
               ? publishError.message
               : "Failed to publish audit",
           );
+        } finally {
+          setActiveAction(null);
         }
       })();
     });
@@ -195,6 +298,7 @@ export function AuditWorkbench() {
       return;
     }
     setError(null);
+    setActiveAction("Opening challenge transaction");
 
     startTransition(() => {
       void (async () => {
@@ -216,6 +320,8 @@ export function AuditWorkbench() {
               ? challengeError.message
               : "Failed to challenge audit",
           );
+        } finally {
+          setActiveAction(null);
         }
       })();
     });
@@ -243,15 +349,17 @@ export function AuditWorkbench() {
           <div className="hero-inline-metrics">
             <div>
               <span>Mode</span>
-              <strong>Local fixture demo</strong>
+              <strong>
+                {contractConfig?.deployment_ready ? "Deployed contract flow" : "Local draft mode"}
+              </strong>
             </div>
             <div>
               <span>Coverage</span>
-              <strong>4 fixture paths</strong>
+              <strong>{demoFixtures.length || 0} fixture paths</strong>
             </div>
             <div>
-              <span>Resolution</span>
-              <strong>On-chain challenge opening</strong>
+              <span>Lifecycle</span>
+              <strong>{activeAudit ? lifecycleLabel(activeAudit) : "Ready for first audit"}</strong>
             </div>
           </div>
           <form className="submit-card" onSubmit={handleSubmit}>
@@ -277,36 +385,81 @@ export function AuditWorkbench() {
             <div className="submit-card-footer">
               <p className="helper-copy">
                 {selectedFixture
-                  ? `${selectedFixture.contract_name} selected from local Anvil fixtures.`
+                  ? `${selectedFixture.contract_name} selected from local fixtures.`
                   : "No fixture selected. You can still submit any deployed contract address."}
               </p>
               <button type="submit" disabled={isPending}>
-                {isPending ? "Working..." : "Run audit"}
+                {isPending && activeAction?.includes("Generating") ? "Working..." : "Run audit"}
               </button>
             </div>
           </form>
+          {activeAction ? (
+            <p className="notice-banner notice-banner-info">{activeAction}...</p>
+          ) : null}
           {error ? <p className="error-banner">{error}</p> : null}
+          {loadError ? <p className="error-banner">{loadError}</p> : null}
         </div>
         <div className="signal-panel">
           <div className="panel-kicker">
             <span>Live demo configuration</span>
-            <strong>Operator view</strong>
+            <strong>{contractConfig?.network ?? "loading"}</strong>
           </div>
-          <div className="signal-row">
-            <span>Supported checks</span>
-            <strong>Reentrancy, access control, unchecked calls</strong>
-          </div>
-          <div className="signal-row">
-            <span>Economic commitment</span>
-            <strong>0.01 ETH stake per published audit</strong>
-          </div>
-          <div className="signal-row">
-            <span>Challenge path</span>
-            <strong>Real challenge transactions, resolution follows</strong>
+          <div className="signal-grid">
+            <div className="signal-row">
+              <span>Network</span>
+              <strong>
+                {contractConfig
+                  ? `${contractConfig.network} · chain ${contractConfig.chain_id}`
+                  : "Loading network configuration"}
+              </strong>
+            </div>
+            <div className="signal-row">
+              <span>Publish stake</span>
+              <strong>{formatEth(publishStake)}</strong>
+            </div>
+            <div className="signal-row">
+              <span>Challenge bond</span>
+              <strong>{formatEth(challengeBond)}</strong>
+            </div>
+            <div className="signal-row">
+              <span>Window</span>
+              <strong>{contractConfig ? formatWindow(contractConfig.challenge_window_seconds) : "..."}</strong>
+            </div>
           </div>
           <div className="signal-note">
-            Local fixtures are deployed to Anvil and surfaced through the API,
-            so the UI reflects live addresses instead of baked-in demo values.
+            {contractConfig?.contract_address ? (
+              <>
+                <span className="signal-note-label">Registry contract</span>
+                <strong title={contractConfig.contract_address}>
+                  {shortenHex(contractConfig.contract_address, 10, 8)}
+                </strong>
+                <div className="inline-links">
+                  {addressUrl(
+                    contractConfig.explorer_base_url,
+                    contractConfig.contract_address,
+                  ) ? (
+                    <a
+                      href={addressUrl(
+                        contractConfig.explorer_base_url,
+                        contractConfig.contract_address,
+                      ) ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View contract
+                    </a>
+                  ) : (
+                    <span className="muted">
+                      Local RPC mode: contract address available, no explorer link.
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <span className="muted">
+                No deployed contract is configured yet. Publish and challenge actions will stay unavailable until `/config` reports a live deployment.
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -316,12 +469,17 @@ export function AuditWorkbench() {
           <div>
             <p>Demo fixtures</p>
             <strong className="section-subtitle">
-              Pick a live local contract to drive the audit flow
+              Pick a live contract to drive the audit flow
             </strong>
           </div>
-          <span>{demoFixtures.length} loaded</span>
+          <span>{isLoaded ? `${demoFixtures.length} loaded` : "loading"}</span>
         </div>
-        {demoFixtures.length === 0 ? (
+        {!isLoaded ? (
+          <article className="benchmark-empty">
+            <p>Loading local fixtures and recent audit activity.</p>
+            <span>The workbench is fetching API and chain metadata.</span>
+          </article>
+        ) : demoFixtures.length === 0 ? (
           <article className="benchmark-empty">
             <p>No local demo fixtures detected.</p>
             <span>
@@ -343,7 +501,9 @@ export function AuditWorkbench() {
                   <span>{fixture.label}</span>
                   <em>{fixture.entry_contract}</em>
                 </div>
-                <strong title={fixture.address}>{shortenHex(fixture.address, 8, 6)}</strong>
+                <strong title={fixture.address}>
+                  {shortenHex(fixture.address, 8, 6)}
+                </strong>
                 <p>{fixture.note}</p>
               </button>
             ))}
@@ -355,7 +515,9 @@ export function AuditWorkbench() {
         <article className="panel report-panel">
           <div className="section-heading">
             <p>Current audit</p>
-            <span>{activeAudit?.status ?? "none"}</span>
+            <span data-tone={statusTone(activeAudit?.status ?? "none")}>
+              {activeAudit?.status ?? "none"}
+            </span>
           </div>
           {activeAudit ? (
             <>
@@ -367,6 +529,22 @@ export function AuditWorkbench() {
                 </span>
               </div>
               <h2>{activeAudit.report.summary}</h2>
+              <div className="lifecycle-strip">
+                <div className="lifecycle-card">
+                  <span>Report status</span>
+                  <strong>{lifecycleLabel(activeAudit)}</strong>
+                </div>
+                <div className="lifecycle-card">
+                  <span>Created</span>
+                  <strong>{relativeTimeLabel(activeAudit.created_at)}</strong>
+                </div>
+                <div className="lifecycle-card">
+                  <span>Network</span>
+                  <strong>
+                    {activeAudit.onchain?.network ?? contractConfig?.network ?? "offline"}
+                  </strong>
+                </div>
+              </div>
               <div className="stat-row">
                 <div>
                   <span>Findings</span>
@@ -410,28 +588,48 @@ export function AuditWorkbench() {
               <div className="action-row">
                 <div className="action-card">
                   <span>Publish</span>
-                  <strong>Stake {formatEth(10_000_000_000_000_000)}</strong>
+                  <strong>Stake {formatEth(publishStake)}</strong>
+                  <p className="muted">
+                    Opens an on-chain audit attestation against the configured registry contract.
+                  </p>
                   <button
                     type="button"
                     onClick={handlePublish}
-                    disabled={isPending || activeAudit.status !== "draft"}
+                    disabled={
+                      isPending ||
+                      activeAudit.status !== "draft" ||
+                      !contractConfig?.deployment_ready
+                    }
                   >
-                    Publish stake
+                    {isPending && activeAction?.includes("publish")
+                      ? "Publishing..."
+                      : "Publish stake"}
                   </button>
                 </div>
                 <div className="action-card action-card-wide">
                   <span>Challenge proof</span>
+                  <strong>Bond {formatEth(challengeBond)}</strong>
                   <input
                     value={proofUri}
                     onChange={(event) => setProofUri(event.target.value)}
-                    disabled={isPending || activeAudit.status !== "published"}
+                    disabled={
+                      isPending ||
+                      activeAudit.status !== "published" ||
+                      !contractConfig?.deployment_ready
+                    }
                   />
                   <button
                     type="button"
                     onClick={handleChallenge}
-                    disabled={isPending || activeAudit.status !== "published"}
+                    disabled={
+                      isPending ||
+                      activeAudit.status !== "published" ||
+                      !contractConfig?.deployment_ready
+                    }
                   >
-                    Challenge with PoC
+                    {isPending && activeAction?.includes("challenge")
+                      ? "Challenging..."
+                      : "Challenge with PoC"}
                   </button>
                 </div>
               </div>
@@ -440,15 +638,63 @@ export function AuditWorkbench() {
                 <div className="onchain-card">
                   <div className="section-heading">
                     <p>On-chain attestation</p>
-                    <span>{activeAudit.onchain.network}</span>
+                    <span data-tone="confirmed">{activeAudit.onchain.network}</span>
                   </div>
                   <p className="muted">
                     {activeAudit.onchain.agent_identity} staked{" "}
                     {formatEth(activeAudit.onchain.stake_wei)} behind this report.
                   </p>
-                  <p className="mono" title={activeAudit.onchain.publish_tx_hash}>
-                    publish tx: {shortenHex(activeAudit.onchain.publish_tx_hash, 12, 8)}
-                  </p>
+                  <div className="metadata-grid">
+                    <div>
+                      <span>Audit id</span>
+                      <strong>{activeAudit.onchain.audit_id ?? "pending"}</strong>
+                    </div>
+                    <div>
+                      <span>Contract</span>
+                      <strong title={activeAudit.onchain.contract_address ?? ""}>
+                        {activeAudit.onchain.contract_address
+                          ? shortenHex(activeAudit.onchain.contract_address, 10, 8)
+                          : "not reported"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Publish tx</span>
+                      <strong title={activeAudit.onchain.publish_tx_hash}>
+                        {shortenHex(activeAudit.onchain.publish_tx_hash, 12, 8)}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="inline-links">
+                    {activeAudit.onchain.publish_tx_url &&
+                    isExplorerLink(activeAudit.onchain.publish_tx_url) ? (
+                      <a
+                        href={activeAudit.onchain.publish_tx_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View publish transaction
+                      </a>
+                    ) : (
+                      <span className="muted">Publish tx confirmed on the local chain.</span>
+                    )}
+                    {addressUrl(
+                      activeAudit.onchain.explorer_base_url,
+                      activeAudit.onchain.contract_address ?? null,
+                    ) ? (
+                      <a
+                        href={
+                          addressUrl(
+                            activeAudit.onchain.explorer_base_url,
+                            activeAudit.onchain.contract_address ?? null,
+                          ) ?? undefined
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View registry contract
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 
@@ -456,21 +702,60 @@ export function AuditWorkbench() {
                 <div className="challenge-card">
                   <div className="section-heading">
                     <p>Challenge status</p>
-                    <span>{activeAudit.challenge.status}</span>
+                    <span data-tone={statusTone(activeAudit.challenge.status)}>
+                      {activeAudit.challenge.status}
+                    </span>
                   </div>
                   <p className="muted">{activeAudit.challenge.proof_uri}</p>
-                  <p className="mono" title={activeAudit.challenge.challenge_tx_hash}>
-                    challenge tx:{" "}
-                    {shortenHex(activeAudit.challenge.challenge_tx_hash, 12, 8)}
-                  </p>
+                  <div className="metadata-grid">
+                    <div>
+                      <span>Challenger</span>
+                      <strong title={activeAudit.challenge.challenger_address ?? ""}>
+                        {activeAudit.challenge.challenger_address
+                          ? shortenHex(activeAudit.challenge.challenger_address, 10, 8)
+                          : activeAudit.challenge.challenger}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Bond</span>
+                      <strong>
+                        {activeAudit.challenge.challenge_bond_wei
+                          ? formatEth(activeAudit.challenge.challenge_bond_wei)
+                          : "n/a"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Challenge tx</span>
+                      <strong title={activeAudit.challenge.challenge_tx_hash}>
+                        {shortenHex(activeAudit.challenge.challenge_tx_hash, 12, 8)}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="inline-links">
+                    {activeAudit.challenge.challenge_tx_url &&
+                    isExplorerLink(activeAudit.challenge.challenge_tx_url) ? (
+                      <a
+                        href={activeAudit.challenge.challenge_tx_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View challenge transaction
+                      </a>
+                    ) : (
+                      <span className="muted">Challenge tx confirmed on the local chain.</span>
+                    )}
+                  </div>
                 </div>
               ) : null}
             </>
           ) : (
-            <p className="muted">
-              Create an audit to populate the workbench, or pick one from recent
-              activity.
-            </p>
+            <div className="empty-panel">
+              <strong>No active audit selected</strong>
+              <p className="muted">
+                Create an audit to populate the workbench, or pick one from recent
+                activity once the API data loads.
+              </p>
+            </div>
           )}
         </article>
 
@@ -480,7 +765,9 @@ export function AuditWorkbench() {
             <span>{recentAudits.length}</span>
           </div>
           <div className="recent-list">
-            {recentAudits.length === 0 ? (
+            {!isLoaded ? (
+              <p className="muted">Loading recent audits.</p>
+            ) : recentAudits.length === 0 ? (
               <p className="muted">No audits yet.</p>
             ) : (
               recentAudits.map((audit) => (
@@ -493,12 +780,13 @@ export function AuditWorkbench() {
                 >
                   <div className="card-header">
                     <p>{audit.report.benchmark_id}</p>
-                    <span>{audit.status}</span>
+                    <span data-tone={statusTone(audit.status)}>{audit.status}</span>
                   </div>
                   <strong title={audit.contract_address}>
                     {shortenHex(audit.contract_address, 8, 6)}
                   </strong>
                   <p>{audit.report.summary}</p>
+                  <small>{lifecycleLabel(audit)}</small>
                 </button>
               ))
             )}
