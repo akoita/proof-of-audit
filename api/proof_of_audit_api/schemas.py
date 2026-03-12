@@ -65,6 +65,21 @@ class AuditListResponse(BaseModel):
     items: list[AuditRecordModel]
 
 
+class DemoFixtureModel(BaseModel):
+    id: str
+    label: str
+    contract_name: str
+    entry_contract: str
+    benchmark_id: str
+    address: str
+    note: str
+    source_path: str
+
+
+class DemoFixtureListResponse(BaseModel):
+    items: list[DemoFixtureModel]
+
+
 class HealthResponse(BaseModel):
     status: str
 

@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local install-api-deps test-contracts test-python
+.PHONY: anvil deploy-local deploy-demo-fixtures install-api-deps test-contracts test-python
 
 PYTHON ?= python3
 
@@ -7,6 +7,9 @@ anvil:
 
 deploy-local:
 	./scripts/deploy-local.sh
+
+deploy-demo-fixtures:
+	./scripts/deploy-demo-fixtures.sh
 
 install-api-deps:
 	$(PYTHON) -m pip install -r api/requirements.txt

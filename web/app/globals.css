@@ -62,7 +62,8 @@ body {
 .submit-card,
 .signal-panel,
 .panel,
-.benchmark-card {
+.benchmark-card,
+.benchmark-empty {
   backdrop-filter: blur(14px);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -128,7 +129,8 @@ body {
 }
 
 .panel,
-.benchmark-card {
+.benchmark-card,
+.benchmark-empty {
   padding: 20px;
 }
 
@@ -154,6 +156,11 @@ body {
   cursor: pointer;
 }
 
+.benchmark-card[data-selected="true"] {
+  border-color: rgba(231, 111, 81, 0.45);
+  box-shadow: 0 24px 80px rgba(231, 111, 81, 0.14);
+}
+
 .benchmark-card strong,
 .recent-item strong,
 .mono {
@@ -169,6 +176,17 @@ body {
 .recent-item p,
 .muted {
   color: rgba(20, 33, 61, 0.76);
+}
+
+.benchmark-empty p,
+.benchmark-empty span {
+  margin: 0;
+}
+
+.benchmark-empty {
+  display: grid;
+  gap: 10px;
+  align-content: center;
 }
 
 .section-heading {

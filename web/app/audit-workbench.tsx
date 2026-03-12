@@ -47,26 +47,19 @@ type AuditRecord = {
   };
 };
 
+type DemoFixture = {
+  id: string;
+  label: string;
+  contract_name: string;
+  entry_contract: string;
+  benchmark_id: string;
+  address: string;
+  note: string;
+  source_path: string;
+};
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL ?? "http://127.0.0.1:8080";
-
-const benchmarkCards = [
-  {
-    label: "Vulnerable Bank",
-    address: "0x1000000000000000000000000000000000000001",
-    note: "High-confidence reentrancy finding",
-  },
-  {
-    label: "Admin Setter",
-    address: "0x1000000000000000000000000000000000000002",
-    note: "High-confidence access control finding",
-  },
-  {
-    label: "Clean Vault",
-    address: "0x1000000000000000000000000000000000000003",
-    note: "Clean benchmark with medium confidence",
-  },
-];
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -94,9 +87,8 @@ function formatEth(wei: number): string {
 }
 
 export function AuditWorkbench() {
-  const [contractAddress, setContractAddress] = useState(
-    "0x1000000000000000000000000000000000000001",
-  );
+  const [contractAddress, setContractAddress] = useState("");
+  const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
@@ -111,10 +103,17 @@ export function AuditWorkbench() {
 
   async function loadRecentAudits() {
     try {
-      const payload = await apiFetch<{ items: AuditRecord[] }>("/audits");
-      setRecentAudits(payload.items);
-      if (!activeAudit && payload.items.length > 0) {
-        setActiveAudit(payload.items[0]);
+      const [auditPayload, fixturePayload] = await Promise.all([
+        apiFetch<{ items: AuditRecord[] }>("/audits"),
+        apiFetch<{ items: DemoFixture[] }>("/fixtures"),
+      ]);
+      setRecentAudits(auditPayload.items);
+      setDemoFixtures(fixturePayload.items);
+      if (!activeAudit && auditPayload.items.length > 0) {
+        setActiveAudit(auditPayload.items[0]);
+      }
+      if (!contractAddress && fixturePayload.items.length > 0) {
+        setContractAddress(fixturePayload.items[0].address);
       }
     } catch (loadError) {
       setError(
@@ -225,7 +224,7 @@ export function AuditWorkbench() {
     <main className="page-shell">
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Base Sepolia Demo</p>
+          <p className="eyebrow">Proof-of-Audit Workbench</p>
           <h1>Agents that stake on their audit calls.</h1>
           <p className="lede">
             Submit a contract, generate a deterministic report, publish a staked
@@ -236,6 +235,7 @@ export function AuditWorkbench() {
             <input
               id="contractAddress"
               name="contractAddress"
+              placeholder="0x..."
               value={contractAddress}
               onChange={(event) => setContractAddress(event.target.value)}
             />
@@ -262,18 +262,29 @@ export function AuditWorkbench() {
       </section>
 
       <section className="benchmark-strip">
-        {benchmarkCards.map((benchmark) => (
-          <button
-            key={benchmark.address}
-            className="benchmark-card"
-            type="button"
-            onClick={() => setContractAddress(benchmark.address)}
-          >
-            <span>{benchmark.label}</span>
-            <strong>{benchmark.address}</strong>
-            <p>{benchmark.note}</p>
-          </button>
-        ))}
+        {demoFixtures.length === 0 ? (
+          <article className="benchmark-empty">
+            <p>No local demo fixtures detected.</p>
+            <span>
+              Run <code>./scripts/deploy-demo-fixtures.sh</code> after local contract
+              deployment to populate this panel with live Anvil addresses.
+            </span>
+          </article>
+        ) : (
+          demoFixtures.map((fixture) => (
+            <button
+              key={fixture.address}
+              className="benchmark-card"
+              data-selected={fixture.address === contractAddress}
+              type="button"
+              onClick={() => setContractAddress(fixture.address)}
+            >
+              <span>{fixture.label}</span>
+              <strong>{fixture.address}</strong>
+              <p>{fixture.note}</p>
+            </button>
+          ))
+        )}
       </section>
 
       <section className="workspace-grid">

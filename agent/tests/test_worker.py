@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+import tempfile
 
 from proof_of_audit_agent.worker import AuditWorker
 
@@ -25,7 +27,37 @@ class AuditWorkerTest(unittest.TestCase):
         self.assertEqual(report.confidence, "low")
         self.assertEqual(report.findings, [])
 
+    def test_manifest_fixture_address_maps_to_benchmark(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = Path(tmpdir) / "demo-fixtures.localhost.json"
+            manifest.write_text(
+                """
+{
+  "fixtures": [
+    {
+      "id": "unchecked-treasury",
+      "label": "Unchecked Treasury",
+      "contract_name": "UncheckedTreasury",
+      "entry_contract": "UncheckedTreasury",
+      "benchmark_id": "unchecked-treasury",
+      "address": "0x9999000000000000000000000000000000000004",
+      "note": "Imported registry and unchecked external call",
+      "source_path": "demo/contracts/UncheckedTreasury.sol"
+    }
+  ]
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            worker = AuditWorker(manifest)
+            report = worker.run_audit("0x9999000000000000000000000000000000000004")
+
+            self.assertEqual(report.benchmark_id, "unchecked-treasury")
+            self.assertEqual(report.max_severity, 2)
+            self.assertEqual(len(report.findings), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
-
