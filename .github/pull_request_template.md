@@ -6,6 +6,7 @@
 ## Checks
 
 - [ ] tests added or updated where appropriate
+- [ ] `python3 -m pip install -r api/requirements.txt` completed if API code changed
 - [ ] `make test-python` passed
 - [ ] `forge test --root contracts` passed
 - [ ] `pnpm build` passed in `web/`
@@ -14,4 +15,3 @@
 ## Issue
 
 Closes #
-

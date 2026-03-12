@@ -25,7 +25,7 @@ This repository is an early-stage prototype intended for rapid iteration. The cu
 
 - `contracts/`: Foundry contract for publishing audits, opening challenges, and resolving stake payouts.
 - `agent/`: Python audit worker with deterministic outputs for benchmark contracts.
-- `api/`: Dependency-free Python HTTP API for submit, view, publish, and challenge flows.
+- `api/`: FastAPI service for submit, view, publish, and challenge flows.
 - `web/`: Minimal Next.js app scaffold for the demo UI.
 - `demo/`: Sample contracts that map to benchmark audit outputs.
 
@@ -52,6 +52,7 @@ forge test
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
+python3 -m pip install -r api/requirements.txt
 make test-python
 ```
 
@@ -59,6 +60,7 @@ make test-python
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
+python3 -m pip install -r api/requirements.txt
 PYTHONPATH=agent:api python3 -m proof_of_audit_api.app
 ```
 
@@ -66,6 +68,7 @@ Server defaults:
 
 - `http://127.0.0.1:8080`
 - data persisted under `api/data/`
+- interactive API docs at `http://127.0.0.1:8080/docs`
 
 ### Run the web app
 
@@ -120,6 +123,7 @@ Core commands:
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
+python3 -m pip install -r api/requirements.txt
 make test-python
 cd contracts && forge test
 cd ../web && pnpm build
@@ -130,7 +134,7 @@ See the project roadmap in `docs/ROADMAP.md`.
 ## Notes
 
 - The contract path is runnable and tested in this environment.
-- The Python agent and API are runnable with the system Python only.
+- The Python agent uses the system Python, and the API dependencies are listed in `api/requirements.txt`.
 - The web app uses a direct browser connection to the Python API, so the API exposes permissive local-demo CORS headers.
 
 ## Security
