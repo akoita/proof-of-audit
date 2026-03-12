@@ -22,4 +22,4 @@ test-python:
 	PYTHONPATH=agent:api $(PYTHON) -m unittest discover -s api/tests
 
 test-e2e:
-	cd web && PYTHON_BIN=$(PYTHON) pnpm exec playwright test
+	cd web && PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} pnpm exec playwright test

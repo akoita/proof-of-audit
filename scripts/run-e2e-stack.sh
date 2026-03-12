@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR="/home/koita/dev/hackatons/proof-of-audit"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${E2E_ROOT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ANVIL_HOST="${E2E_ANVIL_HOST:-127.0.0.1}"
 ANVIL_PORT="${E2E_ANVIL_PORT:-9545}"
 ANVIL_CHAIN_ID="${E2E_ANVIL_CHAIN_ID:-31338}"
