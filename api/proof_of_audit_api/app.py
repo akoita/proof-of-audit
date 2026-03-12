@@ -11,9 +11,9 @@ import uvicorn
 
 from proof_of_audit_api.config import ContractConfig, DEFAULT_API_ENV_FILE
 from proof_of_audit_api.publisher import (
+    OnchainChallengeError,
     OnchainConfigurationError,
     OnchainPublishError,
-    ProofOfAuditPublisher,
 )
 from proof_of_audit_api.schemas import (
     AuditListResponse,
@@ -212,6 +212,16 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        except OnchainConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "onchain_not_configured", "message": str(exc)},
+            ) from exc
+        except OnchainChallengeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "challenge_failed", "message": str(exc)},
             ) from exc
         return AuditRecordModel.model_validate(record)
 

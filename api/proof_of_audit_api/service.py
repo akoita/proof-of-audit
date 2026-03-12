@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, UTC
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -102,20 +101,37 @@ class AuditService:
         self, audit_id: str, proof_uri: str, challenger: str
     ) -> dict[str, Any]:
         record = self._require_audit(audit_id)
+        if record["status"] == "challenged":
+            raise ValueError("audit has already been challenged")
         if record["status"] != "published" or record["onchain"] is None:
             raise ValueError("audit must be published before challenge")
-        tx_hash = (
-            "0x"
-            + sha256(f"challenge:{audit_id}:{proof_uri}".encode("utf-8")).hexdigest()
+        onchain_audit_id = record["onchain"].get("audit_id")
+        if not isinstance(onchain_audit_id, int):
+            raise ValueError("published audit is missing its on-chain audit id")
+        if self.publisher is None:
+            raise OnchainConfigurationError(
+                "On-chain challenge submission is not configured for this API instance."
+            )
+
+        challenge_result = self.publisher.challenge_audit(
+            audit_id=onchain_audit_id,
+            proof_uri=proof_uri,
+            challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
         )
         record["challenge"] = {
             "challenger": challenger,
+            "challenger_address": challenge_result.challenger_address,
             "proof_uri": proof_uri,
             "submitted_at": datetime.now(UTC).isoformat(),
-            "verifier": "deterministic-demo-verifier",
-            "status": "accepted" if "poc" in proof_uri.lower() else "pending-review",
-            "challenge_tx_hash": tx_hash,
-            "challenge_tx_url": self.contract_config.transaction_url(tx_hash),
+            "verifier": "awaiting-resolution",
+            "status": "opened",
+            "challenge_hash": challenge_result.challenge_hash,
+            "challenge_bond_wei": challenge_result.challenge_bond_wei,
+            "chain_id": challenge_result.chain_id,
+            "challenge_tx_hash": challenge_result.tx_hash,
+            "challenge_tx_url": self.contract_config.transaction_url(
+                challenge_result.tx_hash
+            ),
         }
         record["status"] = "challenged"
         self.store.write(audit_id, record)

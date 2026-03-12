@@ -96,6 +96,13 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(published.status_code, 503)
         self.assertEqual(published.json()["error"], "onchain_not_configured")
 
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={"proof_uri": "ipfs://demo-poc", "challenger": "whitehat"},
+        )
+        self.assertEqual(challenged.status_code, 400)
+        self.assertEqual(challenged.json()["error"], "invalid_payload")
+
     def test_publish_unknown_audit_returns_404(self) -> None:
         response = self.client.post(
             "/audits/does-not-exist/publish",
@@ -152,3 +159,24 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertTrue(payload["onchain"]["publish_tx_hash"].startswith("0x"))
         self.assertEqual(payload["onchain"]["stake_wei"], 10**16)
         self.assertEqual(payload["onchain"]["chain_id"], self.chain_id)
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={"proof_uri": "ipfs://demo-poc", "challenger": "whitehat-demo"},
+        )
+        self.assertEqual(challenged.status_code, 200)
+        challenge_payload = challenged.json()
+        self.assertEqual(challenge_payload["status"], "challenged")
+        self.assertEqual(challenge_payload["challenge"]["status"], "opened")
+        self.assertEqual(
+            challenge_payload["challenge"]["challenger_address"],
+            self.client.app.state.audit_service.publisher.account.address,
+        )
+        self.assertTrue(challenge_payload["challenge"]["challenge_tx_hash"].startswith("0x"))
+
+        duplicate = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={"proof_uri": "ipfs://second-poc", "challenger": "whitehat-2"},
+        )
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(duplicate.json()["error"], "invalid_payload")

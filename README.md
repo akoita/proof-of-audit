@@ -68,7 +68,7 @@ Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract
 - `api/.env.local`
 - `web/.env.local`
 
-For localhost only, the generated `api/.env.local` also includes the Anvil publisher key so `POST /audits/:id/publish` can submit a real local transaction without extra manual exports.
+For localhost only, the generated `api/.env.local` also includes the Anvil publisher key so `POST /audits/:id/publish` and `POST /audits/:id/challenge` can submit real local transactions without extra manual exports.
 
 It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
 
