@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from datetime import datetime, UTC
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from proof_of_audit_agent.worker import AuditWorker
+from proof_of_audit_api.store import JsonStore
+
+
+class AuditService:
+    def __init__(self, data_root: Path) -> None:
+        self.store = JsonStore(data_root)
+        self.worker = AuditWorker()
+
+    def create_audit(
+        self, contract_address: str, submitted_by: str = "anonymous"
+    ) -> dict[str, Any]:
+        report = self.worker.run_audit(contract_address)
+        audit_id = str(uuid4())
+        record = {
+            "id": audit_id,
+            "contract_address": contract_address.lower(),
+            "submitted_by": submitted_by,
+            "status": "draft",
+            "created_at": datetime.now(UTC).isoformat(),
+            "report": report.to_dict(),
+            "onchain": None,
+            "challenge": None,
+        }
+        self.store.write(audit_id, record)
+        return record
+
+    def get_audit(self, audit_id: str) -> dict[str, Any] | None:
+        return self.store.read(audit_id)
+
+    def list_audits(self) -> list[dict[str, Any]]:
+        records = self.store.list_all()
+        return sorted(records, key=lambda record: record["created_at"], reverse=True)
+
+    def publish_audit(
+        self, audit_id: str, stake_wei: int, agent_identity: str
+    ) -> dict[str, Any]:
+        record = self._require_audit(audit_id)
+        if record["status"] != "draft":
+            raise ValueError("audit must be in draft status before publish")
+        report = record["report"]
+        fake_tx = (
+            "0x" + sha256(f"publish:{audit_id}:{stake_wei}".encode("utf-8")).hexdigest()
+        )
+        record["status"] = "published"
+        record["onchain"] = {
+            "network": "base-sepolia",
+            "agent_identity": agent_identity,
+            "stake_wei": stake_wei,
+            "report_hash": report["report_hash"],
+            "metadata_hash": report["metadata_hash"],
+            "max_severity": report["max_severity"],
+            "finding_count": len(report["findings"]),
+            "publish_tx_hash": fake_tx,
+        }
+        self.store.write(audit_id, record)
+        return record
+
+    def challenge_audit(
+        self, audit_id: str, proof_uri: str, challenger: str
+    ) -> dict[str, Any]:
+        record = self._require_audit(audit_id)
+        if record["status"] != "published" or record["onchain"] is None:
+            raise ValueError("audit must be published before challenge")
+        tx_hash = (
+            "0x"
+            + sha256(f"challenge:{audit_id}:{proof_uri}".encode("utf-8")).hexdigest()
+        )
+        record["challenge"] = {
+            "challenger": challenger,
+            "proof_uri": proof_uri,
+            "submitted_at": datetime.now(UTC).isoformat(),
+            "verifier": "deterministic-demo-verifier",
+            "status": "accepted" if "poc" in proof_uri.lower() else "pending-review",
+            "challenge_tx_hash": tx_hash,
+        }
+        record["status"] = "challenged"
+        self.store.write(audit_id, record)
+        return record
+
+    def _require_audit(self, audit_id: str) -> dict[str, Any]:
+        record = self.get_audit(audit_id)
+        if record is None:
+            raise KeyError(audit_id)
+        return record

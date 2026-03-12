@@ -1,0 +1,205 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract ProofOfAudit {
+    enum AuditState {
+        None,
+        Published,
+        Challenged,
+        Resolved
+    }
+
+    enum Resolution {
+        None,
+        ChallengeUpheld,
+        ChallengeRejected
+    }
+
+    struct AuditRecord {
+        address auditor;
+        address target;
+        bytes32 reportHash;
+        bytes32 metadataHash;
+        uint64 publishedAt;
+        uint64 challengedAt;
+        uint96 stakeAmount;
+        uint96 challengeBond;
+        uint8 maxSeverity;
+        uint8 findingCount;
+        AuditState state;
+        Resolution resolution;
+        address challenger;
+        bytes32 challengeHash;
+    }
+
+    error IncorrectStake();
+    error IncorrectChallengeBond();
+    error InvalidAudit();
+    error InvalidState();
+    error ChallengeWindowClosed();
+    error ChallengeWindowOpen();
+    error NotArbiter();
+    error TransferFailed();
+
+    event AuditPublished(
+        uint256 indexed auditId,
+        address indexed auditor,
+        address indexed target,
+        bytes32 reportHash,
+        uint256 stakeAmount,
+        uint8 maxSeverity,
+        uint8 findingCount
+    );
+
+    event ChallengeOpened(
+        uint256 indexed auditId,
+        address indexed challenger,
+        bytes32 challengeHash,
+        uint256 challengeBond
+    );
+
+    event ChallengeResolved(
+        uint256 indexed auditId,
+        Resolution resolution,
+        address indexed beneficiary,
+        uint256 payout
+    );
+
+    event StakeReleased(
+        uint256 indexed auditId,
+        address indexed auditor,
+        uint256 amount
+    );
+
+    uint256 public immutable requiredStake;
+    uint256 public immutable requiredChallengeBond;
+    uint256 public immutable challengeWindow;
+    address public immutable arbiter;
+
+    uint256 public nextAuditId;
+    mapping(uint256 => AuditRecord) public audits;
+
+    constructor(
+        address _arbiter,
+        uint256 _requiredStake,
+        uint256 _requiredChallengeBond,
+        uint256 _challengeWindow
+    ) {
+        arbiter = _arbiter;
+        requiredStake = _requiredStake;
+        requiredChallengeBond = _requiredChallengeBond;
+        challengeWindow = _challengeWindow;
+    }
+
+    function publishAudit(
+        address target,
+        bytes32 reportHash,
+        bytes32 metadataHash,
+        uint8 maxSeverity,
+        uint8 findingCount
+    ) external payable returns (uint256 auditId) {
+        if (msg.value != requiredStake) revert IncorrectStake();
+
+        auditId = ++nextAuditId;
+        audits[auditId] = AuditRecord({
+            auditor: msg.sender,
+            target: target,
+            reportHash: reportHash,
+            metadataHash: metadataHash,
+            publishedAt: uint64(block.timestamp),
+            challengedAt: 0,
+            stakeAmount: uint96(msg.value),
+            challengeBond: 0,
+            maxSeverity: maxSeverity,
+            findingCount: findingCount,
+            state: AuditState.Published,
+            resolution: Resolution.None,
+            challenger: address(0),
+            challengeHash: bytes32(0)
+        });
+
+        emit AuditPublished(
+            auditId,
+            msg.sender,
+            target,
+            reportHash,
+            msg.value,
+            maxSeverity,
+            findingCount
+        );
+    }
+
+    function challengeAudit(
+        uint256 auditId,
+        bytes32 challengeHash
+    ) external payable {
+        AuditRecord storage audit = audits[auditId];
+        if (audit.state != AuditState.Published) revert InvalidState();
+        if (audit.publishedAt == 0) revert InvalidAudit();
+        if (block.timestamp > audit.publishedAt + challengeWindow) {
+            revert ChallengeWindowClosed();
+        }
+        if (msg.value != requiredChallengeBond) revert IncorrectChallengeBond();
+
+        audit.state = AuditState.Challenged;
+        audit.challengedAt = uint64(block.timestamp);
+        audit.challengeBond = uint96(msg.value);
+        audit.challenger = msg.sender;
+        audit.challengeHash = challengeHash;
+
+        emit ChallengeOpened(auditId, msg.sender, challengeHash, msg.value);
+    }
+
+    function resolveChallenge(uint256 auditId, bool upheld) external {
+        if (msg.sender != arbiter) revert NotArbiter();
+
+        AuditRecord storage audit = audits[auditId];
+        if (audit.state != AuditState.Challenged) revert InvalidState();
+
+        audit.state = AuditState.Resolved;
+
+        address beneficiary;
+        uint256 payout;
+
+        if (upheld) {
+            audit.resolution = Resolution.ChallengeUpheld;
+            beneficiary = audit.challenger;
+            payout = uint256(audit.stakeAmount) + uint256(audit.challengeBond);
+        } else {
+            audit.resolution = Resolution.ChallengeRejected;
+            beneficiary = audit.auditor;
+            payout = uint256(audit.stakeAmount) + uint256(audit.challengeBond);
+        }
+
+        _sendValue(beneficiary, payout);
+        emit ChallengeResolved(auditId, audit.resolution, beneficiary, payout);
+    }
+
+    function releaseStake(uint256 auditId) external {
+        AuditRecord storage audit = audits[auditId];
+        if (audit.publishedAt == 0) revert InvalidAudit();
+        if (audit.state != AuditState.Published) revert InvalidState();
+        if (block.timestamp <= audit.publishedAt + challengeWindow) {
+            revert ChallengeWindowOpen();
+        }
+
+        audit.state = AuditState.Resolved;
+        audit.resolution = Resolution.ChallengeRejected;
+
+        uint256 payout = audit.stakeAmount;
+        _sendValue(audit.auditor, payout);
+
+        emit StakeReleased(auditId, audit.auditor, payout);
+    }
+
+    function getAudit(
+        uint256 auditId
+    ) external view returns (AuditRecord memory) {
+        return audits[auditId];
+    }
+
+    function _sendValue(address to, uint256 amount) private {
+        (bool ok, ) = payable(to).call{value: amount}("");
+        if (!ok) revert TransferFailed();
+    }
+}
