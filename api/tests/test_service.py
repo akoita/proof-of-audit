@@ -43,6 +43,7 @@ class AuditServiceTest(unittest.TestCase):
 
             self.assertEqual(created["status"], "draft")
             self.assertEqual(created["report"]["benchmark_id"], "unknown")
+            self.assertEqual(created["report"]["finding_count"], 0)
 
             published = service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
             self.assertEqual(published["status"], "published")
@@ -302,6 +303,28 @@ class AuditServiceTest(unittest.TestCase):
             ):
                 service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
 
+    def test_multi_finding_benchmark_report_is_serialized(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir))
+
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000004",
+                submitted_by="judge",
+            )
+
+            self.assertEqual(created["report"]["benchmark_id"], "dual-risk-vault")
+            self.assertEqual(created["report"]["finding_count"], 2)
+            self.assertEqual(created["report"]["severity_breakdown"]["high"], 1)
+            self.assertEqual(created["report"]["severity_breakdown"]["medium"], 1)
+            self.assertEqual(
+                created["report"]["findings"][0]["finding_id"],
+                "dual-risk-vault.rotate-owner.missing-access-control",
+            )
+            self.assertEqual(
+                created["report"]["findings"][1]["evidence_uri"],
+                "ipfs://dual-risk-vault/emergency-payout-failure",
+            )
+
     def test_lists_demo_fixtures_from_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             fixtures_file = Path(tmpdir) / "demo-fixtures.localhost.json"
@@ -316,6 +339,7 @@ class AuditServiceTest(unittest.TestCase):
                                 "entry_contract": "CleanVault",
                                 "benchmark_id": "clean-vault",
                                 "address": "0x4444000000000000000000000000000000000004",
+                                "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
                                 "note": "Clean benchmark with medium confidence",
                                 "source_path": "demo/contracts/CleanVault.sol",
                             }
@@ -338,6 +362,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(fixtures[0]["label"], "Clean Vault")
             self.assertEqual(
                 fixtures[0]["address"], "0x4444000000000000000000000000000000000004"
+            )
+            self.assertEqual(
+                fixtures[0]["challenge_proof_uri"],
+                "ipfs://clean-vault/missed-reentrancy",
             )
 
 

@@ -3,11 +3,20 @@
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
 type Finding = {
+  finding_id: string;
   title: string;
   severity: string;
+  category: string;
   description: string;
+  impact: string;
   recommendation: string;
   detector: string;
+  confidence: string;
+  affected_function?: string | null;
+  source_path?: string | null;
+  start_line?: number | null;
+  end_line?: number | null;
+  evidence_uri?: string | null;
 };
 
 type PublicContractConfig = {
@@ -38,6 +47,8 @@ type AuditRecord = {
     report_hash: string;
     metadata_hash: string;
     max_severity: number;
+    finding_count: number;
+    severity_breakdown: Record<string, number>;
   };
   onchain: null | {
     audit_id?: number;
@@ -120,6 +131,14 @@ function formatEth(wei: number): string {
   return `${(wei / 1e18).toFixed(3)} ETH`;
 }
 
+function titleCase(value: string): string {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function formatWindow(seconds: number): string {
   if (seconds % 86400 === 0) {
     return `${seconds / 86400} day`;
@@ -193,6 +212,8 @@ function suggestedProofUriForBenchmark(benchmarkId: string): string {
       return "ipfs://reentrancy-bank/withdraw-drain";
     case "admin-setter":
       return "ipfs://admin-setter/unauthorized-admin-change";
+    case "dual-risk-vault":
+      return "ipfs://dual-risk-vault/owner-takeover";
     case "unchecked-treasury":
       return "ipfs://unchecked-treasury/unchecked-call-failure";
     default:
@@ -589,10 +610,10 @@ export function AuditWorkbench() {
                   </strong>
                 </div>
               </div>
-              <div className="stat-row">
+                <div className="stat-row">
                 <div>
                   <span>Findings</span>
-                  <strong>{activeAudit.report.findings.length}</strong>
+                  <strong>{activeAudit.report.finding_count}</strong>
                 </div>
                 <div>
                   <span>Max severity</span>
@@ -605,6 +626,13 @@ export function AuditWorkbench() {
                   </strong>
                 </div>
               </div>
+              <p className="muted">
+                Severity mix:{" "}
+                {Object.entries(activeAudit.report.severity_breakdown)
+                  .filter(([, count]) => count > 0)
+                  .map(([severity, count]) => `${titleCase(severity)} ${count}`)
+                  .join(" · ") || "No findings"}
+              </p>
 
               <div className="finding-list">
                 {activeAudit.report.findings.length === 0 ? (
@@ -617,13 +645,30 @@ export function AuditWorkbench() {
                   </div>
                 ) : (
                   activeAudit.report.findings.map((finding) => (
-                    <div key={finding.title} className="finding-card">
+                    <div key={finding.finding_id} className="finding-card">
                       <div className="card-header">
                         <p>{finding.title}</p>
                         <span>{finding.severity}</span>
                       </div>
+                      <p className="muted">
+                        {titleCase(finding.category)} · {titleCase(finding.confidence)} confidence
+                        {finding.affected_function ? ` · ${finding.affected_function}` : ""}
+                      </p>
                       <p>{finding.description}</p>
+                      <p className="muted">{finding.impact}</p>
                       <p className="muted">{finding.recommendation}</p>
+                      {finding.source_path ? (
+                        <p className="muted">
+                          Source: {finding.source_path}
+                          {finding.start_line ? `:${finding.start_line}` : ""}
+                          {finding.end_line && finding.end_line !== finding.start_line
+                            ? `-${finding.end_line}`
+                            : ""}
+                        </p>
+                      ) : null}
+                      {finding.evidence_uri ? (
+                        <p className="muted">Evidence: {finding.evidence_uri}</p>
+                      ) : null}
                     </div>
                   ))
                 )}
