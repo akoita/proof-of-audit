@@ -134,7 +134,11 @@ class AuditApiAppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         payload = response.json()
-        self.assertEqual(payload["detail"][0]["loc"][-1], "contract_address")
+        self.assertEqual(payload["error"], "validation_error")
+        self.assertIn(
+            "contract_address is required for deployed_address submissions",
+            payload["detail"][0]["msg"],
+        )
 
     def test_richer_multi_finding_report_shape_is_exposed(self) -> None:
         response = self.client.post(

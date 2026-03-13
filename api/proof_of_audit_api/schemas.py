@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class FindingModel(BaseModel):
@@ -80,6 +80,7 @@ class ChallengeModel(BaseModel):
 class AuditRecordModel(BaseModel):
     id: str
     contract_address: str
+    submission: "AuditSubmissionModel"
     submitted_by: str
     status: str
     created_at: str
@@ -124,9 +125,35 @@ class PublicContractConfigResponse(BaseModel):
     deployment_ready: bool
 
 
-class CreateAuditRequest(BaseModel):
-    contract_address: str
+InputKind = Literal["deployed_address", "demo_fixture", "source_bundle", "repository_url"]
+
+
+class AuditSubmissionModel(BaseModel):
+    input_kind: InputKind
+    chain_id: int | None = None
+    contract_address: str | None = None
+    fixture_id: str | None = None
+    entry_contract: str | None = None
+    source_bundle_uri: str | None = None
+    source_bundle_label: str | None = None
+    repository_url: str | None = None
+
+
+class CreateAuditRequest(AuditSubmissionModel):
+    input_kind: InputKind = "deployed_address"
     submitted_by: str = "anonymous"
+
+    @model_validator(mode="after")
+    def validate_submission_requirements(self) -> "CreateAuditRequest":
+        if self.input_kind == "deployed_address" and not self.contract_address:
+            raise ValueError("contract_address is required for deployed_address submissions")
+        if self.input_kind == "demo_fixture" and not self.fixture_id:
+            raise ValueError("fixture_id is required for demo_fixture submissions")
+        if self.input_kind == "source_bundle" and not self.source_bundle_uri:
+            raise ValueError("source_bundle_uri is required for source_bundle submissions")
+        if self.input_kind == "repository_url" and not self.repository_url:
+            raise ValueError("repository_url is required for repository_url submissions")
+        return self
 
 
 class PublishAuditRequest(BaseModel):

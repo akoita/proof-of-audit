@@ -160,6 +160,45 @@ body {
   font: inherit;
 }
 
+.mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mode-chip {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.mode-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(32, 55, 95, 0.22);
+}
+
+.mode-chip[data-selected="true"] {
+  border-color: rgba(221, 109, 75, 0.42);
+  background: rgba(242, 162, 97, 0.16);
+  color: var(--ink);
+}
+
+.submission-fields {
+  display: grid;
+  gap: 12px;
+}
+
 .submit-card-footer {
   display: flex;
   align-items: center;

@@ -31,9 +31,27 @@ type PublicContractConfig = {
   deployment_ready: boolean;
 };
 
+type InputKind =
+  | "deployed_address"
+  | "demo_fixture"
+  | "source_bundle"
+  | "repository_url";
+
+type Submission = {
+  input_kind: InputKind;
+  chain_id?: number | null;
+  contract_address?: string | null;
+  fixture_id?: string | null;
+  entry_contract?: string | null;
+  source_bundle_uri?: string | null;
+  source_bundle_label?: string | null;
+  repository_url?: string | null;
+};
+
 type AuditRecord = {
   id: string;
   contract_address: string;
+  submission: Submission;
   submitted_by: string;
   status: string;
   created_at: string;
@@ -163,7 +181,10 @@ function isExplorerLink(url: string | null | undefined): url is string {
   return !url.includes("127.0.0.1") && !url.includes("localhost");
 }
 
-function addressUrl(baseUrl: string | null | undefined, address: string | null | undefined) {
+function addressUrl(
+  baseUrl: string | null | undefined,
+  address: string | null | undefined,
+) {
   if (!isExplorerLink(baseUrl) || !address) {
     return null;
   }
@@ -234,8 +255,40 @@ function relativeTimeLabel(timestamp: string) {
   }).format(date);
 }
 
+function submissionModeLabel(mode: InputKind): string {
+  switch (mode) {
+    case "demo_fixture":
+      return "Demo fixture";
+    case "source_bundle":
+      return "Source bundle";
+    case "repository_url":
+      return "Repository";
+    default:
+      return "Deployed address";
+  }
+}
+
+function submissionTargetLabel(audit: AuditRecord): string {
+  if (audit.submission.input_kind === "demo_fixture") {
+    return audit.submission.entry_contract ?? audit.submission.fixture_id ?? audit.report.benchmark_id;
+  }
+  if (audit.submission.input_kind === "source_bundle") {
+    return (
+      audit.submission.entry_contract ??
+      audit.submission.source_bundle_label ??
+      "source bundle"
+    );
+  }
+  return shortenHex(audit.contract_address, 8, 6);
+}
+
 export function AuditWorkbench() {
+  const [submissionMode, setSubmissionMode] = useState<InputKind>("demo_fixture");
   const [contractAddress, setContractAddress] = useState("");
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const [entryContract, setEntryContract] = useState("");
+  const [sourceBundleUri, setSourceBundleUri] = useState("");
+  const [sourceBundleLabel, setSourceBundleLabel] = useState("");
   const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
@@ -248,10 +301,14 @@ export function AuditWorkbench() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
   const selectedFixture =
-    demoFixtures.find((fixture) => fixture.address === contractAddress) ?? null;
+    demoFixtures.find((fixture) => fixture.id === selectedFixtureId) ??
+    demoFixtures.find((fixture) => fixture.address === contractAddress) ??
+    null;
   const publishStake = contractConfig?.required_stake_wei ?? 10_000_000_000_000_000;
-  const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
+  const challengeBond =
+    contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
 
   useEffect(() => {
     startTransition(() => {
@@ -273,9 +330,13 @@ export function AuditWorkbench() {
       if (auditPayload.items.length > 0) {
         setActiveAudit((current) => current ?? auditPayload.items[0]);
       }
-      if (!contractAddress && fixturePayload.items.length > 0) {
-        setContractAddress(fixturePayload.items[0].address);
-        setProofUri(fixturePayload.items[0].challenge_proof_uri);
+      if (fixturePayload.items.length > 0 && !selectedFixtureId) {
+        const firstFixture = fixturePayload.items[0];
+        setSubmissionMode("demo_fixture");
+        setSelectedFixtureId(firstFixture.id);
+        setContractAddress(firstFixture.address);
+        setEntryContract(firstFixture.entry_contract);
+        setProofUri(firstFixture.challenge_proof_uri);
       }
     } catch (nextError) {
       setLoadError(
@@ -296,12 +357,33 @@ export function AuditWorkbench() {
     startTransition(() => {
       void (async () => {
         try {
+          const payload =
+            submissionMode === "demo_fixture"
+              ? {
+                  input_kind: "demo_fixture",
+                  fixture_id: selectedFixtureId,
+                  chain_id: contractConfig?.chain_id,
+                  entry_contract: entryContract || selectedFixture?.entry_contract,
+                  submitted_by: "web-demo",
+                }
+              : submissionMode === "source_bundle"
+                ? {
+                    input_kind: "source_bundle",
+                    source_bundle_uri: sourceBundleUri,
+                    source_bundle_label: sourceBundleLabel || undefined,
+                    entry_contract: entryContract || undefined,
+                    submitted_by: "web-demo",
+                  }
+                : {
+                    input_kind: "deployed_address",
+                    contract_address: contractAddress,
+                    chain_id: contractConfig?.chain_id,
+                    entry_contract: entryContract || undefined,
+                    submitted_by: "web-demo",
+                  };
           const created = await apiFetch<AuditRecord>("/audits", {
             method: "POST",
-            body: JSON.stringify({
-              contract_address: contractAddress,
-              submitted_by: "web-demo",
-            }),
+            body: JSON.stringify(payload),
           });
           syncAudit(created);
         } catch (submitError) {
@@ -387,6 +469,12 @@ export function AuditWorkbench() {
 
   function syncAudit(nextAudit: AuditRecord) {
     setActiveAudit(nextAudit);
+    setSubmissionMode(nextAudit.submission.input_kind);
+    setContractAddress(nextAudit.submission.contract_address ?? nextAudit.contract_address);
+    setSelectedFixtureId(nextAudit.submission.fixture_id ?? "");
+    setEntryContract(nextAudit.submission.entry_contract ?? "");
+    setSourceBundleUri(nextAudit.submission.source_bundle_uri ?? "");
+    setSourceBundleLabel(nextAudit.submission.source_bundle_label ?? "");
     setProofUri(suggestedProofUriForBenchmark(nextAudit.report.benchmark_id));
     setRecentAudits((current) =>
       [nextAudit, ...current.filter((audit) => audit.id !== nextAudit.id)].sort(
@@ -402,15 +490,14 @@ export function AuditWorkbench() {
           <p className="eyebrow">Proof-of-Audit Workbench</p>
           <h1>Agents that stake on their audit calls.</h1>
           <p className="lede">
-            Submit a contract, generate a deterministic report, publish a staked
-            attestation, and challenge it with reproducible evidence.
+            Submit a deployed contract, a live demo fixture, or a source bundle,
+            then generate a deterministic report and move on-chain only when the
+            target is actually deployable.
           </p>
           <div className="hero-inline-metrics">
             <div>
               <span>Mode</span>
-              <strong>
-                {contractConfig?.deployment_ready ? "Deployed contract flow" : "Local draft mode"}
-              </strong>
+              <strong>{submissionModeLabel(submissionMode)}</strong>
             </div>
             <div>
               <span>Coverage</span>
@@ -426,26 +513,92 @@ export function AuditWorkbench() {
               <div>
                 <label htmlFor="contractAddress">Audit target</label>
                 <p>
-                  Paste an address or pick one of the local fixtures below to
-                  populate the form.
+                  Choose the input shape that matches how the code is available,
+                  instead of forcing every audit through a deployed address.
                 </p>
               </div>
               {selectedFixture ? (
                 <span className="fixture-pill">{selectedFixture.label}</span>
               ) : null}
             </div>
-            <input
-              id="contractAddress"
-              name="contractAddress"
-              placeholder="0x..."
-              value={contractAddress}
-              onChange={(event) => setContractAddress(event.target.value)}
-            />
+            <div className="mode-switch" role="tablist" aria-label="Audit input mode">
+              <button
+                className="mode-chip"
+                data-selected={submissionMode === "demo_fixture"}
+                type="button"
+                onClick={() => setSubmissionMode("demo_fixture")}
+              >
+                Demo fixture
+              </button>
+              <button
+                className="mode-chip"
+                data-selected={submissionMode === "deployed_address"}
+                type="button"
+                onClick={() => setSubmissionMode("deployed_address")}
+              >
+                Deployed address
+              </button>
+              <button
+                className="mode-chip"
+                data-selected={submissionMode === "source_bundle"}
+                type="button"
+                onClick={() => setSubmissionMode("source_bundle")}
+              >
+                Source bundle
+              </button>
+            </div>
+            {submissionMode === "source_bundle" ? (
+              <div className="submission-fields">
+                <input
+                  id="sourceBundleUri"
+                  name="sourceBundleUri"
+                  placeholder="ipfs://uploads/dual-risk-vault.zip"
+                  value={sourceBundleUri}
+                  onChange={(event) => setSourceBundleUri(event.target.value)}
+                />
+                <input
+                  id="entryContract"
+                  name="entryContract"
+                  placeholder="Entry contract (optional)"
+                  value={entryContract}
+                  onChange={(event) => setEntryContract(event.target.value)}
+                />
+                <input
+                  id="sourceBundleLabel"
+                  name="sourceBundleLabel"
+                  placeholder="Bundle label (optional)"
+                  value={sourceBundleLabel}
+                  onChange={(event) => setSourceBundleLabel(event.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="submission-fields">
+                <input
+                  id="contractAddress"
+                  name="contractAddress"
+                  placeholder="0x..."
+                  value={contractAddress}
+                  onChange={(event) => setContractAddress(event.target.value)}
+                  disabled={submissionMode === "demo_fixture"}
+                />
+                <input
+                  id="entryContract"
+                  name="entryContract"
+                  placeholder="Entry contract (optional)"
+                  value={entryContract}
+                  onChange={(event) => setEntryContract(event.target.value)}
+                />
+              </div>
+            )}
             <div className="submit-card-footer">
               <p className="helper-copy">
-                {selectedFixture
-                  ? `${selectedFixture.contract_name} selected from local fixtures.`
-                  : "No fixture selected. You can still submit any deployed contract address."}
+                {submissionMode === "demo_fixture"
+                  ? selectedFixture
+                    ? `${selectedFixture.contract_name} selected from local fixtures.`
+                    : "Pick a demo fixture below to populate the live local address."
+                  : submissionMode === "source_bundle"
+                    ? "Use a bundle URI for pre-deploy or multi-contract review. Repository import stays a later async path."
+                    : "Paste any deployed contract address. Source bundles stay available when repo or dependency context matters more than one address."}
               </p>
               <button type="submit" disabled={isPending}>
                 {isPending && activeAction?.includes("Generating") ? "Working..." : "Run audit"}
@@ -482,7 +635,9 @@ export function AuditWorkbench() {
             </div>
             <div className="signal-row">
               <span>Window</span>
-              <strong>{contractConfig ? formatWindow(contractConfig.challenge_window_seconds) : "..."}</strong>
+              <strong>
+                {contractConfig ? formatWindow(contractConfig.challenge_window_seconds) : "..."}
+              </strong>
             </div>
           </div>
           <div className="signal-note">
@@ -498,10 +653,12 @@ export function AuditWorkbench() {
                     contractConfig.contract_address,
                   ) ? (
                     <a
-                      href={addressUrl(
-                        contractConfig.explorer_base_url,
-                        contractConfig.contract_address,
-                      ) ?? undefined}
+                      href={
+                        addressUrl(
+                          contractConfig.explorer_base_url,
+                          contractConfig.contract_address,
+                        ) ?? undefined
+                      }
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -516,7 +673,8 @@ export function AuditWorkbench() {
               </>
             ) : (
               <span className="muted">
-                No deployed contract is configured yet. Publish and challenge actions will stay unavailable until `/config` reports a live deployment.
+                No deployed contract is configured yet. Publish and challenge actions
+                stay unavailable until `/config` reports a live deployment.
               </span>
             )}
           </div>
@@ -552,10 +710,13 @@ export function AuditWorkbench() {
               <button
                 key={fixture.address}
                 className="benchmark-card"
-                data-selected={fixture.address === contractAddress}
+                data-selected={fixture.id === selectedFixtureId}
                 type="button"
                 onClick={() => {
+                  setSubmissionMode("demo_fixture");
+                  setSelectedFixtureId(fixture.id);
                   setContractAddress(fixture.address);
+                  setEntryContract(fixture.entry_contract);
                   setProofUri(fixture.challenge_proof_uri);
                 }}
               >
@@ -587,10 +748,11 @@ export function AuditWorkbench() {
           {activeAudit ? (
             <>
               <div className="audit-summary-bar">
+                <span>{submissionModeLabel(activeAudit.submission.input_kind)}</span>
                 <span>{activeAudit.report.benchmark_id}</span>
                 <span>{activeAudit.report.confidence} confidence</span>
                 <span title={activeAudit.contract_address}>
-                  {shortenHex(activeAudit.contract_address, 8, 6)}
+                  {submissionTargetLabel(activeAudit)}
                 </span>
               </div>
               <h2>{activeAudit.report.summary}</h2>
@@ -604,13 +766,11 @@ export function AuditWorkbench() {
                   <strong>{relativeTimeLabel(activeAudit.created_at)}</strong>
                 </div>
                 <div className="lifecycle-card">
-                  <span>Network</span>
-                  <strong>
-                    {activeAudit.onchain?.network ?? contractConfig?.network ?? "offline"}
-                  </strong>
+                  <span>Submission</span>
+                  <strong>{submissionModeLabel(activeAudit.submission.input_kind)}</strong>
                 </div>
               </div>
-                <div className="stat-row">
+              <div className="stat-row">
                 <div>
                   <span>Findings</span>
                   <strong>{activeAudit.report.finding_count}</strong>
@@ -651,7 +811,8 @@ export function AuditWorkbench() {
                         <span>{finding.severity}</span>
                       </div>
                       <p className="muted">
-                        {titleCase(finding.category)} · {titleCase(finding.confidence)} confidence
+                        {titleCase(finding.category)} · {titleCase(finding.confidence)}
+                        {" "}confidence
                         {finding.affected_function ? ` · ${finding.affected_function}` : ""}
                       </p>
                       <p>{finding.description}</p>
@@ -679,7 +840,9 @@ export function AuditWorkbench() {
                   <span>Publish</span>
                   <strong>Stake {formatEth(publishStake)}</strong>
                   <p className="muted">
-                    Opens an on-chain audit attestation against the configured registry contract.
+                    {activeAudit.submission.input_kind === "source_bundle"
+                      ? "Deploy the reviewed source bundle first, then resubmit it as a deployed address before staking on-chain."
+                      : "Opens an on-chain audit attestation against the configured registry contract."}
                   </p>
                   <button
                     type="button"
@@ -687,6 +850,7 @@ export function AuditWorkbench() {
                     disabled={
                       isPending ||
                       activeAudit.status !== "draft" ||
+                      activeAudit.submission.input_kind === "source_bundle" ||
                       !contractConfig?.deployment_ready
                     }
                   >
@@ -909,9 +1073,7 @@ export function AuditWorkbench() {
                     <p>{audit.report.benchmark_id}</p>
                     <span data-tone={statusTone(audit.status)}>{audit.status}</span>
                   </div>
-                  <strong title={audit.contract_address}>
-                    {shortenHex(audit.contract_address, 8, 6)}
-                  </strong>
+                  <strong title={audit.contract_address}>{submissionTargetLabel(audit)}</strong>
                   <p>{audit.report.summary}</p>
                   <small>{lifecycleLabel(audit)}</small>
                 </button>

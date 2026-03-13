@@ -14,7 +14,7 @@ export default defineConfig({
   webServer: {
     command: "../scripts/run-e2e-stack.sh",
     url: webUrl,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     stdout: "pipe",
     stderr: "pipe",
     timeout: 240_000,

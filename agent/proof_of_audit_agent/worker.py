@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 
 from proof_of_audit_agent.fixtures import DemoFixture, load_demo_fixtures
@@ -139,6 +140,9 @@ class AuditWorker:
         self._fixtures_by_address = {
             fixture.address: fixture for fixture in self.fixtures
         }
+        self._fixtures_by_id = {
+            fixture.fixture_id: fixture for fixture in self.fixtures
+        }
 
     def run_audit(self, contract_address: str) -> AuditReport:
         normalized = contract_address.lower()
@@ -162,6 +166,58 @@ class AuditWorker:
     def list_demo_fixtures(self) -> list[dict[str, str]]:
         return [fixture.to_dict() for fixture in self.fixtures]
 
+    def run_submission(
+        self,
+        *,
+        input_kind: str,
+        chain_id: int | None = None,
+        contract_address: str | None = None,
+        fixture_id: str | None = None,
+        entry_contract: str | None = None,
+        source_bundle_uri: str | None = None,
+        source_bundle_label: str | None = None,
+        repository_url: str | None = None,
+    ) -> AuditReport:
+        del chain_id, source_bundle_label, repository_url
+        if input_kind == "demo_fixture":
+            return self._report_for_fixture(self.require_fixture(fixture_id))
+
+        if input_kind == "source_bundle":
+            source_identifier = self.synthetic_contract_address(
+                source_bundle_uri or "source-bundle",
+                entry_contract=entry_contract,
+            )
+            benchmark_id = self._infer_source_bundle_benchmark(
+                entry_contract=entry_contract,
+                source_bundle_uri=source_bundle_uri,
+            )
+            if benchmark_id is not None:
+                return self._report_for_benchmark_id(benchmark_id, source_identifier)
+            return AuditReport(
+                benchmark_id="source-bundle",
+                contract_address=source_identifier,
+                summary="Source bundle received. No deterministic benchmark matched the supplied entry contract or bundle metadata.",
+                findings=[],
+                confidence="low",
+            )
+
+        if contract_address is None:
+            raise ValueError("contract_address is required for deployed address submissions")
+        return self.run_audit(contract_address)
+
+    def require_fixture(self, fixture_id: str | None) -> DemoFixture:
+        if fixture_id is None or fixture_id not in self._fixtures_by_id:
+            raise ValueError("unknown demo fixture")
+        return self._fixtures_by_id[fixture_id]
+
+    def synthetic_contract_address(
+        self, source_bundle_uri: str, entry_contract: str | None = None
+    ) -> str:
+        digest = sha256(
+            f"{source_bundle_uri}:{entry_contract or ''}".encode("utf-8")
+        ).hexdigest()
+        return f"0x{digest[:40]}"
+
     def _report_for_fixture(self, fixture: DemoFixture) -> AuditReport:
         return self._report_for_benchmark_id(fixture.benchmark_id, fixture.address)
 
@@ -177,3 +233,23 @@ class AuditWorker:
             supported_checks=template.supported_checks,
             confidence=template.confidence,
         )
+
+    def _infer_source_bundle_benchmark(
+        self, *, entry_contract: str | None, source_bundle_uri: str | None
+    ) -> str | None:
+        haystack = " ".join(
+            part.lower()
+            for part in [entry_contract or "", source_bundle_uri or ""]
+            if part
+        )
+        if "dualriskvault" in haystack or "dual-risk-vault" in haystack:
+            return "dual-risk-vault"
+        if "cleanvault" in haystack or "clean-vault" in haystack:
+            return "clean-vault"
+        if "vulnerablebank" in haystack or "reentrancy-bank" in haystack:
+            return "reentrancy-bank"
+        if "adminsetter" in haystack or "admin-setter" in haystack:
+            return "admin-setter"
+        if "uncheckedtreasury" in haystack or "unchecked-treasury" in haystack:
+            return "unchecked-treasury"
+        return None

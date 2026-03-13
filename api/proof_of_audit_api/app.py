@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -78,7 +79,10 @@ def create_app(
         del request
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"error": "validation_error", "detail": exc.errors()},
+            content={
+                "error": "validation_error",
+                "detail": jsonable_encoder(exc.errors()),
+            },
         )
 
     @app.get("/health", response_model=HealthResponse)
@@ -142,9 +146,16 @@ def create_app(
         payload: CreateAuditRequest, request: Request
     ) -> AuditRecordModel:
         service = _service(request)
-        record = service.create_audit(
-            payload.contract_address, submitted_by=payload.submitted_by
-        )
+        try:
+            record = service.create_audit_submission(
+                payload.model_dump(exclude={"submitted_by"}),
+                submitted_by=payload.submitted_by,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
         return AuditRecordModel.model_validate(record)
 
     @app.post(

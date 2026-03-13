@@ -26,6 +26,21 @@ This gives the product a clean default for both demos and real usage:
 - public-chain users can submit one address quickly
 - teams with private or multi-contract codebases can submit source code directly
 
+## Current implementation status
+
+The current repo now ships the first step of this model:
+
+- local web and API flows support `demo_fixture`
+- local web and API flows support `deployed_address`
+- local web and API flows support `source_bundle`
+- `repository_url` is reserved in the normalized schema but intentionally not exposed in the UI or publish path yet
+
+Current behavior notes:
+
+- `demo_fixture` resolves to a live local contract address from the generated fixture manifest
+- `source_bundle` produces a deterministic off-chain report and cannot be published on-chain until the bundle is deployed and resubmitted as a deployed address
+- `repository_url` remains a later async workflow
+
 ## Why not choose only one input mode
 
 Each input mode is useful, but none should be the only path:
@@ -234,8 +249,8 @@ That keeps the audit pipeline explicit while allowing the UI to add richer modes
 
 ## Next implementation steps
 
-1. Add fixture contracts and a local deployment script for demo data.
-2. Teach the web app to show fixture cards from a generated manifest instead of hard-coded addresses.
-3. Extend the API schema to support `input_kind` and optional source context.
-4. Add verified-source retrieval for public address submissions.
-5. Add zip upload handling before any repository import workflow.
+1. Add verified-source retrieval for public address submissions.
+2. Replace URI-only source-bundle entry with real zip upload handling.
+3. Add compiler and framework metadata capture for source-bundle submissions.
+4. Introduce `repository_url` as an asynchronous import flow.
+5. Let a deployed-address submission attach optional fetched or uploaded source context.
