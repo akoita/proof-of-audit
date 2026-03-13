@@ -150,6 +150,27 @@ Proof-of-Audit is configured to deploy to Base Sepolia with the following defaul
 
 The deployment manifest lives in `deployments/base-sepolia.json`.
 
+### Repeatable release flow
+
+The release path is now split into two explicit scripts:
+
+1. `./scripts/deploy-base-sepolia.sh`
+2. `./scripts/verify-base-sepolia.sh`
+
+The deploy script:
+
+- broadcasts the Foundry deployment
+- parses the Foundry broadcast output
+- records the deployed address, tx hash, block number, deployer, and encoded constructor args in `deployments/base-sepolia.json`
+- can optionally chain into verification when `PROOF_OF_AUDIT_DEPLOY_VERIFY=1`
+
+The verify script:
+
+- reads the recorded deployment manifest
+- reuses the recorded encoded constructor args
+- runs `forge verify-contract`
+- writes verification status back into the manifest when verification succeeds
+
 ## Required environment variables
 
 Copy `.env.example` into your preferred local secret-loading workflow and set:
@@ -179,6 +200,50 @@ forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit --rpc-url base_s
 cd /home/koita/dev/hackatons/proof-of-audit
 ./scripts/deploy-base-sepolia.sh
 ```
+
+### Verify an existing deployment
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/verify-base-sepolia.sh
+```
+
+### Optional one-command deploy + verify
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+PROOF_OF_AUDIT_DEPLOY_VERIFY=1 ./scripts/deploy-base-sepolia.sh
+```
+
+### Release manifest fields
+
+After a successful deploy, `deployments/base-sepolia.json` records:
+
+- contract address
+- deployment tx hash
+- deployment block number
+- deployer address
+- constructor args as named fields
+- constructor args as encoded hex for verification reuse
+- verification status and provider metadata
+
+### Rollback and redeploy basics
+
+There is no proxy or upgrade path in v1, so rollback means operational rollback, not contract mutation.
+
+If a release is bad:
+
+1. stop pointing the API or frontend at the bad address
+2. deploy a fresh contract with corrected parameters or code
+3. update the manifest and downstream runtime config to the new address
+4. re-run verification for the new address
+
+If you need to redeploy with the same bytecode but different constructor inputs:
+
+1. export the new env vars
+2. run `./scripts/deploy-base-sepolia.sh`
+3. verify with `./scripts/verify-base-sepolia.sh`
+4. update any app runtime env using the newly recorded manifest values
 
 ## Current status
 
