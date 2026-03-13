@@ -244,6 +244,14 @@ Base Sepolia deployment settings and manifest scaffolding are included in this r
 
 The live contract address is still pending until a funded deployer and RPC credentials are available.
 
+Repeatable release commands:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+make deploy-base-sepolia
+make verify-base-sepolia
+```
+
 ## Notes
 
 - The contract path is runnable and tested in this environment.

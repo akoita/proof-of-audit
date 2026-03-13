@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures install-api-deps test-contracts test-python test-system-e2e test-ui-e2e test-e2e
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia verify-base-sepolia install-api-deps test-contracts test-python test-system-e2e test-ui-e2e test-e2e
 
 PYTHON ?= python3
 
@@ -10,6 +10,12 @@ deploy-local:
 
 deploy-demo-fixtures:
 	./scripts/deploy-demo-fixtures.sh
+
+deploy-base-sepolia:
+	./scripts/deploy-base-sepolia.sh
+
+verify-base-sepolia:
+	./scripts/verify-base-sepolia.sh
 
 install-api-deps:
 	$(PYTHON) -m pip install setuptools wheel
