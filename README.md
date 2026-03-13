@@ -13,6 +13,7 @@ Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web c
 The current implementation focuses on:
 
 - benchmark-driven smart contract audit reports
+- normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by a stake
 - deterministic challenge verification for curated fixture PoCs
 - a browser-based demo path for submit, publish, review, and explorer-linked chain state
@@ -161,7 +162,30 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
 
 ```json
 {
+  "input_kind": "demo_fixture",
+  "fixture_id": "vulnerable-bank",
+  "submitted_by": "judge-demo"
+}
+```
+
+Additional supported submission shapes:
+
+```json
+{
+  "input_kind": "deployed_address",
+  "chain_id": 84532,
   "contract_address": "0x1000000000000000000000000000000000000001",
+  "entry_contract": "Vault",
+  "submitted_by": "judge-demo"
+}
+```
+
+```json
+{
+  "input_kind": "source_bundle",
+  "source_bundle_uri": "ipfs://uploads/dual-risk-vault.zip",
+  "source_bundle_label": "Dual Risk Vault upload",
+  "entry_contract": "DualRiskVault",
   "submitted_by": "judge-demo"
 }
 ```
@@ -177,9 +201,9 @@ Unknown contracts return a low-confidence informational report instead of fabric
 
 ## Architecture
 
-1. A user submits a target contract address through the web app or API.
-2. The audit worker maps the address to a deterministic benchmark report.
-3. The API persists the report and prepares on-chain publication metadata.
+1. A user submits a demo fixture, deployed address, or source bundle through the web app or API.
+2. The audit worker maps the normalized submission to a deterministic benchmark report.
+3. The API persists the report and prepares on-chain publication metadata when the target is deployable.
 4. The contract records the staked attestation and challenge lifecycle.
 5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts.
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, UTC
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -40,11 +41,24 @@ class AuditService:
     def create_audit(
         self, contract_address: str, submitted_by: str = "anonymous"
     ) -> dict[str, Any]:
-        report = self.worker.run_audit(contract_address)
+        return self.create_audit_submission(
+            {
+                "input_kind": "deployed_address",
+                "contract_address": contract_address,
+            },
+            submitted_by=submitted_by,
+        )
+
+    def create_audit_submission(
+        self, submission: dict[str, Any], submitted_by: str = "anonymous"
+    ) -> dict[str, Any]:
+        normalized_submission = self._normalize_submission(submission)
+        report = self.worker.run_submission(**normalized_submission)
         audit_id = str(uuid4())
         record = {
             "id": audit_id,
-            "contract_address": contract_address.lower(),
+            "contract_address": normalized_submission["contract_address"],
+            "submission": normalized_submission,
             "submitted_by": submitted_by,
             "status": "draft",
             "created_at": datetime.now(UTC).isoformat(),
@@ -71,6 +85,10 @@ class AuditService:
         record = self._require_audit(audit_id)
         if record["status"] != "draft":
             raise ValueError("audit must be in draft status before publish")
+        if record["submission"]["input_kind"] == "source_bundle":
+            raise ValueError("source_bundle submissions must be deployed before publish")
+        if record["submission"]["input_kind"] == "repository_url":
+            raise ValueError("repository_url submissions are not supported yet")
         if self.publisher is None:
             raise OnchainConfigurationError(
                 "On-chain publishing is not configured for this API instance."
@@ -230,3 +248,70 @@ class AuditService:
         if record is None:
             raise KeyError(audit_id)
         return record
+
+    def _normalize_submission(self, submission: dict[str, Any]) -> dict[str, Any]:
+        input_kind = submission.get("input_kind", "deployed_address")
+        chain_id = submission.get("chain_id")
+        entry_contract = submission.get("entry_contract")
+        source_bundle_uri = submission.get("source_bundle_uri")
+        source_bundle_label = submission.get("source_bundle_label")
+        repository_url = submission.get("repository_url")
+        fixture_id = submission.get("fixture_id")
+
+        if input_kind == "demo_fixture":
+            fixture = self.worker.require_fixture(fixture_id)
+            return {
+                "input_kind": "demo_fixture",
+                "chain_id": chain_id or self.contract_config.chain_id,
+                "contract_address": fixture.address,
+                "fixture_id": fixture.fixture_id,
+                "entry_contract": entry_contract or fixture.entry_contract,
+                "source_bundle_uri": source_bundle_uri,
+                "source_bundle_label": source_bundle_label or fixture.label,
+                "repository_url": repository_url,
+            }
+
+        if input_kind == "source_bundle":
+            if not source_bundle_uri:
+                raise ValueError("source_bundle_uri is required for source_bundle submissions")
+            return {
+                "input_kind": "source_bundle",
+                "chain_id": chain_id,
+                "contract_address": self.worker.synthetic_contract_address(
+                    source_bundle_uri,
+                    entry_contract=entry_contract,
+                ),
+                "fixture_id": fixture_id,
+                "entry_contract": entry_contract,
+                "source_bundle_uri": source_bundle_uri,
+                "source_bundle_label": source_bundle_label,
+                "repository_url": repository_url,
+            }
+
+        if input_kind == "repository_url":
+            if not repository_url:
+                raise ValueError("repository_url is required for repository_url submissions")
+            return {
+                "input_kind": "repository_url",
+                "chain_id": chain_id,
+                "contract_address": f"0x{sha256(repository_url.encode('utf-8')).hexdigest()[:40]}",
+                "fixture_id": fixture_id,
+                "entry_contract": entry_contract,
+                "source_bundle_uri": source_bundle_uri,
+                "source_bundle_label": source_bundle_label,
+                "repository_url": repository_url,
+            }
+
+        contract_address = submission.get("contract_address")
+        if not contract_address:
+            raise ValueError("contract_address is required for deployed_address submissions")
+        return {
+            "input_kind": "deployed_address",
+            "chain_id": chain_id or self.contract_config.chain_id,
+            "contract_address": contract_address.lower(),
+            "fixture_id": fixture_id,
+            "entry_contract": entry_contract,
+            "source_bundle_uri": source_bundle_uri,
+            "source_bundle_label": source_bundle_label,
+            "repository_url": repository_url,
+        }
