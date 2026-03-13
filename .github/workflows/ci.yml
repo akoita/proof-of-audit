@@ -55,8 +55,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - name: Enable pnpm with Corepack
         run: corepack enable && corepack prepare pnpm@10.18.3 --activate
       - name: Install dependencies
@@ -75,8 +73,6 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - name: Enable pnpm with Corepack
         run: corepack enable && corepack prepare pnpm@10.18.3 --activate
       - name: Install API dependencies
