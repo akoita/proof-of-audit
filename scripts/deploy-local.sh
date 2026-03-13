@@ -15,8 +15,79 @@ DEPLOYER_PRIVATE_KEY="${LOCAL_DEPLOYER_PRIVATE_KEY:-${DEPLOYER_PRIVATE_KEY:-0xac
 REQUIRED_STAKE_WEI="${PROOF_OF_AUDIT_REQUIRED_STAKE_WEI:-10000000000000000}"
 REQUIRED_CHALLENGE_BOND_WEI="${PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI:-5000000000000000}"
 CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
+MANIFEST_FILE="${LOCAL_DEPLOYMENT_MANIFEST_FILE:-${ROOT_DIR}/deployments/localhost.json}"
+API_ENV_FILE="${LOCAL_DEPLOYMENT_API_ENV_FILE:-${ROOT_DIR}/api/.env.local}"
+WEB_ENV_FILE="${LOCAL_DEPLOYMENT_WEB_ENV_FILE:-${ROOT_DIR}/web/.env.local}"
+FORCE_REDEPLOY="${LOCAL_DEPLOYMENT_FORCE_REDEPLOY:-0}"
 BROADCAST_FILE="${CONTRACTS_DIR}/broadcast/DeployProofOfAudit.s.sol/${CHAIN_ID}/run-latest.json"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+read_existing_manifest_address() {
+  "${PYTHON_BIN}" - "${MANIFEST_FILE}" "${CHAIN_ID}" "${RPC_URL}" "${NETWORK}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(1)
+
+data = json.loads(path.read_text(encoding="utf-8"))
+if data.get("chain_id") != int(sys.argv[2]):
+    raise SystemExit(1)
+if data.get("rpc_url") != sys.argv[3]:
+    raise SystemExit(1)
+if data.get("network") != sys.argv[4]:
+    raise SystemExit(1)
+address = data.get("address")
+if not address:
+    raise SystemExit(1)
+print(address)
+PY
+}
+
+existing_deployment_matches() {
+  local address="$1"
+  local code
+  local existing_arbiter
+  local existing_stake
+  local existing_bond
+  local existing_window
+
+  code="$(cast code "${address}" --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+  [[ -n "${code}" && "${code}" != "0x" ]] || return 1
+
+  existing_arbiter="$(cast call "${address}" "arbiter()(address)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
+  existing_stake="$(cast call "${address}" "requiredStake()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
+  existing_bond="$(cast call "${address}" "requiredChallengeBond()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
+  existing_window="$(cast call "${address}" "challengeWindow()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
+
+  [[ -n "${existing_arbiter}" && "${existing_arbiter,,}" == "${ARBITER,,}" ]] || return 1
+  [[ "${existing_stake}" == "${REQUIRED_STAKE_WEI}" ]] || return 1
+  [[ "${existing_bond}" == "${REQUIRED_CHALLENGE_BOND_WEI}" ]] || return 1
+  [[ "${existing_window}" == "${CHALLENGE_WINDOW_SECONDS}" ]] || return 1
+}
+
+write_local_outputs() {
+  local contract_address="$1"
+
+  "${PYTHON_BIN}" scripts/write-local-config.py \
+    --contract-address "${contract_address}" \
+    --arbiter "${ARBITER}" \
+    --rpc-url "${RPC_URL}" \
+    --chain-id "${CHAIN_ID}" \
+    --network "${NETWORK}" \
+    --explorer-base-url "${EXPLORER_BASE_URL}" \
+    --api-url "${API_URL}" \
+    --publisher-private-key "${DEPLOYER_PRIVATE_KEY}" \
+    --arbiter-private-key "${DEPLOYER_PRIVATE_KEY}" \
+    --required-stake-wei "${REQUIRED_STAKE_WEI}" \
+    --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
+    --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}" \
+    --deployment-manifest-file "${MANIFEST_FILE}" \
+    --api-env-file "${API_ENV_FILE}" \
+    --web-env-file "${WEB_ENV_FILE}"
+}
 
 cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
   echo "Anvil or another RPC node is not reachable at ${RPC_URL}" >&2
@@ -24,7 +95,29 @@ cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
   exit 1
 }
 
-echo "Deploying ProofOfAudit to local RPC at ${RPC_URL}..."
+if [[ "${FORCE_REDEPLOY}" != "1" ]]; then
+  EXISTING_CONTRACT_ADDRESS="$(read_existing_manifest_address || true)"
+  if [[ -n "${EXISTING_CONTRACT_ADDRESS:-}" ]] && existing_deployment_matches "${EXISTING_CONTRACT_ADDRESS}"; then
+    echo "Reusing existing ProofOfAudit deployment at ${EXISTING_CONTRACT_ADDRESS}."
+    write_local_outputs "${EXISTING_CONTRACT_ADDRESS}"
+    echo
+    echo "Local deployment complete."
+    echo "Deployed component: ProofOfAudit smart contract on the local chain."
+    echo "Contract address: ${EXISTING_CONTRACT_ADDRESS}"
+    echo "Deployment mode: reused existing deployment."
+    echo "API config written to: ${API_ENV_FILE}"
+    echo "Web config written to: ${WEB_ENV_FILE}"
+    echo "Deployment manifest written to: ${MANIFEST_FILE}"
+    echo "No API or frontend process was started by this script."
+    exit 0
+  fi
+fi
+
+if [[ "${FORCE_REDEPLOY}" == "1" ]]; then
+  echo "Force redeploy requested. Deploying a fresh ProofOfAudit contract to ${RPC_URL}..."
+else
+  echo "Deploying ProofOfAudit to local RPC at ${RPC_URL}..."
+fi
 
 cd "${CONTRACTS_DIR}"
 
@@ -59,25 +152,14 @@ cast code "${CONTRACT_ADDRESS}" --rpc-url "${RPC_URL}" >/dev/null
 
 cd "${ROOT_DIR}"
 
-"${PYTHON_BIN}" scripts/write-local-config.py \
-  --contract-address "${CONTRACT_ADDRESS}" \
-  --arbiter "${ARBITER}" \
-  --rpc-url "${RPC_URL}" \
-  --chain-id "${CHAIN_ID}" \
-  --network "${NETWORK}" \
-  --explorer-base-url "${EXPLORER_BASE_URL}" \
-  --api-url "${API_URL}" \
-  --publisher-private-key "${DEPLOYER_PRIVATE_KEY}" \
-  --arbiter-private-key "${DEPLOYER_PRIVATE_KEY}" \
-  --required-stake-wei "${REQUIRED_STAKE_WEI}" \
-  --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
-  --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}"
+write_local_outputs "${CONTRACT_ADDRESS}"
 
 echo
 echo "Local deployment complete."
 echo "Deployed component: ProofOfAudit smart contract on the local chain."
 echo "Contract address: ${CONTRACT_ADDRESS}"
-echo "API config written to: ${ROOT_DIR}/api/.env.local"
-echo "Web config written to: ${ROOT_DIR}/web/.env.local"
-echo "Deployment manifest written to: ${ROOT_DIR}/deployments/localhost.json"
+echo "Deployment mode: fresh deployment."
+echo "API config written to: ${API_ENV_FILE}"
+echo "Web config written to: ${WEB_ENV_FILE}"
+echo "Deployment manifest written to: ${MANIFEST_FILE}"
 echo "No API or frontend process was started by this script."
