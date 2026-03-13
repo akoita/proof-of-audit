@@ -61,6 +61,8 @@ This script:
 - writes `web/.env.local`
 - includes the localhost publisher and arbiter private keys in `api/.env.local` so the API can submit real local publish, challenge, and resolve transactions
 
+If `deployments/localhost.json` already points to a live `ProofOfAudit` contract on the same RPC, chain id, network, and constructor config, the script reuses that deployment and only refreshes the generated config files. Set `LOCAL_DEPLOYMENT_FORCE_REDEPLOY=1` to bypass reuse and deploy a fresh contract address on the same chain.
+
 Generated files are ignored by Git and are meant for local development only.
 
 This script does not:

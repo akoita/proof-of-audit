@@ -26,9 +26,23 @@ def main() -> None:
     parser.add_argument("--required-stake-wei", default="10000000000000000")
     parser.add_argument("--required-challenge-bond-wei", default="5000000000000000")
     parser.add_argument("--challenge-window-seconds", default="86400")
+    parser.add_argument("--deployment-manifest-file")
+    parser.add_argument("--api-env-file")
+    parser.add_argument("--web-env-file")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
+    deployment_manifest_file = (
+        Path(args.deployment_manifest_file)
+        if args.deployment_manifest_file
+        else root / "deployments" / "localhost.json"
+    )
+    api_env_file = (
+        Path(args.api_env_file) if args.api_env_file else root / "api" / ".env.local"
+    )
+    web_env_file = (
+        Path(args.web_env_file) if args.web_env_file else root / "web" / ".env.local"
+    )
 
     deployment_manifest = {
         "network": args.network,
@@ -42,13 +56,14 @@ def main() -> None:
         "required_challenge_bond_wei": args.required_challenge_bond_wei,
         "challenge_window_seconds": int(args.challenge_window_seconds),
     }
-    (root / "deployments" / "localhost.json").write_text(
+    deployment_manifest_file.parent.mkdir(parents=True, exist_ok=True)
+    deployment_manifest_file.write_text(
         json.dumps(deployment_manifest, indent=2) + "\n",
         encoding="utf-8",
     )
 
     write_env_file(
-        root / "api" / ".env.local",
+        api_env_file,
         {
             "PROOF_OF_AUDIT_NETWORK": args.network,
             "PROOF_OF_AUDIT_CHAIN_ID": str(args.chain_id),
@@ -66,7 +81,7 @@ def main() -> None:
     )
 
     write_env_file(
-        root / "web" / ".env.local",
+        web_env_file,
         {
             "NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL": args.api_url,
             "NEXT_PUBLIC_PROOF_OF_AUDIT_NETWORK": args.network,
@@ -76,9 +91,9 @@ def main() -> None:
         },
     )
 
-    print(f"Wrote deployments/localhost.json for {args.contract_address}")
-    print("Updated api/.env.local")
-    print("Updated web/.env.local")
+    print(f"Wrote {deployment_manifest_file} for {args.contract_address}")
+    print(f"Updated {api_env_file}")
+    print(f"Updated {web_env_file}")
 
 
 if __name__ == "__main__":

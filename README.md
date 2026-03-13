@@ -69,6 +69,8 @@ Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract
 - `api/.env.local`
 - `web/.env.local`
 
+If the current localhost manifest still points to a valid `ProofOfAudit` deployment on the same RPC, chain, network, and contract config, rerunning `./scripts/deploy-local.sh` now reuses that deployment and refreshes the generated config instead of creating a new address. Use `LOCAL_DEPLOYMENT_FORCE_REDEPLOY=1 ./scripts/deploy-local.sh` when you intentionally want a fresh local contract.
+
 For localhost only, the generated `api/.env.local` also includes the Anvil publisher and arbiter keys so `POST /audits/:id/publish`, `POST /audits/:id/challenge`, and deterministic auto-resolution can submit real local transactions without extra manual exports.
 
 It does not start Anvil, the API, or the frontend, and it does not deploy backend or web services anywhere.
