@@ -85,6 +85,10 @@ class AuditorServiceRecordModel(BaseModel):
     active: bool
     supported_trust: list[str]
     registry_contract_address: str | None = None
+    validation_registry_address: str | None = None
+    validation_source: str | None = None
+    validation_request_path_template: str
+    validation_response_path_template: str
 
 
 class FindingModel(BaseModel):
@@ -162,6 +166,27 @@ class ChallengeModel(BaseModel):
     resolve_tx_url: str | None = None
 
 
+class ValidationTrailModel(BaseModel):
+    status: str
+    registry_address: str
+    source: str
+    agent_id: int
+    request_uri: str
+    request_hash: str
+    validator_address: str
+    request_tx_hash: str | None = None
+    request_tx_url: str | None = None
+    response: int | None = None
+    response_tag: str | None = None
+    response_uri: str | None = None
+    response_hash: str | None = None
+    response_tx_hash: str | None = None
+    response_tx_url: str | None = None
+    linked_resolution: str | None = None
+    linked_resolution_path: str | None = None
+    last_error: str | None = None
+
+
 class AuditRecordModel(BaseModel):
     id: str
     contract_address: str
@@ -173,6 +198,7 @@ class AuditRecordModel(BaseModel):
     report: AuditReportModel
     onchain: OnchainPublicationModel | None = None
     challenge: ChallengeModel | None = None
+    validation: ValidationTrailModel | None = None
 
 
 class AuditListResponse(BaseModel):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, UTC
 from hashlib import sha256
+import json
 from pathlib import Path
 import re
 from typing import Any
@@ -14,6 +15,10 @@ from proof_of_audit_api.publisher import (
     OnchainPublishError,
     OnchainResolveError,
     ProofOfAuditPublisher,
+)
+from proof_of_audit_api.validation_bridge import (
+    ValidationBridgeError,
+    ValidationRegistryBridge,
 )
 from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
 from proof_of_audit_agent.worker import AuditWorker
@@ -27,6 +32,7 @@ class AuditService:
         contract_config: ContractConfig | None = None,
         publisher: ProofOfAuditPublisher | None = None,
         arbiter_client: ProofOfAuditPublisher | None = None,
+        validation_bridge: ValidationRegistryBridge | None = None,
     ) -> None:
         self.store = JsonStore(data_root)
         self.contract_config = contract_config or ContractConfig.from_env()
@@ -38,6 +44,9 @@ class AuditService:
         self.arbiter_client = arbiter_client or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config,
             private_key=self.contract_config.arbiter_private_key,
+        )
+        self.validation_bridge = validation_bridge or ValidationRegistryBridge.from_config_if_ready(
+            self.contract_config
         )
 
     def create_audit(
@@ -69,6 +78,7 @@ class AuditService:
             "report": report.to_dict(),
             "onchain": None,
             "challenge": None,
+            "validation": None,
         }
         self.store.write(audit_id, record)
         return record
@@ -130,6 +140,7 @@ class AuditService:
                 publish_result.tx_hash
             ),
         }
+        record["validation"] = self._submit_validation_request(record)
         self.store.write(audit_id, record)
         return record
 
@@ -215,6 +226,8 @@ class AuditService:
             record["status"] = "challenged"
 
         record["challenge"] = challenge_record
+        if record["status"] == "resolved":
+            record["validation"] = self._submit_validation_response(record)
         self.store.write(audit_id, record)
         return record
 
@@ -253,8 +266,27 @@ class AuditService:
             }
         )
         record["status"] = "resolved"
+        record["validation"] = self._submit_validation_response(record)
         self.store.write(audit_id, record)
         return record
+
+    def get_validation_request_document(self, audit_id: str) -> dict[str, Any] | None:
+        record = self.get_audit(audit_id)
+        if record is None:
+            return None
+        validation = record.get("validation")
+        if not isinstance(validation, dict) or not validation.get("request_hash"):
+            return None
+        return self._build_validation_request_document(record)
+
+    def get_validation_response_document(self, audit_id: str) -> dict[str, Any] | None:
+        record = self.get_audit(audit_id)
+        if record is None:
+            return None
+        validation = record.get("validation")
+        if not isinstance(validation, dict) or not validation.get("response_hash"):
+            return None
+        return self._build_validation_response_document(record)
 
     def _require_audit(self, audit_id: str) -> dict[str, Any]:
         record = self.get_audit(audit_id)
@@ -289,6 +321,9 @@ class AuditService:
         challenge = normalized.get("challenge")
         if isinstance(challenge, dict):
             normalized["challenge"] = self._normalize_challenge(challenge)
+        validation = normalized.get("validation")
+        if isinstance(validation, dict):
+            normalized["validation"] = validation
         normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
 
@@ -300,6 +335,219 @@ class AuditService:
         if normalized != record:
             self.store.write(record_id, normalized)
         return normalized
+
+    def _submit_validation_request(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        validation = self._build_validation_seed(record)
+        if validation is None:
+            return None
+        if self.validation_bridge is None:
+            validation["status"] = "request_unavailable"
+            validation["last_error"] = (
+                "Validation registry is configured, but request submission is not enabled in this API instance."
+            )
+            return validation
+        try:
+            result = self.validation_bridge.submit_request(
+                request_uri=str(validation["request_uri"]),
+                request_hash=str(validation["request_hash"]),
+            )
+        except ValidationBridgeError as exc:
+            validation["status"] = "request_failed"
+            validation["last_error"] = str(exc)
+            return validation
+
+        validation.update(
+            {
+                "status": "requested",
+                "request_tx_hash": result.tx_hash,
+                "request_tx_url": self.contract_config.transaction_url(result.tx_hash),
+                "validator_address": result.validator_address,
+                "last_error": None,
+            }
+        )
+        return validation
+
+    def _submit_validation_response(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        validation = deepcopy(record.get("validation"))
+        if not isinstance(validation, dict) or not validation.get("request_hash"):
+            return None
+        response_payload = self._build_validation_response_payload(record)
+        if response_payload is None:
+            return validation
+        response_document = self._build_validation_response_document(record)
+        response_hash = self._hash_payload(response_document)
+        validation.update(
+            {
+                "response": response_payload["response"],
+                "response_tag": response_payload["tag"],
+                "response_uri": self._validation_response_uri(record["id"]),
+                "response_hash": response_hash,
+                "linked_resolution": response_payload["linked_resolution"],
+                "linked_resolution_path": response_payload["linked_resolution_path"],
+            }
+        )
+        if self.validation_bridge is None:
+            validation["status"] = "response_unavailable"
+            validation["last_error"] = (
+                "Validation registry is configured, but response submission is not enabled in this API instance."
+            )
+            return validation
+        try:
+            result = self.validation_bridge.submit_response(
+                request_hash=str(validation["request_hash"]),
+                response=int(response_payload["response"]),
+                response_uri=str(validation["response_uri"]),
+                response_hash=response_hash,
+                tag=str(response_payload["tag"]),
+            )
+        except ValidationBridgeError as exc:
+            validation["status"] = "response_failed"
+            validation["last_error"] = str(exc)
+            return validation
+
+        validation.update(
+            {
+                "status": "responded",
+                "response_tx_hash": result.tx_hash,
+                "response_tx_url": self.contract_config.transaction_url(result.tx_hash),
+                "last_error": None,
+            }
+        )
+        return validation
+
+    def _build_validation_seed(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        if (
+            not self.contract_config.validation_registry_address
+            or self.contract_config.auditor_agent_id is None
+            or not self.contract_config.validator_address
+        ):
+            return None
+        request_document = self._build_validation_request_document(record)
+        return {
+            "status": "pending_request",
+            "registry_address": self.contract_config.validation_registry_address,
+            "source": self.contract_config.validation_bridge_source or "configured",
+            "agent_id": self.contract_config.auditor_agent_id,
+            "request_uri": self._validation_request_uri(record["id"]),
+            "request_hash": self._hash_payload(request_document),
+            "validator_address": self.contract_config.validator_address,
+            "request_tx_hash": None,
+            "request_tx_url": None,
+            "response": None,
+            "response_tag": None,
+            "response_uri": None,
+            "response_hash": None,
+            "response_tx_hash": None,
+            "response_tx_url": None,
+            "linked_resolution": None,
+            "linked_resolution_path": None,
+            "last_error": None,
+        }
+
+    def _validation_request_uri(self, audit_id: str) -> str:
+        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/validation/request"
+
+    def _validation_response_uri(self, audit_id: str) -> str:
+        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/validation/response"
+
+    def _hash_payload(self, payload: dict[str, Any]) -> str:
+        return "0x" + sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    def _build_validation_request_document(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        onchain = record.get("onchain") or {}
+        report = record["report"]
+        return {
+            "type": "https://eips.ethereum.org/EIPS/eip-8004#validation-request-v1",
+            "requestType": "proof-of-audit.audit-claim",
+            "auditRecordId": record["id"],
+            "agentId": self.contract_config.auditor_agent_id,
+            "agentRegistry": self.contract_config.auditor_agent_registry,
+            "validationRegistry": self.contract_config.validation_registry_address,
+            "validatorAddress": self.contract_config.validator_address,
+            "claim": {
+                "targetContract": record["contract_address"],
+                "reportHash": report["report_hash"],
+                "metadataHash": report["metadata_hash"],
+                "summary": report["summary"],
+                "maxSeverity": report["max_severity"],
+                "findingCount": report["finding_count"],
+            },
+            "submission": record["submission"],
+            "settlement": {
+                "network": self.contract_config.network,
+                "chainId": self.contract_config.chain_id,
+                "proofOfAuditContract": self.contract_config.contract_address,
+                "publishedAuditId": onchain.get("audit_id"),
+                "publishTxHash": onchain.get("publish_tx_hash"),
+                "stakeWei": onchain.get("stake_wei"),
+            },
+            "service": {
+                "registrationUri": self.contract_config.auditor_registration_uri,
+                "registrationEndpoint": (
+                    f"{self.contract_config.runtime_api_base_url}/auditor/registration"
+                ),
+            },
+        }
+
+    def _build_validation_response_document(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        validation = record["validation"]
+        challenge = record.get("challenge") or {}
+        response_payload = self._build_validation_response_payload(record)
+        response = response_payload["response"] if response_payload else validation.get("response")
+        tag = response_payload["tag"] if response_payload else validation.get("response_tag")
+        return {
+            "type": "https://eips.ethereum.org/EIPS/eip-8004#validation-response-v1",
+            "auditRecordId": record["id"],
+            "agentId": self.contract_config.auditor_agent_id,
+            "requestHash": validation["request_hash"],
+            "validationRegistry": self.contract_config.validation_registry_address,
+            "validatorAddress": validation["validator_address"],
+            "response": response,
+            "tag": tag,
+            "outcome": {
+                "auditStatus": record["status"],
+                "challengeStatus": challenge.get("status"),
+                "resolution": challenge.get("resolution"),
+                "resolutionPath": challenge.get("resolution_path"),
+                "resolveTxHash": challenge.get("resolve_tx_hash"),
+            },
+            "evidence": {
+                "proofUri": challenge.get("proof_uri"),
+                "verificationStatus": challenge.get("verification_status"),
+                "verificationSummary": challenge.get("verification_summary"),
+                "verificationDetail": challenge.get("verification_detail"),
+            },
+        }
+
+    def _build_validation_response_payload(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        challenge = record.get("challenge")
+        if not isinstance(challenge, dict):
+            return None
+        resolution = str(challenge.get("resolution") or "")
+        resolution_path = str(challenge.get("resolution_path") or "")
+        if resolution == "rejected":
+            return {
+                "response": 100,
+                "tag": "claim-confirmed",
+                "linked_resolution": resolution,
+                "linked_resolution_path": resolution_path,
+            }
+        if resolution == "upheld":
+            return {
+                "response": 0,
+                "tag": "claim-refuted",
+                "linked_resolution": resolution,
+                "linked_resolution_path": resolution_path,
+            }
+        return None
 
     def _normalize_challenge(self, challenge: Any) -> dict[str, Any]:
         payload = deepcopy(challenge) if isinstance(challenge, dict) else {}

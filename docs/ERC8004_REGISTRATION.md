@@ -91,9 +91,14 @@ Partial alignment:
 
 - validation story, through stake-backed publication and challenge resolution
 
+Implemented after the validation bridge step:
+
+- canonical validation registry metadata in the API and service record
+- request and response documents exposed at `/audits/{id}/validation/request` and `/audits/{id}/validation/response`
+- a bridged validation trail that mirrors published claims and resolved outcomes into an ERC-8004-style validation flow
+
 Not yet implemented:
 
-- validation registry bridge
 - reputation registry integration
 
 Implemented after the stable publication step:
@@ -137,3 +142,19 @@ The remaining planned steps are:
 1. publish a stable hosted registration document URI
 2. register the auditor identity through the official ERC-8004 on-chain registry when available for the target chain
 3. bridge published audit outcomes into a validation-oriented registry flow
+
+## Native versus bridged truth
+
+The authoritative settlement flow remains the native `ProofOfAudit` contract:
+
+- publish
+- challenge
+- resolve
+
+The ERC-8004 validation path is a mirrored trail for interoperability:
+
+- a published claim opens a validation request
+- a resolved outcome submits a validation response
+- the bridge does not replace the stake, challenge, or payout logic
+
+This keeps the standards story honest: Proof-of-Audit uses ERC-8004-style identity and validation artifacts without pretending the generic registry is the domain-specific settlement contract.

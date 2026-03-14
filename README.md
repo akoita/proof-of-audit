@@ -21,6 +21,7 @@ The current implementation focuses on:
 - named agent identity and claim ownership across API, web, and on-chain publication
 - a minimal discoverable auditor service record backed by a stable manifest hash
 - the official ERC-8004 Base Sepolia identity path as the canonical public registration
+- an ERC-8004-aligned validation bridge that mirrors published claims and resolved outcomes
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by stake and challenge bonds
@@ -36,6 +37,7 @@ Current public identity references:
 
 - `ProofOfAudit` on Base Sepolia: `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
 - canonical ERC-8004 Base Sepolia `IdentityRegistry`: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- canonical ERC-8004 Base Sepolia `ValidationRegistry`: `0x8004B663056A597Dffe9eCcC1965A193B7388713`
 - recorded auditor agent id: see `deployments/base-sepolia.json`
 
 ## Public alpha reviewer path
@@ -69,6 +71,7 @@ This repo implements a compact, coherent v1:
 - one manifest-backed auditor service profile
 - one discoverable service record and discovery path
 - one canonical ERC-8004 identity path on Base Sepolia, with a project-local fallback for localhost flows
+- one ERC-8004-aligned validation mirror for publish and resolution outcomes
 - one claim publication flow
 - one on-chain stake amount
 - one challenge type
@@ -194,6 +197,8 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
   - returns audit records with the attached auditor agent profile from draft through resolution
 - `POST /audits`
 - `GET /audits/:id`
+- `GET /audits/:id/validation/request`
+- `GET /audits/:id/validation/response`
 - `POST /audits/:id/publish`
 - `POST /audits/:id/challenge`
 - `POST /audits/:id/resolve`

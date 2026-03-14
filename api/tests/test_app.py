@@ -109,6 +109,14 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["identity_source"],
             manifest["auditor_identity"]["source"],
         )
+        self.assertEqual(
+            payload["auditor_service"]["validation_registry_address"],
+            manifest["validation_bridge"]["registry_address"],
+        )
+        self.assertEqual(
+            payload["auditor_service"]["validation_source"],
+            "erc8004-official",
+        )
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
@@ -138,9 +146,18 @@ class AuditApiAppTest(unittest.TestCase):
             payload["identity_source"],
             manifest["auditor_identity"]["source"],
         )
+        self.assertEqual(
+            payload["validation_registry_address"],
+            manifest["validation_bridge"]["registry_address"],
+        )
+        self.assertEqual(payload["validation_source"], "erc8004-official")
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
         self.assertEqual(payload["challenge_path_template"], "/audits/{id}/challenge")
+        self.assertEqual(
+            payload["validation_request_path_template"],
+            "/audits/{id}/validation/request",
+        )
         self.assertTrue(payload["manifest_hash"])
 
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
@@ -162,6 +179,10 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(
             payload["registrations"][0]["agentRegistry"],
             manifest["auditor_identity"]["registry_address"],
+        )
+        self.assertEqual(
+            payload["x-proof-of-audit"]["validationRegistryAddress"],
+            manifest["validation_bridge"]["registry_address"],
         )
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
@@ -228,6 +249,65 @@ class AuditApiAppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["error"], "audit_not_found")
+
+    def test_validation_documents_are_exposed_for_published_and_resolved_audits(self) -> None:
+        onchain = build_onchain_test_context()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+            )
+            client = TestClient(create_app(Path(tmpdir), audit_service=service))
+            created = client.post(
+                "/audits",
+                json={
+                    "contract_address": "0x1000000000000000000000000000000000000001",
+                    "submitted_by": "validation-docs",
+                },
+            )
+            audit_id = created.json()["id"]
+            published = client.post(
+                f"/audits/{audit_id}/publish",
+                json={"stake_wei": 10**16},
+            )
+            self.assertEqual(published.status_code, 200)
+            request_doc = client.get(f"/audits/{audit_id}/validation/request")
+            self.assertEqual(request_doc.status_code, 200)
+            request_payload = request_doc.json()
+            self.assertEqual(
+                request_payload["type"],
+                "https://eips.ethereum.org/EIPS/eip-8004#validation-request-v1",
+            )
+            self.assertEqual(request_payload["requestType"], "proof-of-audit.audit-claim")
+            self.assertEqual(request_payload["agentId"], 1)
+
+            missing_response = client.get(f"/audits/{audit_id}/validation/response")
+            self.assertEqual(missing_response.status_code, 404)
+            self.assertEqual(
+                missing_response.json()["error"],
+                "validation_response_not_found",
+            )
+
+            challenged = client.post(
+                f"/audits/{audit_id}/challenge",
+                json={
+                    "proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                    "challenger": "whitehat",
+                },
+            )
+            self.assertEqual(challenged.status_code, 200)
+            response_doc = client.get(f"/audits/{audit_id}/validation/response")
+            self.assertEqual(response_doc.status_code, 200)
+            response_payload = response_doc.json()
+            self.assertEqual(
+                response_payload["type"],
+                "https://eips.ethereum.org/EIPS/eip-8004#validation-response-v1",
+            )
+            self.assertEqual(response_payload["response"], 100)
+            self.assertEqual(response_payload["tag"], "claim-confirmed")
 
     def test_validation_error_is_structured(self) -> None:
         response = self.client.post("/audits", json={"submitted_by": "missing-address"})

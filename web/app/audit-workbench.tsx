@@ -144,6 +144,26 @@ type AuditRecord = {
     resolve_tx_hash?: string | null;
     resolve_tx_url?: string | null;
   };
+  validation: null | {
+    status: string;
+    registry_address: string;
+    source: string;
+    agent_id: number;
+    request_uri: string;
+    request_hash: string;
+    validator_address: string;
+    request_tx_hash?: string | null;
+    request_tx_url?: string | null;
+    response?: number | null;
+    response_tag?: string | null;
+    response_uri?: string | null;
+    response_hash?: string | null;
+    response_tx_hash?: string | null;
+    response_tx_url?: string | null;
+    linked_resolution?: string | null;
+    linked_resolution_path?: string | null;
+    last_error?: string | null;
+  };
 };
 
 type DemoFixture = {
@@ -245,6 +265,10 @@ function statusTone(status: string) {
       return "confirmed";
     case "resolved":
       return "confirmed";
+    case "requested":
+      return "confirmed";
+    case "responded":
+      return "confirmed";
     case "upheld":
       return "warning";
     case "rejected":
@@ -252,6 +276,10 @@ function statusTone(status: string) {
     case "challenged":
       return "warning";
     case "opened":
+      return "warning";
+    case "request_failed":
+      return "warning";
+    case "response_failed":
       return "warning";
     case "draft":
       return "neutral";
@@ -1062,6 +1090,98 @@ export function AuditWorkbench() {
                       </a>
                     ) : null}
                   </div>
+                </div>
+              ) : null}
+
+              {activeAudit.validation ? (
+                <div className="onchain-card">
+                  <div className="section-heading">
+                    <p>Validation bridge</p>
+                    <span data-tone={statusTone(activeAudit.validation.status)}>
+                      {activeAudit.validation.status}
+                    </span>
+                  </div>
+                  <p className="muted">
+                    Mirrors this audit into{" "}
+                    {formatIdentitySource(activeAudit.validation.source)} validation
+                    infrastructure without replacing native settlement.
+                  </p>
+                  <div className="metadata-grid">
+                    <div>
+                      <span>Agent id</span>
+                      <strong>{activeAudit.validation.agent_id}</strong>
+                    </div>
+                    <div>
+                      <span>Validator</span>
+                      <strong title={activeAudit.validation.validator_address}>
+                        {shortenHex(activeAudit.validation.validator_address, 10, 8)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Request hash</span>
+                      <strong title={activeAudit.validation.request_hash}>
+                        {shortenHex(activeAudit.validation.request_hash, 12, 8)}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="metadata-grid">
+                    <div>
+                      <span>Registry</span>
+                      <strong title={activeAudit.validation.registry_address}>
+                        {shortenHex(activeAudit.validation.registry_address, 10, 8)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Response</span>
+                      <strong>
+                        {activeAudit.validation.response === null ||
+                        activeAudit.validation.response === undefined
+                          ? "pending"
+                          : `${activeAudit.validation.response} / 100`}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Tag</span>
+                      <strong>{activeAudit.validation.response_tag ?? "pending"}</strong>
+                    </div>
+                  </div>
+                  <div className="inline-links">
+                    <a href={activeAudit.validation.request_uri} target="_blank" rel="noreferrer">
+                      View validation request
+                    </a>
+                    {activeAudit.validation.response_uri ? (
+                      <a
+                        href={activeAudit.validation.response_uri}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View validation response
+                      </a>
+                    ) : null}
+                    {activeAudit.validation.request_tx_url &&
+                    isExplorerLink(activeAudit.validation.request_tx_url) ? (
+                      <a
+                        href={activeAudit.validation.request_tx_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View request transaction
+                      </a>
+                    ) : null}
+                    {activeAudit.validation.response_tx_url &&
+                    isExplorerLink(activeAudit.validation.response_tx_url) ? (
+                      <a
+                        href={activeAudit.validation.response_tx_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View response transaction
+                      </a>
+                    ) : null}
+                  </div>
+                  {activeAudit.validation.last_error ? (
+                    <p className="muted">{activeAudit.validation.last_error}</p>
+                  ) : null}
                 </div>
               ) : null}
 

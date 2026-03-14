@@ -70,6 +70,14 @@ contract AgentIdentityRegistry {
         return _agentRecord(agentId).owner;
     }
 
+    function getApproved(uint256) external pure returns (address) {
+        return address(0);
+    }
+
+    function isApprovedForAll(address, address) external pure returns (bool) {
+        return false;
+    }
+
     function balanceOf(address owner) external view returns (uint256) {
         if (owner == address(0)) revert InvalidOwner();
         return _balances[owner];

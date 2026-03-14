@@ -40,5 +40,9 @@
     "registration_uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
     "register_tx_hash": "0xd21b45e9e38f3bb81045a9081354119a29cd9d0d02f8fda42d7c1eb97a1f1835",
     "source": "erc8004-official"
+  },
+  "validation_bridge": {
+    "registry_address": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+    "source": "erc8004-official"
   }
 }

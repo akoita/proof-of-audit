@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 from typing import Mapping
-
 from proof_of_audit_agent.fixtures import DEFAULT_DEMO_FIXTURES_FILE, resolve_demo_fixtures_file
 
 DEFAULT_API_ENV_FILE = Path(__file__).resolve().parents[1] / ".env.local"
@@ -31,6 +30,10 @@ DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI = (
 OFFICIAL_ERC8004_IDENTITY_REGISTRIES = {
     ("base-sepolia", 84532): "0x8004a818bfb912233c491871b3d84c89a494bd9e",
 }
+OFFICIAL_ERC8004_VALIDATION_REGISTRIES = {
+    ("base-sepolia", 84532): "0x8004b663056a597dffe9eccc1965a193b7388713",
+}
+DEFAULT_RUNTIME_API_BASE_URL = "http://127.0.0.1:8080"
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -51,6 +54,16 @@ def load_json_file(path: Path | None) -> dict[str, object]:
     if path is None or not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def address_from_private_key(private_key: str | None) -> str | None:
+    if not private_key:
+        return None
+    try:
+        from web3 import Web3
+    except ImportError:
+        return None
+    return Web3().eth.account.from_key(private_key).address
 
 
 @dataclass(frozen=True)
@@ -313,6 +326,10 @@ class AuditorServiceRecord:
     active: bool
     supported_trust: tuple[str, ...]
     registry_contract_address: str | None
+    validation_registry_address: str | None
+    validation_source: str | None
+    validation_request_path_template: str
+    validation_response_path_template: str
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -336,6 +353,10 @@ class AuditorServiceRecord:
             "active": self.active,
             "supported_trust": list(self.supported_trust),
             "registry_contract_address": self.registry_contract_address,
+            "validation_registry_address": self.validation_registry_address,
+            "validation_source": self.validation_source,
+            "validation_request_path_template": self.validation_request_path_template,
+            "validation_response_path_template": self.validation_response_path_template,
         }
 
 
@@ -349,6 +370,9 @@ class ContractConfig:
     rpc_url: str | None
     publisher_private_key: str | None
     arbiter_private_key: str | None
+    auditor_owner_private_key: str | None
+    validator_private_key: str | None
+    validator_address: str | None
     demo_fixtures_file: Path | None
     required_stake_wei: int
     required_challenge_bond_wei: int
@@ -359,9 +383,12 @@ class ContractConfig:
     auditor_registration_uri: str
     auditor_public_web_url: str
     auditor_public_api_base_url: str | None
+    runtime_api_base_url: str
     auditor_agent_id: int | None
     auditor_agent_registry: str | None
     auditor_agent_identity_source: str | None
+    validation_registry_address: str | None
+    validation_bridge_source: str | None
 
     @classmethod
     def from_env(
@@ -375,6 +402,13 @@ class ContractConfig:
         else:
             source = dict(env)
         network = source.get("PROOF_OF_AUDIT_NETWORK", "base-sepolia")
+        chain_id_value = int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532"))
+        official_identity_registry = OFFICIAL_ERC8004_IDENTITY_REGISTRIES.get(
+            (network, chain_id_value)
+        )
+        official_validation_registry = OFFICIAL_ERC8004_VALIDATION_REGISTRIES.get(
+            (network, chain_id_value)
+        )
         deployment_manifest_file = (
             Path(source["PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE"])
             if source.get("PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE")
@@ -384,6 +418,9 @@ class ContractConfig:
         auditor_identity = deployment_manifest.get("auditor_identity", {})
         if not isinstance(auditor_identity, dict):
             auditor_identity = {}
+        validation_bridge = deployment_manifest.get("validation_bridge", {})
+        if not isinstance(validation_bridge, dict):
+            validation_bridge = {}
         registration_document = deployment_manifest.get("registration_document", {})
         if not isinstance(registration_document, dict):
             registration_document = {}
@@ -394,7 +431,7 @@ class ContractConfig:
         )
         return cls(
             network=network,
-            chain_id=int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532")),
+            chain_id=chain_id_value,
             contract_address=source.get("PROOF_OF_AUDIT_CONTRACT_ADDRESS") or None,
             explorer_base_url=source.get(
                 "PROOF_OF_AUDIT_EXPLORER_BASE_URL",
@@ -407,6 +444,23 @@ class ContractConfig:
             publisher_private_key=source.get("PROOF_OF_AUDIT_PRIVATE_KEY") or None,
             arbiter_private_key=source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY")
             or source.get("PROOF_OF_AUDIT_PRIVATE_KEY")
+            or None,
+            auditor_owner_private_key=source.get(
+                "PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY"
+            )
+            or source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_PRIVATE_KEY")
+            or None,
+            validator_private_key=source.get("PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_PRIVATE_KEY")
+            or None,
+            validator_address=source.get("PROOF_OF_AUDIT_VALIDATOR_ADDRESS")
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_PRIVATE_KEY"))
             or None,
             demo_fixtures_file=resolve_demo_fixtures_file(
                 Path(source["PROOF_OF_AUDIT_DEMO_FIXTURES_FILE"])
@@ -447,6 +501,11 @@ class ContractConfig:
             auditor_public_api_base_url=(
                 source.get("PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL") or None
             ),
+            runtime_api_base_url=(
+                source.get("PROOF_OF_AUDIT_RUNTIME_API_URL")
+                or source.get("PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL")
+                or DEFAULT_RUNTIME_API_BASE_URL
+            ).rstrip("/"),
             auditor_agent_id=(
                 int(source["PROOF_OF_AUDIT_AUDITOR_AGENT_ID"])
                 if source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_ID")
@@ -480,15 +539,43 @@ class ContractConfig:
                                     else None
                                 )
                             )
-                            and OFFICIAL_ERC8004_IDENTITY_REGISTRIES.get(
-                                (network, int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532")))
-                            )
+                            and official_identity_registry
                             == str(
                                 source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY")
                                 or (
                                     str(auditor_identity["registry_address"])
                                     if auditor_identity.get("registry_address")
                                     else ""
+                                )
+                            ).lower()
+                        )
+                        else None
+                    )
+                )
+            ),
+            validation_registry_address=(
+                source.get("PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS")
+                or (
+                    str(validation_bridge["registry_address"])
+                    if validation_bridge.get("registry_address")
+                    else official_validation_registry
+                )
+            ),
+            validation_bridge_source=(
+                source.get("PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE")
+                or (
+                    str(validation_bridge["source"])
+                    if validation_bridge.get("source")
+                    else (
+                        "erc8004-official"
+                        if (
+                            official_validation_registry
+                            == str(
+                                source.get("PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS")
+                                or (
+                                    str(validation_bridge["registry_address"])
+                                    if validation_bridge.get("registry_address")
+                                    else official_validation_registry or ""
                                 )
                             ).lower()
                         )
@@ -548,12 +635,18 @@ class ContractConfig:
                 "publishPathTemplate": "/audits/{id}/publish",
                 "challengePathTemplate": "/audits/{id}/challenge",
                 "resolvePathTemplate": "/audits/{id}/resolve",
+                "validationRequestPathTemplate": "/audits/{id}/validation/request",
+                "validationResponsePathTemplate": "/audits/{id}/validation/response",
                 "network": self.network,
                 "chainId": self.chain_id,
             }
         )
         if self.contract_address:
             extension["settlementContractAddress"] = self.contract_address
+        if self.validation_registry_address:
+            extension["validationRegistryAddress"] = self.validation_registry_address
+        if self.validation_bridge_source:
+            extension["validationSource"] = self.validation_bridge_source
         payload["x-proof-of-audit"] = extension
         if (
             not payload.get("registrations")
@@ -596,4 +689,8 @@ class ContractConfig:
             active=self.auditor.active,
             supported_trust=self.auditor.supported_trust,
             registry_contract_address=self.contract_address,
+            validation_registry_address=self.validation_registry_address,
+            validation_source=self.validation_bridge_source,
+            validation_request_path_template="/audits/{id}/validation/request",
+            validation_response_path_template="/audits/{id}/validation/response",
         )
