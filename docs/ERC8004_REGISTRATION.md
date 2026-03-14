@@ -102,6 +102,22 @@ Implemented after the stable publication step:
 - project-local `AgentIdentityRegistry` kept only as a localhost and fallback path
 - auditor identity registration that points at the published registration document
 
+## Canonical versus fallback paths
+
+The canonical public identity path is now:
+
+- Base Sepolia official ERC-8004 `IdentityRegistry`
+- the recorded auditor `agentId` in `deployments/base-sepolia.json`
+- the published registration file in `docs/registrations/proof-of-audit-auditor.json`
+
+The project-local `AgentIdentityRegistry` is no longer part of the public standards story.
+
+It remains only for:
+
+- localhost and Anvil development
+- tests that need a self-contained on-chain identity registry
+- fallback environments where no official ERC-8004 deployment is available
+
 ## Recommended wording
 
 Use:

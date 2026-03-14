@@ -105,6 +105,10 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["agent_registry"],
             manifest["auditor_identity"]["registry_address"],
         )
+        self.assertEqual(
+            payload["auditor_service"]["identity_source"],
+            manifest["auditor_identity"]["source"],
+        )
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
@@ -129,6 +133,10 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(
             payload["agent_registry"],
             manifest["auditor_identity"]["registry_address"],
+        )
+        self.assertEqual(
+            payload["identity_source"],
+            manifest["auditor_identity"]["source"],
         )
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")

@@ -20,6 +20,7 @@ The current implementation focuses on:
 
 - named agent identity and claim ownership across API, web, and on-chain publication
 - a minimal discoverable auditor service record backed by a stable manifest hash
+- the official ERC-8004 Base Sepolia identity path as the canonical public registration
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by stake and challenge bonds
@@ -185,7 +186,7 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
 - `GET /config`
   - includes the live auditor service profile used by the API and web workbench
 - `GET /auditor`
-  - returns the discoverable auditor service record, manifest hash, canonical registration URI, optional on-chain agent id, and API paths
+  - returns the discoverable auditor service record, manifest hash, canonical registration URI, optional on-chain agent id, identity source, and API paths
 - `GET /auditor/registration`
   - returns the ERC-8004-aligned auditor registration document with service endpoints and trust model metadata
 - `GET /fixtures`

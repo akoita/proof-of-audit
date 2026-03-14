@@ -54,6 +54,7 @@ These are already true in the repo today:
 - real on-chain challenge flow from the API
 - deterministic challenge verification path
 - first-class auditor identity across API and web
+- canonical public identity anchored in the official ERC-8004 Base Sepolia registry
 - local Anvil demo flow with deployable fixtures
 - system-level and UI end-to-end coverage
 
