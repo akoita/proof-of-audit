@@ -485,6 +485,7 @@ export function AuditWorkbench() {
 
   return (
     <main className="page-shell">
+      {/* ── Hero: compact headline + config sidebar ──────────── */}
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Proof-of-Audit Workbench</p>
@@ -494,122 +495,6 @@ export function AuditWorkbench() {
             then generate a deterministic report and move on-chain only when the
             target is actually deployable.
           </p>
-          <div className="hero-inline-metrics">
-            <div>
-              <span>Mode</span>
-              <strong>{submissionModeLabel(submissionMode)}</strong>
-            </div>
-            <div>
-              <span>Coverage</span>
-              <strong>{demoFixtures.length || 0} fixture paths</strong>
-            </div>
-            <div>
-              <span>Lifecycle</span>
-              <strong>{activeAudit ? lifecycleLabel(activeAudit) : "Ready for first audit"}</strong>
-            </div>
-          </div>
-          <form className="submit-card" onSubmit={handleSubmit}>
-            <div className="submit-card-heading">
-              <div>
-                <label htmlFor="contractAddress">Audit target</label>
-                <p>
-                  Choose the input shape that matches how the code is available,
-                  instead of forcing every audit through a deployed address.
-                </p>
-              </div>
-              {selectedFixture ? (
-                <span className="fixture-pill">{selectedFixture.label}</span>
-              ) : null}
-            </div>
-            <div className="mode-switch" role="tablist" aria-label="Audit input mode">
-              <button
-                className="mode-chip"
-                data-selected={submissionMode === "demo_fixture"}
-                type="button"
-                onClick={() => setSubmissionMode("demo_fixture")}
-              >
-                Demo fixture
-              </button>
-              <button
-                className="mode-chip"
-                data-selected={submissionMode === "deployed_address"}
-                type="button"
-                onClick={() => setSubmissionMode("deployed_address")}
-              >
-                Deployed address
-              </button>
-              <button
-                className="mode-chip"
-                data-selected={submissionMode === "source_bundle"}
-                type="button"
-                onClick={() => setSubmissionMode("source_bundle")}
-              >
-                Source bundle
-              </button>
-            </div>
-            {submissionMode === "source_bundle" ? (
-              <div className="submission-fields">
-                <input
-                  id="sourceBundleUri"
-                  name="sourceBundleUri"
-                  placeholder="ipfs://uploads/dual-risk-vault.zip"
-                  value={sourceBundleUri}
-                  onChange={(event) => setSourceBundleUri(event.target.value)}
-                />
-                <input
-                  id="entryContract"
-                  name="entryContract"
-                  placeholder="Entry contract (optional)"
-                  value={entryContract}
-                  onChange={(event) => setEntryContract(event.target.value)}
-                />
-                <input
-                  id="sourceBundleLabel"
-                  name="sourceBundleLabel"
-                  placeholder="Bundle label (optional)"
-                  value={sourceBundleLabel}
-                  onChange={(event) => setSourceBundleLabel(event.target.value)}
-                />
-              </div>
-            ) : (
-              <div className="submission-fields">
-                <input
-                  id="contractAddress"
-                  name="contractAddress"
-                  placeholder="0x..."
-                  value={contractAddress}
-                  onChange={(event) => setContractAddress(event.target.value)}
-                  disabled={submissionMode === "demo_fixture"}
-                />
-                <input
-                  id="entryContract"
-                  name="entryContract"
-                  placeholder="Entry contract (optional)"
-                  value={entryContract}
-                  onChange={(event) => setEntryContract(event.target.value)}
-                />
-              </div>
-            )}
-            <div className="submit-card-footer">
-              <p className="helper-copy">
-                {submissionMode === "demo_fixture"
-                  ? selectedFixture
-                    ? `${selectedFixture.contract_name} selected from local fixtures.`
-                    : "Pick a demo fixture below to populate the live local address."
-                  : submissionMode === "source_bundle"
-                    ? "Use a bundle URI for pre-deploy or multi-contract review. Repository import stays a later async path."
-                    : "Paste any deployed contract address. Source bundles stay available when repo or dependency context matters more than one address."}
-              </p>
-              <button type="submit" disabled={isPending}>
-                {isPending && activeAction?.includes("Generating") ? "Working..." : "Run audit"}
-              </button>
-            </div>
-          </form>
-          {activeAction ? (
-            <p className="notice-banner notice-banner-info">{activeAction}...</p>
-          ) : null}
-          {error ? <p className="error-banner">{error}</p> : null}
-          {loadError ? <p className="error-banner">{loadError}</p> : null}
         </div>
         <div className="signal-panel">
           <div className="panel-kicker">
@@ -681,6 +566,128 @@ export function AuditWorkbench() {
         </div>
       </section>
 
+      {/* ── Submit section: mode chips + form ────────────────── */}
+      <section className="submit-section">
+        <form className="submit-card" onSubmit={handleSubmit}>
+          <div className="submit-card-heading">
+            <div>
+              <label htmlFor="contractAddress">Audit target</label>
+              <p>
+                Choose the input shape that matches how the code is available,
+                instead of forcing every audit through a deployed address.
+              </p>
+            </div>
+            {selectedFixture ? (
+              <span className="fixture-pill">{selectedFixture.label}</span>
+            ) : null}
+          </div>
+          <div className="mode-switch" role="tablist" aria-label="Audit input mode">
+            <button
+              className="mode-chip"
+              data-selected={submissionMode === "demo_fixture"}
+              type="button"
+              onClick={() => setSubmissionMode("demo_fixture")}
+            >
+              Demo fixture
+            </button>
+            <button
+              className="mode-chip"
+              data-selected={submissionMode === "deployed_address"}
+              type="button"
+              onClick={() => setSubmissionMode("deployed_address")}
+            >
+              Deployed address
+            </button>
+            <button
+              className="mode-chip"
+              data-selected={submissionMode === "source_bundle"}
+              type="button"
+              onClick={() => setSubmissionMode("source_bundle")}
+            >
+              Source bundle
+            </button>
+          </div>
+          {submissionMode === "source_bundle" ? (
+            <div className="submission-fields">
+              <input
+                id="sourceBundleUri"
+                name="sourceBundleUri"
+                placeholder="ipfs://uploads/dual-risk-vault.zip"
+                value={sourceBundleUri}
+                onChange={(event) => setSourceBundleUri(event.target.value)}
+              />
+              <input
+                id="entryContract"
+                name="entryContract"
+                placeholder="Entry contract (optional)"
+                value={entryContract}
+                onChange={(event) => setEntryContract(event.target.value)}
+              />
+              <input
+                id="sourceBundleLabel"
+                name="sourceBundleLabel"
+                placeholder="Bundle label (optional)"
+                value={sourceBundleLabel}
+                onChange={(event) => setSourceBundleLabel(event.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="submission-fields">
+              <input
+                id="contractAddress"
+                name="contractAddress"
+                placeholder="0x..."
+                value={contractAddress}
+                onChange={(event) => setContractAddress(event.target.value)}
+                disabled={submissionMode === "demo_fixture"}
+              />
+              <input
+                id="entryContract"
+                name="entryContract"
+                placeholder="Entry contract (optional)"
+                value={entryContract}
+                onChange={(event) => setEntryContract(event.target.value)}
+              />
+            </div>
+          )}
+          <div className="submit-card-footer">
+            <p className="helper-copy">
+              {submissionMode === "demo_fixture"
+                ? selectedFixture
+                  ? `${selectedFixture.contract_name} selected from local fixtures.`
+                  : "Pick a demo fixture below to populate the live local address."
+                : submissionMode === "source_bundle"
+                  ? "Use a bundle URI for pre-deploy or multi-contract review. Repository import stays a later async path."
+                  : "Paste any deployed contract address. Source bundles stay available when repo or dependency context matters more than one address."}
+            </p>
+            <button type="submit" disabled={isPending}>
+              {isPending && activeAction?.includes("Generating") ? "Working..." : "Run audit"}
+            </button>
+          </div>
+        </form>
+        {/* Inline status chips */}
+        <div className="status-chips">
+          <div className="status-chip">
+            <span>Mode</span>
+            <strong>{submissionModeLabel(submissionMode)}</strong>
+          </div>
+          <div className="status-chip">
+            <span>Coverage</span>
+            <strong>{demoFixtures.length || 0} fixture paths</strong>
+          </div>
+          <div className="status-chip">
+            <span>Lifecycle</span>
+            <strong>{activeAudit ? lifecycleLabel(activeAudit) : "Ready for first audit"}</strong>
+          </div>
+        </div>
+        {activeAction ? (
+          <p className="notice-banner notice-banner-info">{activeAction}...</p>
+        ) : null}
+        {error ? <p className="error-banner">{error}</p> : null}
+        {loadError ? <p className="error-banner">{loadError}</p> : null}
+      </section>
+
+      {/* ── Fixture selector strip ───────────────────────────── */}
       <section className="fixture-section">
         <div className="section-heading section-heading-wide">
           <div>
@@ -734,6 +741,7 @@ export function AuditWorkbench() {
         )}
       </section>
 
+      {/* ── Main workspace: report + sidebar ─────────────────── */}
       <section className="workspace-grid">
         <article className="panel report-panel">
           <div className="section-heading">
@@ -747,6 +755,7 @@ export function AuditWorkbench() {
           </div>
           {activeAudit ? (
             <>
+              {/* Summary + metadata — compact */}
               <div className="audit-summary-bar">
                 <span>{submissionModeLabel(activeAudit.submission.input_kind)}</span>
                 <span>{activeAudit.report.benchmark_id}</span>
@@ -756,21 +765,17 @@ export function AuditWorkbench() {
                 </span>
               </div>
               <h2>{activeAudit.report.summary}</h2>
-              <div className="lifecycle-strip">
-                <div className="lifecycle-card">
-                  <span>Report status</span>
+
+              {/* Combined stats row: all key metrics in one strip */}
+              <div className="stats-strip">
+                <div>
+                  <span>Status</span>
                   <strong>{lifecycleLabel(activeAudit)}</strong>
                 </div>
-                <div className="lifecycle-card">
+                <div>
                   <span>Created</span>
                   <strong>{relativeTimeLabel(activeAudit.created_at)}</strong>
                 </div>
-                <div className="lifecycle-card">
-                  <span>Submission</span>
-                  <strong>{submissionModeLabel(activeAudit.submission.input_kind)}</strong>
-                </div>
-              </div>
-              <div className="stat-row">
                 <div>
                   <span>Findings</span>
                   <strong>{activeAudit.report.finding_count}</strong>
@@ -786,7 +791,8 @@ export function AuditWorkbench() {
                   </strong>
                 </div>
               </div>
-              <p className="muted">
+
+              <p className="muted severity-mix">
                 Severity mix:{" "}
                 {Object.entries(activeAudit.report.severity_breakdown)
                   .filter(([, count]) => count > 0)
@@ -794,47 +800,7 @@ export function AuditWorkbench() {
                   .join(" · ") || "No findings"}
               </p>
 
-              <div className="finding-list">
-                {activeAudit.report.findings.length === 0 ? (
-                  <div className="finding-card">
-                    <strong>No benchmark issue found</strong>
-                    <p>
-                      The worker did not match a benchmark vulnerability across
-                      the supported checks.
-                    </p>
-                  </div>
-                ) : (
-                  activeAudit.report.findings.map((finding) => (
-                    <div key={finding.finding_id} className="finding-card">
-                      <div className="card-header">
-                        <p>{finding.title}</p>
-                        <span>{finding.severity}</span>
-                      </div>
-                      <p className="muted">
-                        {titleCase(finding.category)} · {titleCase(finding.confidence)}
-                        {" "}confidence
-                        {finding.affected_function ? ` · ${finding.affected_function}` : ""}
-                      </p>
-                      <p>{finding.description}</p>
-                      <p className="muted">{finding.impact}</p>
-                      <p className="muted">{finding.recommendation}</p>
-                      {finding.source_path ? (
-                        <p className="muted">
-                          Source: {finding.source_path}
-                          {finding.start_line ? `:${finding.start_line}` : ""}
-                          {finding.end_line && finding.end_line !== finding.start_line
-                            ? `-${finding.end_line}`
-                            : ""}
-                        </p>
-                      ) : null}
-                      {finding.evidence_uri ? (
-                        <p className="muted">Evidence: {finding.evidence_uri}</p>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </div>
-
+              {/* ── Actions — promoted above findings ────────── */}
               <div className="action-row">
                 <div className="action-card">
                   <span>Publish</span>
@@ -894,6 +860,7 @@ export function AuditWorkbench() {
                 </div>
               </div>
 
+              {/* ── On-chain attestation (if published) ──────── */}
               {activeAudit.onchain ? (
                 <div className="onchain-card">
                   <div className="section-heading">
@@ -958,6 +925,7 @@ export function AuditWorkbench() {
                 </div>
               ) : null}
 
+              {/* ── Challenge details (if challenged) ────────── */}
               {activeAudit.challenge ? (
                 <div className="challenge-card">
                   <div className="section-heading">
@@ -1038,6 +1006,52 @@ export function AuditWorkbench() {
                   ) : null}
                 </div>
               ) : null}
+
+              {/* ── Findings list ─────────────────────────────── */}
+              <div className="finding-list">
+                <div className="section-heading findings-heading">
+                  <p>Findings</p>
+                  <span>{activeAudit.report.findings.length}</span>
+                </div>
+                {activeAudit.report.findings.length === 0 ? (
+                  <div className="finding-card">
+                    <strong>No benchmark issue found</strong>
+                    <p>
+                      The worker did not match a benchmark vulnerability across
+                      the supported checks.
+                    </p>
+                  </div>
+                ) : (
+                  activeAudit.report.findings.map((finding) => (
+                    <div key={finding.finding_id} className="finding-card">
+                      <div className="card-header">
+                        <p>{finding.title}</p>
+                        <span>{finding.severity}</span>
+                      </div>
+                      <p className="muted">
+                        {titleCase(finding.category)} · {titleCase(finding.confidence)}
+                        {" "}confidence
+                        {finding.affected_function ? ` · ${finding.affected_function}` : ""}
+                      </p>
+                      <p>{finding.description}</p>
+                      <p className="muted">{finding.impact}</p>
+                      <p className="muted">{finding.recommendation}</p>
+                      {finding.source_path ? (
+                        <p className="muted">
+                          Source: {finding.source_path}
+                          {finding.start_line ? `:${finding.start_line}` : ""}
+                          {finding.end_line && finding.end_line !== finding.start_line
+                            ? `-${finding.end_line}`
+                            : ""}
+                        </p>
+                      ) : null}
+                      {finding.evidence_uri ? (
+                        <p className="muted">Evidence: {finding.evidence_uri}</p>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
             </>
           ) : (
             <div className="empty-panel">
