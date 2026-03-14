@@ -218,6 +218,12 @@ Unknown contracts return a low-confidence informational report instead of fabric
 - `ipfs://unchecked-treasury/unchecked-call-failure`: confirms the reported unchecked call finding and should reject the challenge
 - `ipfs://clean-vault/missed-reentrancy`: demonstrates a missed issue against the clean benchmark and should uphold the challenge
 
+## Strategy notes
+
+- [Strategic alignment](./docs/STRATEGIC_ALIGNMENT.md)
+- [Submission UX](./docs/SUBMISSION_UX.md)
+- [Deployment guide](./docs/DEPLOYMENT.md)
+
 ## Development
 
 Core commands:
