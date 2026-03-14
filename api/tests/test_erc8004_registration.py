@@ -46,7 +46,12 @@ def test_contract_config_loads_erc8004_shaped_manifest(tmp_path: Path) -> None:
     )
 
     config = ContractConfig.from_env(
-        {"PROOF_OF_AUDIT_AGENT_MANIFEST_FILE": str(manifest_file)}
+        {
+            "PROOF_OF_AUDIT_AGENT_MANIFEST_FILE": str(manifest_file),
+            "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI": "https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
+            "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL": "https://proof-of-audit.example.invalid",
+            "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL": "https://api.proof-of-audit.example.invalid",
+        }
     )
 
     assert config.auditor.registration_type == "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
@@ -61,6 +66,11 @@ def test_contract_config_loads_erc8004_shaped_manifest(tmp_path: Path) -> None:
         "audit_contract",
         "review_challenge_evidence",
     )
+    registration = config.auditor_registration_document()
+    assert registration["services"][0]["endpoint"] == "https://proof-of-audit.example.invalid"
+    assert registration["services"][1]["endpoint"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+    assert registration["services"][2]["endpoint"] == "https://api.proof-of-audit.example.invalid/auditor"
+    assert registration["x-proof-of-audit"]["registrationUri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
 
 
 def test_contract_config_backfills_erc8004_fields_from_legacy_manifest(tmp_path: Path) -> None:
@@ -83,7 +93,7 @@ def test_contract_config_backfills_erc8004_fields_from_legacy_manifest(tmp_path:
         {"PROOF_OF_AUDIT_AGENT_MANIFEST_FILE": str(manifest_file)}
     )
 
-    registration = config.auditor.to_registration_dict()
+    registration = config.auditor_registration_document()
     assert registration["type"] == "proof-of-audit/auditor-service@v1"
     assert registration["services"]
     assert registration["supportedTrust"] == ["crypto-economic"]
@@ -124,7 +134,15 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
     )
     env_file = tmp_path / ".env.local"
     env_file.write_text(
-        f"PROOF_OF_AUDIT_AGENT_MANIFEST_FILE={manifest_file}\n",
+        "\n".join(
+            [
+                f"PROOF_OF_AUDIT_AGENT_MANIFEST_FILE={manifest_file}",
+                "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI=https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL=https://proof-of-audit.example.invalid",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL=https://api.proof-of-audit.example.invalid",
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
     data_root = tmp_path / "data"
@@ -136,13 +154,17 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
     assert registration.status_code == 200
     payload = registration.json()
     assert payload["type"] == "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
-    assert payload["services"][0]["endpoint"] == "https://example.invalid/auditor/registration"
+    assert payload["services"][0]["endpoint"] == "https://proof-of-audit.example.invalid"
+    assert payload["services"][1]["endpoint"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+    assert payload["services"][2]["endpoint"] == "https://api.proof-of-audit.example.invalid/auditor"
     assert payload["supportedTrust"] == ["crypto-economic"]
     assert payload["x-proof-of-audit"]["id"] == "proof-of-audit-auditor"
+    assert payload["x-proof-of-audit"]["registrationUri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
 
     discovery = client.get("/auditor")
     assert discovery.status_code == 200
     discovery_payload = discovery.json()
     assert discovery_payload["registration_type"] == "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
     assert discovery_payload["registration_endpoint"] == "/auditor/registration"
+    assert discovery_payload["registration_uri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
     assert discovery_payload["supported_trust"] == ["crypto-economic"]

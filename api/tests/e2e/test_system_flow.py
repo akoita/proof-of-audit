@@ -66,6 +66,10 @@ def test_system_stack_exposes_live_contract_and_fixture_metadata(
     assert auditor_service.json()["service_id"] == "proof-of-audit-auditor"
     assert auditor_service.json()["registration_kind"] == "offchain_manifest"
     assert auditor_service.json()["capability"] == "audit_contract"
+    assert (
+        auditor_service.json()["registration_uri"]
+        == "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json"
+    )
 
     assert system_stack.config["deployment_ready"] is True
     assert system_stack.config["network"] == "anvil-system-e2e"

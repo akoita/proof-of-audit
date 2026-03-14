@@ -17,6 +17,8 @@ class AuditorRegistrationRefModel(BaseModel):
 
 
 class AuditorExtensionModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: str
     version: str
     serviceType: str
@@ -70,6 +72,7 @@ class AuditorServiceRecordModel(BaseModel):
     registration_kind: str
     registration_type: str
     registration_endpoint: str
+    registration_uri: str
     capability: str
     discovery_path: str
     submit_path: str

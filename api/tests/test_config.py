@@ -27,6 +27,10 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_service.registration_type,
             "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
         )
+        self.assertEqual(
+            config.auditor_service.registration_uri,
+            "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
+        )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")
         self.assertTrue(config.auditor_service.manifest_hash)

@@ -162,6 +162,8 @@ The deploy script:
 - broadcasts the Foundry deployment
 - parses the Foundry broadcast output
 - records the deployed address, tx hash, block number, deployer, and encoded constructor args in `deployments/base-sepolia.json`
+- regenerates the published auditor registration document at `docs/registrations/proof-of-audit-auditor.json`
+- records the canonical registration URI and source manifest in the deployment manifest
 - can optionally chain into verification when `PROOF_OF_AUDIT_DEPLOY_VERIFY=1`
 
 The verify script:
@@ -171,6 +173,20 @@ The verify script:
 - runs `forge verify-contract`
 - writes verification status back into the manifest when verification succeeds
 
+### Regenerate the published registration document without redeploying
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+python3 scripts/write-published-registration.py \
+  --manifest-file agent/proof_of_audit_agent/auditor_manifest.json \
+  --deployment-manifest-file deployments/base-sepolia.json \
+  --output-file docs/registrations/proof-of-audit-auditor.json \
+  --registration-uri https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json \
+  --public-web-url https://github.com/akoita/proof-of-audit
+```
+
+Add `--public-api-base-url` once the API has a stable public host, and add `--agent-id` plus `--agent-registry` once on-chain identity registration is available.
+
 ## Required environment variables
 
 Copy `.env.example` into your preferred local secret-loading workflow and set:
@@ -179,6 +195,15 @@ Copy `.env.example` into your preferred local secret-loading workflow and set:
 - `BASESCAN_API_KEY`
 - `DEPLOYER_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_ARBITER`
+
+Registration publication defaults can also be overridden:
+
+- `PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL`
+- `PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL`
+- `PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI`
+- `PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE`
+- `PROOF_OF_AUDIT_AUDITOR_AGENT_ID`
+- `PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY`
 
 The API can target the deployed contract with:
 
@@ -226,6 +251,7 @@ After a successful deploy, `deployments/base-sepolia.json` records:
 - constructor args as named fields
 - constructor args as encoded hex for verification reuse
 - verification status and provider metadata
+- registration document URI, source manifest, and generated file path
 
 ### Rollback and redeploy basics
 

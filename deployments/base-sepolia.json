@@ -27,5 +27,10 @@
   "deployment_tx_hash": "0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41",
   "deployment_block_number": 38862439,
   "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",
-  "updated_at": "2026-03-14T13:01:25.222542+00:00"
+  "updated_at": "2026-03-14T20:04:42.022828+00:00",
+  "registration_document": {
+    "uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
+    "file": "/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json",
+    "source_manifest": "/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json"
+  }
 }
