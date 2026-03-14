@@ -98,6 +98,7 @@ def create_app(
             contract_address=contract_config.contract_address,
             explorer_base_url=contract_config.explorer_base_url,
             arbiter=contract_config.arbiter,
+            auditor=contract_config.auditor.to_dict(),
             required_stake_wei=contract_config.required_stake_wei,
             required_challenge_bond_wei=contract_config.required_challenge_bond_wei,
             challenge_window_seconds=contract_config.challenge_window_seconds,

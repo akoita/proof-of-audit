@@ -72,6 +72,7 @@ def test_create_audit_from_demo_fixture_submission(client: TestClient) -> None:
 
     assert response.status_code == 201
     payload = response.json()
+    assert payload["agent"]["id"] == "proof-of-audit-auditor"
     assert payload["submission"]["input_kind"] == "demo_fixture"
     assert payload["submission"]["fixture_id"] == "vulnerable-bank"
     assert payload["submission"]["entry_contract"] == "VulnerableBank"
@@ -94,6 +95,7 @@ def test_create_audit_from_source_bundle_inferrs_benchmark(client: TestClient) -
 
     assert response.status_code == 201
     payload = response.json()
+    assert payload["agent"]["id"] == "proof-of-audit-auditor"
     assert payload["submission"]["input_kind"] == "source_bundle"
     assert payload["submission"]["source_bundle_uri"] == "ipfs://uploads/dual-risk-vault.zip"
     assert payload["submission"]["entry_contract"] == "DualRiskVault"
@@ -116,7 +118,7 @@ def test_source_bundle_publish_requires_real_deployment(client: TestClient) -> N
 
     response = client.post(
         f"/audits/{created.json()['id']}/publish",
-        json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+        json={"stake_wei": 10**16},
     )
 
     assert response.status_code == 400

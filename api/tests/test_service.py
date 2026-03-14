@@ -53,6 +53,7 @@ class AuditServiceTest(unittest.TestCase):
 
             listed = service.list_audits()
 
+            self.assertEqual(listed[0]["agent"]["id"], "proof-of-audit-auditor")
             self.assertEqual(listed[0]["submission"]["input_kind"], "deployed_address")
             self.assertEqual(listed[0]["report"]["finding_count"], 1)
             self.assertEqual(
@@ -99,11 +100,14 @@ class AuditServiceTest(unittest.TestCase):
             )
 
             self.assertEqual(created["status"], "draft")
+            self.assertEqual(created["agent"]["id"], "proof-of-audit-auditor")
             self.assertEqual(created["report"]["benchmark_id"], "unknown")
             self.assertEqual(created["report"]["finding_count"], 0)
 
-            published = service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+            published = service.publish_audit(created["id"], 10**16, None)
             self.assertEqual(published["status"], "published")
+            self.assertEqual(published["onchain"]["agent_identity"], "proof-of-audit-auditor")
+            self.assertEqual(published["onchain"]["agent_name"], "Proof-of-Audit Auditor")
             self.assertEqual(published["onchain"]["network"], "eth-tester")
             self.assertEqual(
                 published["onchain"]["chain_id"], onchain.contract_config.chain_id

@@ -19,12 +19,24 @@ type Finding = {
   evidence_uri?: string | null;
 };
 
+type AuditorProfile = {
+  id: string;
+  name: string;
+  version: string;
+  service_type: string;
+  description: string;
+  capabilities: string[];
+  operator: string;
+  resolution_policy: string;
+};
+
 type PublicContractConfig = {
   network: string;
   chain_id: number;
   contract_address: string | null;
   explorer_base_url: string;
   arbiter: string | null;
+  auditor: AuditorProfile;
   required_stake_wei: number;
   required_challenge_bond_wei: number;
   challenge_window_seconds: number;
@@ -51,6 +63,7 @@ type Submission = {
 type AuditRecord = {
   id: string;
   contract_address: string;
+  agent: AuditorProfile;
   submission: Submission;
   submitted_by: string;
   status: string;
@@ -75,6 +88,8 @@ type AuditRecord = {
     contract_address?: string | null;
     explorer_base_url: string;
     agent_identity: string;
+    agent_name?: string | null;
+    agent_version?: string | null;
     stake_wei: number;
     report_hash: string;
     metadata_hash: string;
@@ -268,6 +283,13 @@ function submissionModeLabel(mode: InputKind): string {
   }
 }
 
+function agentVersionLabel(agent: AuditorProfile | null | undefined): string {
+  if (!agent) {
+    return "loading";
+  }
+  return `${agent.name} v${agent.version}`;
+}
+
 function submissionTargetLabel(audit: AuditRecord): string {
   if (audit.submission.input_kind === "demo_fixture") {
     return audit.submission.entry_contract ?? audit.submission.fixture_id ?? audit.report.benchmark_id;
@@ -415,7 +437,6 @@ export function AuditWorkbench() {
               method: "POST",
               body: JSON.stringify({
                 stake_wei: publishStake,
-                agent_identity: "auditor-agent-v1",
               }),
             },
           );
@@ -492,8 +513,8 @@ export function AuditWorkbench() {
           <h1>Agents that stake on their audit calls.</h1>
           <p className="lede">
             Submit a deployed contract, a live demo fixture, or a source bundle,
-            then generate a deterministic report and move on-chain only when the
-            target is actually deployable.
+            then let a named auditor agent generate a deterministic report and
+            move on-chain only when the target is actually deployable.
           </p>
         </div>
         <div className="signal-panel">
@@ -519,11 +540,28 @@ export function AuditWorkbench() {
               <strong>{formatEth(challengeBond)}</strong>
             </div>
             <div className="signal-row">
+              <span>Auditor</span>
+              <strong>{agentVersionLabel(contractConfig?.auditor)}</strong>
+            </div>
+            <div className="signal-row">
               <span>Window</span>
               <strong>
                 {contractConfig ? formatWindow(contractConfig.challenge_window_seconds) : "..."}
               </strong>
             </div>
+          </div>
+          <div className="signal-note">
+            <span className="signal-note-label">Auditor service</span>
+            <strong>{contractConfig?.auditor?.name ?? "loading"}</strong>
+            <p className="muted">
+              {contractConfig?.auditor
+                ? `${contractConfig.auditor.id} · ${titleCase(contractConfig.auditor.service_type)}`
+                : "Loading agent identity"}
+            </p>
+            <p className="muted">
+              {contractConfig?.auditor?.description ??
+                "Named auditor profile will appear here once config loads."}
+            </p>
           </div>
           <div className="signal-note">
             {contractConfig?.contract_address ? (
@@ -676,8 +714,10 @@ export function AuditWorkbench() {
             <strong>{demoFixtures.length || 0} fixture paths</strong>
           </div>
           <div className="status-chip">
-            <span>Lifecycle</span>
-            <strong>{activeAudit ? lifecycleLabel(activeAudit) : "Ready for first audit"}</strong>
+            <span>Auditor</span>
+            <strong>
+              {activeAudit ? activeAudit.agent.name : agentVersionLabel(contractConfig?.auditor)}
+            </strong>
           </div>
         </div>
         {activeAction ? (
@@ -757,6 +797,7 @@ export function AuditWorkbench() {
             <>
               {/* Summary + metadata — compact */}
               <div className="audit-summary-bar">
+                <span>{activeAudit.agent.id}</span>
                 <span>{submissionModeLabel(activeAudit.submission.input_kind)}</span>
                 <span>{activeAudit.report.benchmark_id}</span>
                 <span>{activeAudit.report.confidence} confidence</span>
@@ -768,6 +809,10 @@ export function AuditWorkbench() {
 
               {/* Combined stats row: all key metrics in one strip */}
               <div className="stats-strip">
+                <div>
+                  <span>Auditor</span>
+                  <strong>{activeAudit.agent.name}</strong>
+                </div>
                 <div>
                   <span>Status</span>
                   <strong>{lifecycleLabel(activeAudit)}</strong>
@@ -808,7 +853,7 @@ export function AuditWorkbench() {
                   <p className="muted">
                     {activeAudit.submission.input_kind === "source_bundle"
                       ? "Deploy the reviewed source bundle first, then resubmit it as a deployed address before staking on-chain."
-                      : "Opens an on-chain audit attestation against the configured registry contract."}
+                      : `${activeAudit.agent.name} opens an on-chain audit attestation against the configured registry contract.`}
                   </p>
                   <button
                     type="button"
@@ -868,7 +913,8 @@ export function AuditWorkbench() {
                     <span data-tone="confirmed">{activeAudit.onchain.network}</span>
                   </div>
                   <p className="muted">
-                    {activeAudit.onchain.agent_identity} staked{" "}
+                    {(activeAudit.onchain.agent_name ?? activeAudit.agent.name)} (
+                    {activeAudit.onchain.agent_identity}) staked{" "}
                     {formatEth(activeAudit.onchain.stake_wei)} behind this report.
                   </p>
                   <div className="metadata-grid">
@@ -1087,6 +1133,7 @@ export function AuditWorkbench() {
                     <p>{audit.report.benchmark_id}</p>
                     <span data-tone={statusTone(audit.status)}>{audit.status}</span>
                   </div>
+                  <small>{audit.agent.name}</small>
                   <strong title={audit.contract_address}>{submissionTargetLabel(audit)}</strong>
                   <p>{audit.report.summary}</p>
                   <small>{lifecycleLabel(audit)}</small>
