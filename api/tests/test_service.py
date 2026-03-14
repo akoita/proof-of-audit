@@ -10,6 +10,63 @@ from helpers import build_onchain_test_context
 
 
 class AuditServiceTest(unittest.TestCase):
+    def test_list_audits_hydrates_legacy_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_root = Path(tmpdir)
+            legacy_record = {
+                "id": "legacy-audit",
+                "contract_address": "0x1000000000000000000000000000000000000001",
+                "submitted_by": "legacy-user",
+                "status": "draft",
+                "created_at": "2026-03-14T10:00:00+00:00",
+                "report": {
+                    "benchmark_id": "reentrancy-bank",
+                    "contract_address": "0x1000000000000000000000000000000000000001",
+                    "summary": "Withdraw updates balance after the external call.",
+                    "findings": [
+                        {
+                            "title": "Reentrancy in withdraw()",
+                            "severity": "high",
+                            "description": "ETH is sent to msg.sender before accounting is updated.",
+                            "recommendation": "Apply checks-effects-interactions.",
+                            "detector": "pattern.reentrancy",
+                        }
+                    ],
+                    "supported_checks": [
+                        "reentrancy",
+                        "access_control",
+                        "unchecked_external_call",
+                    ],
+                    "confidence": "high",
+                    "report_hash": "legacy-report-hash",
+                    "metadata_hash": "legacy-metadata-hash",
+                    "max_severity": 3,
+                },
+                "onchain": None,
+                "challenge": None,
+            }
+            (data_root / "legacy-audit.json").write_text(
+                json.dumps(legacy_record, indent=2),
+                encoding="utf-8",
+            )
+            service = AuditService(data_root)
+
+            listed = service.list_audits()
+
+            self.assertEqual(listed[0]["submission"]["input_kind"], "deployed_address")
+            self.assertEqual(listed[0]["report"]["finding_count"], 1)
+            self.assertEqual(
+                listed[0]["report"]["findings"][0]["finding_id"],
+                "reentrancy-bank.reentrancy.reentrancy-in-withdraw",
+            )
+            self.assertEqual(
+                listed[0]["report"]["findings"][0]["category"],
+                "reentrancy",
+            )
+            persisted = json.loads((data_root / "legacy-audit.json").read_text(encoding="utf-8"))
+            self.assertIn("submission", persisted)
+            self.assertEqual(persisted["report"]["severity_breakdown"]["high"], 1)
+
     def test_list_audits_returns_newest_first(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
