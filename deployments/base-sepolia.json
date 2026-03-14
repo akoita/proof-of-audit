@@ -27,19 +27,18 @@
   "deployment_tx_hash": "0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41",
   "deployment_block_number": 38862439,
   "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",
-  "updated_at": "2026-03-14T20:26:08.360703+00:00",
+  "updated_at": "2026-03-14T21:02:42.827351+00:00",
   "registration_document": {
     "uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
     "file": "/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json",
     "source_manifest": "/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json"
   },
   "auditor_identity": {
-    "registry_address": "0x9eb733cbd7c13d619ed72e610366715676089708",
-    "agent_id": 1,
-    "owner": "0x9Ed13E9b9FC135D35CE78C35866412dB08897E29",
-    "admin": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+    "registry_address": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "agent_id": 1862,
+    "owner": "0x5005DfF87271ba211F31C22b85bdcb8dFCFc9a10",
     "registration_uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
-    "deploy_tx_hash": "0x6895c3391d328bfd9a594d1dbde5eecb3f8059208205831802b8ed6007c25e38",
-    "register_tx_hash": "0x4062a27914aa64841b5d54be99016a2885b56de3f9b09c7233a2a1c441fc12d8"
+    "register_tx_hash": "0xd21b45e9e38f3bb81045a9081354119a29cd9d0d02f8fda42d7c1eb97a1f1835",
+    "source": "erc8004-official"
   }
 }

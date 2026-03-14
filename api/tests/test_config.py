@@ -1,12 +1,23 @@
 import unittest
+import json
 from pathlib import Path
 import tempfile
 
 from proof_of_audit_api.config import ContractConfig, load_env_file
 
+def load_base_sepolia_manifest() -> dict[str, object]:
+    return json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "deployments"
+            / "base-sepolia.json"
+        ).read_text(encoding="utf-8")
+    )
+
 
 class ContractConfigTest(unittest.TestCase):
     def test_defaults_match_base_sepolia_profile(self) -> None:
+        manifest = load_base_sepolia_manifest()
         config = ContractConfig.from_env({})
 
         self.assertEqual(config.network, "base-sepolia")
@@ -31,10 +42,13 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_service.registration_uri,
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(config.auditor_service.agent_id, 1)
+        self.assertEqual(
+            config.auditor_service.agent_id,
+            manifest["auditor_identity"]["agent_id"],
+        )
         self.assertEqual(
             config.auditor_service.agent_registry,
-            "0x9eb733cbd7c13d619ed72e610366715676089708",
+            manifest["auditor_identity"]["registry_address"],
         )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")

@@ -34,8 +34,8 @@ This repository is an early-stage prototype intended for rapid iteration. The cu
 Current public identity references:
 
 - `ProofOfAudit` on Base Sepolia: `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
-- auditor identity registry on Base Sepolia: `0x9eB733cBD7C13d619eD72e610366715676089708`
-- auditor agent id: `1`
+- canonical ERC-8004 Base Sepolia `IdentityRegistry`: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- recorded auditor agent id: see `deployments/base-sepolia.json`
 
 ## Public alpha reviewer path
 
@@ -67,7 +67,7 @@ This repo implements a compact, coherent v1:
 - one auditor identity
 - one manifest-backed auditor service profile
 - one discoverable service record and discovery path
-- one ERC-8004-style on-chain identity registration
+- one canonical ERC-8004 identity path on Base Sepolia, with a project-local fallback for localhost flows
 - one claim publication flow
 - one on-chain stake amount
 - one challenge type

@@ -98,7 +98,8 @@ Not yet implemented:
 
 Implemented after the stable publication step:
 
-- dedicated on-chain agent identity registry
+- canonical registration through the official ERC-8004 Base Sepolia `IdentityRegistry`
+- project-local `AgentIdentityRegistry` kept only as a localhost and fallback path
 - auditor identity registration that points at the published registration document
 
 ## Recommended wording
@@ -118,5 +119,5 @@ Do not use yet:
 The remaining planned steps are:
 
 1. publish a stable hosted registration document URI
-2. register the auditor identity through an ERC-8004-style on-chain registry
+2. register the auditor identity through the official ERC-8004 on-chain registry when available for the target chain
 3. bridge published audit outcomes into a validation-oriented registry flow

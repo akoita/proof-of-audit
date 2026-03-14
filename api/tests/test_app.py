@@ -9,6 +9,15 @@ from proof_of_audit_api.app import create_app
 from proof_of_audit_api.service import AuditService
 from helpers import build_onchain_test_context
 
+def load_base_sepolia_manifest() -> dict[str, object]:
+    return json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "deployments"
+            / "base-sepolia.json"
+        ).read_text(encoding="utf-8")
+    )
+
 
 class AuditApiAppTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -58,6 +67,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "ok"})
 
     def test_public_config_endpoint(self) -> None:
+        manifest = load_base_sepolia_manifest()
         response = self.client.get("/config")
 
         self.assertEqual(response.status_code, 200)
@@ -87,16 +97,20 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(payload["auditor_service"]["agent_id"], 1)
+        self.assertEqual(
+            payload["auditor_service"]["agent_id"],
+            manifest["auditor_identity"]["agent_id"],
+        )
         self.assertEqual(
             payload["auditor_service"]["agent_registry"],
-            "0x9eb733cbd7c13d619ed72e610366715676089708",
+            manifest["auditor_identity"]["registry_address"],
         )
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
 
     def test_auditor_endpoint_returns_service_record(self) -> None:
+        manifest = load_base_sepolia_manifest()
         response = self.client.get("/auditor")
 
         self.assertEqual(response.status_code, 200)
@@ -108,10 +122,13 @@ class AuditApiAppTest(unittest.TestCase):
             payload["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(payload["agent_id"], 1)
+        self.assertEqual(
+            payload["agent_id"],
+            manifest["auditor_identity"]["agent_id"],
+        )
         self.assertEqual(
             payload["agent_registry"],
-            "0x9eb733cbd7c13d619ed72e610366715676089708",
+            manifest["auditor_identity"]["registry_address"],
         )
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
@@ -119,6 +136,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(payload["manifest_hash"])
 
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
+        manifest = load_base_sepolia_manifest()
         response = self.client.get("/auditor/registration")
 
         self.assertEqual(response.status_code, 200)
@@ -135,7 +153,7 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(
             payload["registrations"][0]["agentRegistry"],
-            "0x9eb733cbd7c13d619ed72e610366715676089708",
+            manifest["auditor_identity"]["registry_address"],
         )
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
