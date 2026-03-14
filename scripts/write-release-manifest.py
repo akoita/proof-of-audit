@@ -37,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--registration-source-manifest")
     parser.add_argument("--auditor-identity-registry-address")
     parser.add_argument("--auditor-identity-agent-id", type=int)
+    parser.add_argument("--auditor-identity-source")
     parser.add_argument("--auditor-identity-owner")
     parser.add_argument("--auditor-identity-admin")
     parser.add_argument("--auditor-identity-registration-uri")
@@ -55,6 +56,15 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def set_if_present(target: dict[str, Any], key: str, value: Any) -> None:
     if value is not None:
         target[key] = value
+
+
+def set_or_delete_if_present(target: dict[str, Any], key: str, value: Any) -> None:
+    if value is None:
+        return
+    if value == "":
+        target.pop(key, None)
+        return
+    target[key] = value
 
 
 def main() -> None:
@@ -118,25 +128,28 @@ def main() -> None:
         manifest["registration_document"] = registration_document
 
     auditor_identity = manifest.get("auditor_identity", {})
-    set_if_present(
+    set_or_delete_if_present(
         auditor_identity,
         "registry_address",
         args.auditor_identity_registry_address,
     )
-    set_if_present(auditor_identity, "agent_id", args.auditor_identity_agent_id)
-    set_if_present(auditor_identity, "owner", args.auditor_identity_owner)
-    set_if_present(auditor_identity, "admin", args.auditor_identity_admin)
-    set_if_present(
+    set_or_delete_if_present(
+        auditor_identity, "agent_id", args.auditor_identity_agent_id
+    )
+    set_or_delete_if_present(auditor_identity, "source", args.auditor_identity_source)
+    set_or_delete_if_present(auditor_identity, "owner", args.auditor_identity_owner)
+    set_or_delete_if_present(auditor_identity, "admin", args.auditor_identity_admin)
+    set_or_delete_if_present(
         auditor_identity,
         "registration_uri",
         args.auditor_identity_registration_uri,
     )
-    set_if_present(
+    set_or_delete_if_present(
         auditor_identity,
         "deploy_tx_hash",
         args.auditor_identity_deploy_tx_hash,
     )
-    set_if_present(
+    set_or_delete_if_present(
         auditor_identity,
         "register_tx_hash",
         args.auditor_identity_register_tx_hash,

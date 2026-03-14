@@ -176,8 +176,9 @@ The verify script:
 
 The identity deploy script:
 
-- deploys the dedicated `AgentIdentityRegistry` contract
 - registers the auditor against the published registration document URI
+- uses the official ERC-8004 Base Sepolia `IdentityRegistry` by default on Base Sepolia
+- keeps the project-local `AgentIdentityRegistry` path for localhost and other fallback environments
 - rewrites `docs/registrations/proof-of-audit-auditor.json` with the on-chain registration reference
 - records the registry address, agent id, owner, and tx hashes in `deployments/base-sepolia.json`
 
@@ -212,9 +213,12 @@ Registration publication defaults can also be overridden:
 - `PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE`
 - `PROOF_OF_AUDIT_AUDITOR_AGENT_ID`
 - `PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY`
+- `PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_AGENT_REGISTRY_ADMIN`
 - `PROOF_OF_AUDIT_AGENT_REGISTRY_ADMIN_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_AUDITOR_OWNER`
+- `PROOF_OF_AUDIT_ERC8004_IDENTITY_MODE`
+- `PROOF_OF_AUDIT_ERC8004_IDENTITY_REGISTRY`
 
 The API can target the deployed contract with:
 
@@ -258,6 +262,10 @@ cd /home/koita/dev/hackatons/proof-of-audit
 ./scripts/deploy-base-sepolia-identity.sh
 ```
 
+On Base Sepolia this script now targets the official ERC-8004 `IdentityRegistry` at `0x8004A818BFB912233c491871b3d84c89A494BD9e` unless you explicitly override `PROOF_OF_AUDIT_ERC8004_IDENTITY_REGISTRY`.
+
+The registration transaction must be signed by the wallet that should own the auditor identity NFT, so set `PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY` when the auditor owner is not the same as the deployer.
+
 ### Release manifest fields
 
 After a successful deploy, `deployments/base-sepolia.json` records:
@@ -271,6 +279,7 @@ After a successful deploy, `deployments/base-sepolia.json` records:
 - verification status and provider metadata
 - registration document URI, source manifest, and generated file path
 - on-chain auditor identity registry address and agent id
+- identity source metadata so the repo can distinguish the official ERC-8004 path from the project-local fallback
 
 ### Rollback and redeploy basics
 
@@ -298,9 +307,7 @@ Live Base Sepolia deployment:
 - deploy tx: `0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41`
 - arbiter: `0x9Ed13E9b9FC135D35CE78C35866412dB08897E29`
 - explorer: `https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
-- auditor identity registry: `0x9eB733cBD7C13d619eD72e610366715676089708`
-- auditor agent id: `1`
-- identity deploy tx: `0x6895c3391d328bfd9a594d1dbde5eecb3f8059208205831802b8ed6007c25e38`
-- identity registration tx: `0x4062a27914aa64841b5d54be99016a2885b56de3f9b09c7233a2a1c441fc12d8`
+- canonical ERC-8004 Base Sepolia identity registry: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- auditor agent id: see `deployments/base-sepolia.json`
 
 Verification has been recorded in `deployments/base-sepolia.json` and the contract is verified on BaseScan.

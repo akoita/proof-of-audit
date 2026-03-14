@@ -124,6 +124,9 @@ def test_deploy_agent_identity_registers_auditor_and_refreshes_manifest(
             == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
         )
         assert (
+            manifest["auditor_identity"]["source"] == "project-local-custom"
+        )
+        assert (
             manifest["auditor_identity"]["owner"] == DEFAULT_LOCAL_AUDITOR_OWNER
         )
         assert (
