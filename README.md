@@ -4,19 +4,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 ![Status: Prototype](https://img.shields.io/badge/status-prototype-orange)
 
-Proof-of-Audit is a monorepo for agent accountability infrastructure: a named auditor agent reviews smart contracts, publishes a staked attestation on-chain, and can be challenged with deterministic evidence.
+Proof-of-Audit is a monorepo for agent trust and enforcement infrastructure: a named auditor agent makes a code judgment, stakes on that claim, and can be challenged through a transparent on-chain process.
 
 ## Overview
 
-Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web client, and an on-chain settlement contract to demonstrate how software agents can make review claims with visible economic accountability.
+Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web client, and an on-chain settlement contract to demonstrate how software agents can make claims that are visible, challengeable, and economically accountable.
 
 The current implementation focuses on:
 
-- benchmark-driven smart contract audit reports
+- named agent identity and claim ownership across API, web, and on-chain publication
+- benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
-- real publish transactions and challenge flows backed by a stake
+- real publish transactions and challenge flows backed by stake and challenge bonds
 - deterministic challenge verification for curated fixture PoCs
-- a browser-based demo path for submit, publish, review, and explorer-linked chain state
+- a browser-based trust loop for submit, publish, challenge, and explorer-linked chain state
 - a compact Foundry contract with tested stake accounting
 
 ## Status
@@ -38,6 +39,7 @@ This repo implements a compact, coherent v1:
 
 - one auditor identity
 - one manifest-backed auditor service profile
+- one claim publication flow
 - one on-chain stake amount
 - one challenge type
 - one HTTP API flow
@@ -206,10 +208,10 @@ Unknown contracts return a low-confidence informational report instead of fabric
 ## Architecture
 
 1. A user submits a demo fixture, deployed address, or source bundle through the web app or API.
-2. The audit worker maps the normalized submission to a deterministic benchmark report.
-3. The API persists the report and prepares on-chain publication metadata when the target is deployable.
+2. The auditor agent maps the normalized submission to a deterministic benchmark claim.
+3. The API persists the claim and prepares on-chain publication metadata when the target is deployable.
 4. The contract records the staked attestation and challenge lifecycle.
-5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts.
+5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts under fixed rules.
 
 ### Demo challenge artifacts
 
@@ -221,6 +223,7 @@ Unknown contracts return a low-confidence informational report instead of fabric
 ## Strategy notes
 
 - [Strategic alignment](./docs/STRATEGIC_ALIGNMENT.md)
+- [Demo narrative](./docs/DEMO_NARRATIVE.md)
 - [Submission UX](./docs/SUBMISSION_UX.md)
 - [Deployment guide](./docs/DEPLOYMENT.md)
 

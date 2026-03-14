@@ -510,11 +510,11 @@ export function AuditWorkbench() {
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Proof-of-Audit Workbench</p>
-          <h1>Agents that stake on their audit calls.</h1>
+          <h1>Trust and challengeability for agent-made code judgments.</h1>
           <p className="lede">
-            Submit a deployed contract, a live demo fixture, or a source bundle,
-            then let a named auditor agent generate a deterministic report and
-            move on-chain only when the target is actually deployable.
+            A named auditor agent makes a claim about a contract, stakes behind
+            it, and can be challenged through a neutral on-chain process when
+            that claim is disputed.
           </p>
         </div>
         <div className="signal-panel">
@@ -611,8 +611,8 @@ export function AuditWorkbench() {
             <div>
               <label htmlFor="contractAddress">Audit target</label>
               <p>
-                Choose the input shape that matches how the code is available,
-                instead of forcing every audit through a deployed address.
+                Choose how the target code is available, then let the auditor
+                prepare a claim that can later be published and challenged.
               </p>
             </div>
             {selectedFixture ? (
@@ -692,14 +692,14 @@ export function AuditWorkbench() {
             <p className="helper-copy">
               {submissionMode === "demo_fixture"
                 ? selectedFixture
-                  ? `${selectedFixture.contract_name} selected from local fixtures.`
+                  ? `${selectedFixture.contract_name} selected for a reproducible trust-and-challenge demo.`
                   : "Pick a demo fixture below to populate the live local address."
                 : submissionMode === "source_bundle"
-                  ? "Use a bundle URI for pre-deploy or multi-contract review. Repository import stays a later async path."
-                  : "Paste any deployed contract address. Source bundles stay available when repo or dependency context matters more than one address."}
+                  ? "Use a bundle URI when the agent needs source context before any claim can be published on-chain."
+                  : "Paste a deployed contract address when you want the agent's claim to stay directly tied to on-chain code."}
             </p>
             <button type="submit" disabled={isPending}>
-              {isPending && activeAction?.includes("Generating") ? "Working..." : "Run audit"}
+              {isPending && activeAction?.includes("Generating") ? "Working..." : "Generate claim"}
             </button>
           </div>
         </form>
@@ -733,7 +733,7 @@ export function AuditWorkbench() {
           <div>
             <p>Demo fixtures</p>
             <strong className="section-subtitle">
-              Pick a live contract to drive the audit flow
+              Pick a live contract to drive the trust, stake, and challenge flow
             </strong>
           </div>
           <span>{isLoaded ? `${demoFixtures.length} loaded` : "loading"}</span>
@@ -806,6 +806,10 @@ export function AuditWorkbench() {
                 </span>
               </div>
               <h2>{activeAudit.report.summary}</h2>
+              <p className="muted">
+                {activeAudit.agent.name} is the named actor responsible for this claim and
+                any stake-backed publication that follows.
+              </p>
 
               {/* Combined stats row: all key metrics in one strip */}
               <div className="stats-strip">
@@ -848,12 +852,12 @@ export function AuditWorkbench() {
               {/* ── Actions — promoted above findings ────────── */}
               <div className="action-row">
                 <div className="action-card">
-                  <span>Publish</span>
+                  <span>Publish claim</span>
                   <strong>Stake {formatEth(publishStake)}</strong>
                   <p className="muted">
                     {activeAudit.submission.input_kind === "source_bundle"
                       ? "Deploy the reviewed source bundle first, then resubmit it as a deployed address before staking on-chain."
-                      : `${activeAudit.agent.name} opens an on-chain audit attestation against the configured registry contract.`}
+                      : `${activeAudit.agent.name} commits to this judgment on-chain so others can inspect and dispute it under fixed rules.`}
                   </p>
                   <button
                     type="button"
@@ -867,11 +871,11 @@ export function AuditWorkbench() {
                   >
                     {isPending && activeAction?.includes("publish")
                       ? "Publishing..."
-                      : "Publish stake"}
+                      : "Stake and publish"}
                   </button>
                 </div>
                 <div className="action-card action-card-wide">
-                  <span>Challenge proof</span>
+                  <span>Challenge claim</span>
                   <strong>Bond {formatEth(challengeBond)}</strong>
                   <input
                     value={proofUri}
@@ -893,10 +897,10 @@ export function AuditWorkbench() {
                   >
                     {isPending && activeAction?.includes("challenge")
                       ? "Challenging..."
-                      : "Challenge with PoC"}
+                      : "Open challenge"}
                   </button>
                   <p className="muted">
-                    Suggested artifact for this benchmark:{" "}
+                    Suggested evidence artifact for this benchmark:{" "}
                     <code>
                       {selectedFixture?.challenge_proof_uri ??
                         suggestedProofUriForBenchmark(activeAudit.report.benchmark_id)}
@@ -909,13 +913,13 @@ export function AuditWorkbench() {
               {activeAudit.onchain ? (
                 <div className="onchain-card">
                   <div className="section-heading">
-                    <p>On-chain attestation</p>
+                    <p>On-chain commitment</p>
                     <span data-tone="confirmed">{activeAudit.onchain.network}</span>
                   </div>
                   <p className="muted">
                     {(activeAudit.onchain.agent_name ?? activeAudit.agent.name)} (
                     {activeAudit.onchain.agent_identity}) staked{" "}
-                    {formatEth(activeAudit.onchain.stake_wei)} behind this report.
+                    {formatEth(activeAudit.onchain.stake_wei)} behind this judgment.
                   </p>
                   <div className="metadata-grid">
                     <div>
@@ -975,7 +979,7 @@ export function AuditWorkbench() {
               {activeAudit.challenge ? (
                 <div className="challenge-card">
                   <div className="section-heading">
-                    <p>Challenge status</p>
+                    <p>Challenge and resolution</p>
                     <span
                       data-testid="challenge-status"
                       data-tone={statusTone(activeAudit.challenge.status)}
@@ -1063,8 +1067,8 @@ export function AuditWorkbench() {
                   <div className="finding-card">
                     <strong>No benchmark issue found</strong>
                     <p>
-                      The worker did not match a benchmark vulnerability across
-                      the supported checks.
+                      The auditor did not match a benchmark issue across the
+                      supported checks, so no stronger claim is made here.
                     </p>
                   </div>
                 ) : (
@@ -1103,7 +1107,7 @@ export function AuditWorkbench() {
             <div className="empty-panel">
               <strong>No active audit selected</strong>
               <p className="muted">
-                Create an audit to populate the workbench, or pick one from recent
+                Generate a claim to populate the workbench, or pick one from recent
                 activity once the API data loads.
               </p>
             </div>
@@ -1112,7 +1116,7 @@ export function AuditWorkbench() {
 
         <aside className="panel recent-panel">
           <div className="section-heading">
-            <p>Recent audits</p>
+            <p>Recent claims</p>
             <span>{recentAudits.length}</span>
           </div>
           <div className="recent-list">
