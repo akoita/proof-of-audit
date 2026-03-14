@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia verify-base-sepolia install-api-deps test-contracts test-python test-system-e2e test-ui-e2e test-e2e
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps test-contracts test-python test-system-e2e test-ui-e2e test-e2e
 
 PYTHON ?= python3
 
@@ -13,6 +13,9 @@ deploy-demo-fixtures:
 
 deploy-base-sepolia:
 	./scripts/deploy-base-sepolia.sh
+
+deploy-base-sepolia-identity:
+	./scripts/deploy-base-sepolia-identity.sh
 
 verify-base-sepolia:
 	./scripts/verify-base-sepolia.sh

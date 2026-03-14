@@ -93,9 +93,13 @@ Partial alignment:
 
 Not yet implemented:
 
-- on-chain ERC-8004 identity registration
 - validation registry bridge
 - reputation registry integration
+
+Implemented after the stable publication step:
+
+- dedicated on-chain agent identity registry
+- auditor identity registration that points at the published registration document
 
 ## Recommended wording
 

@@ -35,6 +35,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--registration-document-uri")
     parser.add_argument("--registration-document-file")
     parser.add_argument("--registration-source-manifest")
+    parser.add_argument("--auditor-identity-registry-address")
+    parser.add_argument("--auditor-identity-agent-id", type=int)
+    parser.add_argument("--auditor-identity-owner")
+    parser.add_argument("--auditor-identity-admin")
+    parser.add_argument("--auditor-identity-registration-uri")
+    parser.add_argument("--auditor-identity-deploy-tx-hash")
+    parser.add_argument("--auditor-identity-register-tx-hash")
     parser.add_argument("--notes")
     return parser.parse_args()
 
@@ -109,6 +116,33 @@ def main() -> None:
     )
     if registration_document:
         manifest["registration_document"] = registration_document
+
+    auditor_identity = manifest.get("auditor_identity", {})
+    set_if_present(
+        auditor_identity,
+        "registry_address",
+        args.auditor_identity_registry_address,
+    )
+    set_if_present(auditor_identity, "agent_id", args.auditor_identity_agent_id)
+    set_if_present(auditor_identity, "owner", args.auditor_identity_owner)
+    set_if_present(auditor_identity, "admin", args.auditor_identity_admin)
+    set_if_present(
+        auditor_identity,
+        "registration_uri",
+        args.auditor_identity_registration_uri,
+    )
+    set_if_present(
+        auditor_identity,
+        "deploy_tx_hash",
+        args.auditor_identity_deploy_tx_hash,
+    )
+    set_if_present(
+        auditor_identity,
+        "register_tx_hash",
+        args.auditor_identity_register_tx_hash,
+    )
+    if auditor_identity:
+        manifest["auditor_identity"] = auditor_identity
 
     manifest["updated_at"] = datetime.now(UTC).isoformat()
 

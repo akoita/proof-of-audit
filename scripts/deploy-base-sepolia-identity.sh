@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+
+export PROOF_OF_AUDIT_IDENTITY_NETWORK="${PROOF_OF_AUDIT_IDENTITY_NETWORK:-base-sepolia}"
+export PROOF_OF_AUDIT_IDENTITY_CHAIN_ID="${PROOF_OF_AUDIT_IDENTITY_CHAIN_ID:-84532}"
+export PROOF_OF_AUDIT_IDENTITY_RPC_URL="${PROOF_OF_AUDIT_IDENTITY_RPC_URL:-${PROOF_OF_AUDIT_DEPLOY_RPC_URL:-${BASE_SEPOLIA_RPC_URL:-}}}"
+export PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE="${PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE:-${ROOT_DIR}/deployments/base-sepolia.json}"
+
+"${ROOT_DIR}/scripts/deploy-agent-identity.sh"
