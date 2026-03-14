@@ -33,13 +33,73 @@ def load_env_file(path: Path) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
+class AuditorServiceEndpoint:
+    name: str
+    endpoint: str
+    version: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "AuditorServiceEndpoint | None":
+        if not isinstance(payload, dict):
+            return None
+        name = str(payload.get("name") or "").strip()
+        endpoint = str(payload.get("endpoint") or "").strip()
+        if not name or not endpoint:
+            return None
+        version = payload.get("version")
+        return cls(
+            name=name,
+            endpoint=endpoint,
+            version=str(version) if version is not None else None,
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "name": self.name,
+            "endpoint": self.endpoint,
+        }
+        if self.version:
+            payload["version"] = self.version
+        return payload
+
+
+@dataclass(frozen=True)
+class AuditorRegistrationRef:
+    agent_id: int
+    agent_registry: str
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "AuditorRegistrationRef | None":
+        if not isinstance(payload, dict):
+            return None
+        agent_id = payload.get("agentId")
+        agent_registry = str(payload.get("agentRegistry") or "").strip()
+        if not isinstance(agent_id, int) or not agent_registry:
+            return None
+        return cls(agent_id=agent_id, agent_registry=agent_registry)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "agentId": self.agent_id,
+            "agentRegistry": self.agent_registry,
+        }
+
+
+@dataclass(frozen=True)
 class AuditorProfile:
+    registration_type: str
     id: str
     name: str
     version: str
     manifest_schema: str
     service_type: str
     description: str
+    image: str
+    services: tuple[AuditorServiceEndpoint, ...]
+    x402_support: bool
+    active: bool
+    registrations: tuple[AuditorRegistrationRef, ...]
+    supported_trust: tuple[str, ...]
     capabilities: tuple[str, ...]
     operator: str
     resolution_policy: str
@@ -47,15 +107,39 @@ class AuditorProfile:
     @classmethod
     def default(cls) -> "AuditorProfile":
         return cls(
+            registration_type="https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
             id="proof-of-audit-auditor",
             name="Proof-of-Audit Auditor",
             version="0.1.0",
-            manifest_schema="proof-of-audit/auditor-service@v1",
+            manifest_schema="https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
             service_type="audit_contract",
             description=(
                 "Deterministic smart contract review agent that stakes on-chain behind "
                 "its published audit judgment."
             ),
+            image=(
+                "data:image/svg+xml;utf8,"
+                "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'>"
+                "<rect width='96' height='96' rx='18' fill='%230f1f4b'/>"
+                "<path d='M24 24h48v48H24z' fill='none' stroke='%23f28d52' stroke-width='6'/>"
+                "<circle cx='48' cy='48' r='14' fill='%23f6f1e8'/>"
+                "</svg>"
+            ),
+            services=(
+                AuditorServiceEndpoint(
+                    name="web",
+                    endpoint="https://github.com/akoita/proof-of-audit",
+                ),
+                AuditorServiceEndpoint(
+                    name="api",
+                    endpoint="http://127.0.0.1:8080/auditor/registration",
+                    version="v0.2.0",
+                ),
+            ),
+            x402_support=False,
+            active=True,
+            registrations=(),
+            supported_trust=("crypto-economic",),
             capabilities=(
                 "audit_contract",
                 "publish_staked_attestation",
@@ -70,34 +154,120 @@ class AuditorProfile:
         if path is None or not path.exists():
             return cls.default()
         payload = json.loads(path.read_text(encoding="utf-8"))
+        defaults = cls.default()
+        extensions = payload.get("x-proof-of-audit")
+        if not isinstance(extensions, dict):
+            extensions = {}
+        services = tuple(
+            endpoint
+            for raw_service in payload.get("services", defaults.services)
+            if (endpoint := AuditorServiceEndpoint.from_payload(raw_service)) is not None
+        )
+        if not services:
+            services = defaults.services
+        registrations = tuple(
+            registration
+            for raw_registration in payload.get("registrations", defaults.registrations)
+            if (
+                registration := AuditorRegistrationRef.from_payload(raw_registration)
+            )
+            is not None
+        )
+        supported_trust = tuple(
+            str(item)
+            for item in payload.get("supportedTrust", defaults.supported_trust)
+            if str(item).strip()
+        )
         return cls(
-            id=str(payload.get("id", cls.default().id)),
-            name=str(payload.get("name", cls.default().name)),
-            version=str(payload.get("version", cls.default().version)),
-            manifest_schema=str(
-                payload.get("manifest_schema", cls.default().manifest_schema)
+            registration_type=str(
+                payload.get("type")
+                or payload.get("manifest_schema")
+                or defaults.registration_type
             ),
-            service_type=str(payload.get("service_type", cls.default().service_type)),
-            description=str(payload.get("description", cls.default().description)),
-            capabilities=tuple(str(item) for item in payload.get("capabilities", cls.default().capabilities)),
-            operator=str(payload.get("operator", cls.default().operator)),
+            id=str(
+                payload.get("id")
+                or extensions.get("id")
+                or defaults.id
+            ),
+            name=str(payload.get("name", defaults.name)),
+            version=str(
+                payload.get("version")
+                or extensions.get("version")
+                or defaults.version
+            ),
+            manifest_schema=str(
+                payload.get("manifest_schema")
+                or payload.get("type")
+                or defaults.manifest_schema
+            ),
+            service_type=str(
+                payload.get("service_type")
+                or extensions.get("serviceType")
+                or defaults.service_type
+            ),
+            description=str(payload.get("description", defaults.description)),
+            image=str(payload.get("image", defaults.image)),
+            services=services,
+            x402_support=bool(payload.get("x402Support", defaults.x402_support)),
+            active=bool(payload.get("active", defaults.active)),
+            registrations=registrations,
+            supported_trust=supported_trust or defaults.supported_trust,
+            capabilities=tuple(
+                str(item)
+                for item in payload.get(
+                    "capabilities",
+                    extensions.get("capabilities", defaults.capabilities),
+                )
+            ),
+            operator=str(
+                payload.get("operator")
+                or extensions.get("operator")
+                or defaults.operator
+            ),
             resolution_policy=str(
-                payload.get("resolution_policy", cls.default().resolution_policy)
+                payload.get("resolution_policy")
+                or extensions.get("resolutionPolicy")
+                or defaults.resolution_policy
             ),
         )
 
-    def to_dict(self) -> dict[str, object]:
+    def to_registration_dict(self) -> dict[str, object]:
         return {
-            "id": self.id,
+            "type": self.registration_type,
             "name": self.name,
-            "version": self.version,
-            "manifest_schema": self.manifest_schema,
-            "service_type": self.service_type,
             "description": self.description,
-            "capabilities": list(self.capabilities),
-            "operator": self.operator,
-            "resolution_policy": self.resolution_policy,
+            "image": self.image,
+            "services": [service.to_dict() for service in self.services],
+            "x402Support": self.x402_support,
+            "active": self.active,
+            "registrations": [
+                registration.to_dict() for registration in self.registrations
+            ],
+            "supportedTrust": list(self.supported_trust),
+            "x-proof-of-audit": {
+                "id": self.id,
+                "version": self.version,
+                "serviceType": self.service_type,
+                "capabilities": list(self.capabilities),
+                "operator": self.operator,
+                "resolutionPolicy": self.resolution_policy,
+            },
         }
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self.to_registration_dict()
+        payload.update(
+            {
+                "id": self.id,
+                "version": self.version,
+                "manifest_schema": self.manifest_schema,
+                "service_type": self.service_type,
+                "capabilities": list(self.capabilities),
+                "operator": self.operator,
+                "resolution_policy": self.resolution_policy,
+            }
+        )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -107,12 +277,16 @@ class AuditorServiceRecord:
     manifest_schema: str
     manifest_hash: str
     registration_kind: str
+    registration_type: str
+    registration_endpoint: str
     capability: str
     discovery_path: str
     submit_path: str
     publish_path_template: str
     challenge_path_template: str
     network: str
+    active: bool
+    supported_trust: tuple[str, ...]
     registry_contract_address: str | None
 
     def to_dict(self) -> dict[str, object]:
@@ -122,12 +296,16 @@ class AuditorServiceRecord:
             "manifest_schema": self.manifest_schema,
             "manifest_hash": self.manifest_hash,
             "registration_kind": self.registration_kind,
+            "registration_type": self.registration_type,
+            "registration_endpoint": self.registration_endpoint,
             "capability": self.capability,
             "discovery_path": self.discovery_path,
             "submit_path": self.submit_path,
             "publish_path_template": self.publish_path_template,
             "challenge_path_template": self.challenge_path_template,
             "network": self.network,
+            "active": self.active,
+            "supported_trust": list(self.supported_trust),
             "registry_contract_address": self.registry_contract_address,
         }
 
@@ -230,11 +408,15 @@ class ContractConfig:
             manifest_schema=self.auditor.manifest_schema,
             manifest_hash=self.auditor_manifest_hash,
             registration_kind="offchain_manifest",
+            registration_type=self.auditor.registration_type,
+            registration_endpoint="/auditor/registration",
             capability=capability,
             discovery_path="/auditor",
             submit_path="/audits",
             publish_path_template="/audits/{id}/publish",
             challenge_path_template="/audits/{id}/challenge",
             network=self.network,
+            active=self.auditor.active,
+            supported_trust=self.auditor.supported_trust,
             registry_contract_address=self.contract_address,
         )

@@ -2,16 +2,61 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class AuditorServiceEndpointModel(BaseModel):
+    name: str
+    endpoint: str
+    version: str | None = None
+
+
+class AuditorRegistrationRefModel(BaseModel):
+    agentId: int
+    agentRegistry: str
+
+
+class AuditorExtensionModel(BaseModel):
+    id: str
+    version: str
+    serviceType: str
+    capabilities: list[str]
+    operator: str
+    resolutionPolicy: str
+
+
+class AuditorRegistrationDocumentModel(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    type: str
+    name: str
+    description: str
+    image: str
+    services: list[AuditorServiceEndpointModel]
+    x402Support: bool
+    active: bool
+    registrations: list[AuditorRegistrationRefModel]
+    supportedTrust: list[str]
+    x_proof_of_audit: AuditorExtensionModel = Field(
+        alias="x-proof-of-audit",
+        serialization_alias="x-proof-of-audit",
+    )
 
 
 class AuditorProfileModel(BaseModel):
+    type: str
     id: str
     name: str
     version: str
     manifest_schema: str
     service_type: str
     description: str
+    image: str
+    services: list[AuditorServiceEndpointModel]
+    x402Support: bool
+    active: bool
+    registrations: list[AuditorRegistrationRefModel]
+    supportedTrust: list[str]
     capabilities: list[str]
     operator: str
     resolution_policy: str
@@ -23,12 +68,16 @@ class AuditorServiceRecordModel(BaseModel):
     manifest_schema: str
     manifest_hash: str
     registration_kind: str
+    registration_type: str
+    registration_endpoint: str
     capability: str
     discovery_path: str
     submit_path: str
     publish_path_template: str
     challenge_path_template: str
     network: str
+    active: bool
+    supported_trust: list[str]
     registry_contract_address: str | None = None
 
 

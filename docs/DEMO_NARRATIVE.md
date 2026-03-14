@@ -19,7 +19,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 
 ## 60-second demo arc
 
-1. This is the auditor agent identity, its discoverable service record, and the active chain configuration.
+1. This is the auditor agent identity, its ERC-8004-aligned registration document, its discoverable service record, and the active chain configuration.
 2. I submit a contract and the agent produces a review claim.
 3. The agent stakes on that claim and publishes it on-chain.
 4. A challenger submits evidence against the claim.

@@ -48,7 +48,7 @@ This repository is an early-stage prototype intended for rapid iteration. The cu
 
 - `contracts/`: Foundry contract for publishing audits, opening challenges, and resolving stake payouts.
 - `agent/`: Python audit worker with deterministic outputs for benchmark contracts.
-- `agent/proof_of_audit_agent/auditor_manifest.json`: stable manifest describing the named auditor agent service.
+- `agent/proof_of_audit_agent/auditor_manifest.json`: ERC-8004-aligned registration document for the named auditor agent service.
 - `api/`: FastAPI service for submit, view, publish, and challenge flows.
 - `web/`: Minimal Next.js app scaffold for the demo UI.
 - `demo/`: Sample contracts that map to benchmark audit outputs.
@@ -178,6 +178,8 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
   - includes the live auditor service profile used by the API and web workbench
 - `GET /auditor`
   - returns the discoverable auditor service record, manifest hash, and API paths
+- `GET /auditor/registration`
+  - returns the ERC-8004-aligned auditor registration document with service endpoints and trust model metadata
 - `GET /fixtures`
 - `GET /audits`
   - returns audit records with the attached auditor agent profile from draft through resolution
@@ -248,6 +250,7 @@ For the default demo path, curated fixture evidence resolves automatically on-ch
 ## Strategy notes
 
 - [Strategic alignment](./docs/STRATEGIC_ALIGNMENT.md)
+- [ERC-8004 registration alignment](./docs/ERC8004_REGISTRATION.md)
 - [Demo narrative](./docs/DEMO_NARRATIVE.md)
 - [Demo script](./docs/DEMO_SCRIPT.md)
 - [Architecture](./docs/ARCHITECTURE.md)

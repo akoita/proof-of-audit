@@ -17,11 +17,15 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.challenge_window_seconds, 86400)
         self.assertEqual(
             config.auditor.manifest_schema,
-            "proof-of-audit/auditor-service@v1",
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
         )
         self.assertEqual(
             config.auditor_service.registration_kind,
             "offchain_manifest",
+        )
+        self.assertEqual(
+            config.auditor_service.registration_type,
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
         )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")

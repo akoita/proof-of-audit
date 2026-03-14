@@ -20,6 +20,7 @@ from proof_of_audit_api.publisher import (
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
+    AuditorRegistrationDocumentModel,
     AuditorServiceRecordModel,
     ChallengeAuditRequest,
     CreateAuditRequest,
@@ -112,6 +113,13 @@ def create_app(
         contract_config = request.app.state.contract_config
         return AuditorServiceRecordModel.model_validate(
             contract_config.auditor_service.to_dict()
+        )
+
+    @app.get("/auditor/registration", response_model=AuditorRegistrationDocumentModel)
+    def auditor_registration(request: Request) -> AuditorRegistrationDocumentModel:
+        contract_config = request.app.state.contract_config
+        return AuditorRegistrationDocumentModel.model_validate(
+            contract_config.auditor.to_registration_dict()
         )
 
     @app.get(
