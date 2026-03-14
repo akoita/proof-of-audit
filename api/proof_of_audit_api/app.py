@@ -155,6 +155,38 @@ def create_app(
             )
         return AuditRecordModel.model_validate(record)
 
+    @app.get(
+        "/audits/{audit_id}/validation/request",
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_validation_request_document(
+        audit_id: str, request: Request
+    ) -> dict[str, object]:
+        service = _service(request)
+        payload = service.get_validation_request_document(audit_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "validation_request_not_found"},
+            )
+        return payload
+
+    @app.get(
+        "/audits/{audit_id}/validation/response",
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_validation_response_document(
+        audit_id: str, request: Request
+    ) -> dict[str, object]:
+        service = _service(request)
+        payload = service.get_validation_response_document(audit_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "validation_response_not_found"},
+            )
+        return payload
+
     @app.post(
         "/audits",
         response_model=AuditRecordModel,

@@ -12,7 +12,9 @@ flowchart LR
     API --> Verifier["Deterministic challenge verifier"]
     API --> Store["JSON audit store"]
     API --> Contract["ProofOfAudit contract"]
+    API --> Validation["ERC-8004 validation bridge"]
     Contract --> Base["Base Sepolia or local Anvil"]
+    Validation --> Base
 ```
 
 ## Components
@@ -33,6 +35,7 @@ Key file:
 - persists audit records
 - exposes the auditor profile and service record
 - exposes whether the current identity path is the official ERC-8004 registry or a local fallback
+- emits ERC-8004-aligned validation request and response documents for published and resolved audits
 - submits publish and challenge transactions
 - auto-resolves curated deterministic cases
 - leaves ambiguous cases on the manual fallback path
@@ -70,6 +73,17 @@ Key file:
 Key file:
 - `/home/koita/dev/hackatons/proof-of-audit/contracts/src/ProofOfAudit.sol`
 
+### Validation bridge
+
+- mirrors published claims into an ERC-8004-style validation request
+- mirrors resolved outcomes into an ERC-8004-style validation response
+- keeps the native `ProofOfAudit` contract as the source of truth for stake, challenge, and payout logic
+- uses the official Base Sepolia `ValidationRegistry` as the canonical public target, with a local adapter for self-contained test environments
+
+Key files:
+- `/home/koita/dev/hackatons/proof-of-audit/api/proof_of_audit_api/validation_bridge.py`
+- `/home/koita/dev/hackatons/proof-of-audit/contracts/src/ValidationRegistryAdapter.sol`
+
 ## Trust model
 
 The trust model is intentionally narrow:
@@ -90,6 +104,7 @@ This means the product is strongest as trust and enforcement infrastructure for 
 2. The worker returns a deterministic review claim.
 3. The API stores the claim and attaches the named auditor profile.
 4. The auditor publishes the claim on-chain with stake.
+5. The API mirrors that publication into the validation bridge as a standards-aligned request.
 
 ### Challenge resolution
 
@@ -98,6 +113,7 @@ This means the product is strongest as trust and enforcement infrastructure for 
 3. The verifier evaluates the proof against known benchmark cases.
 4. If the case is known, the API resolves the challenge on-chain automatically.
 5. If the case is ambiguous, the challenge remains open for fallback governance.
+6. Once the outcome is resolved, the API mirrors the result into the validation bridge.
 
 ## External reviewer checklist
 

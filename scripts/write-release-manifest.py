@@ -43,6 +43,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--auditor-identity-registration-uri")
     parser.add_argument("--auditor-identity-deploy-tx-hash")
     parser.add_argument("--auditor-identity-register-tx-hash")
+    parser.add_argument("--validation-bridge-registry-address")
+    parser.add_argument("--validation-bridge-source")
     parser.add_argument("--notes")
     return parser.parse_args()
 
@@ -156,6 +158,16 @@ def main() -> None:
     )
     if auditor_identity:
         manifest["auditor_identity"] = auditor_identity
+
+    validation_bridge = manifest.get("validation_bridge", {})
+    set_or_delete_if_present(
+        validation_bridge,
+        "registry_address",
+        args.validation_bridge_registry_address,
+    )
+    set_or_delete_if_present(validation_bridge, "source", args.validation_bridge_source)
+    if validation_bridge:
+        manifest["validation_bridge"] = validation_bridge
 
     manifest["updated_at"] = datetime.now(UTC).isoformat()
 

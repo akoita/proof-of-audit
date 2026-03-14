@@ -182,6 +182,12 @@ The identity deploy script:
 - rewrites `docs/registrations/proof-of-audit-auditor.json` with the on-chain registration reference
 - records the registry address, agent id, owner, and tx hashes in `deployments/base-sepolia.json`
 
+The validation bridge path:
+
+- uses the official ERC-8004 Base Sepolia `ValidationRegistry` by default on Base Sepolia
+- records the canonical validation registry metadata in `deployments/base-sepolia.json`
+- keeps the native `ProofOfAudit` contract as the settlement source of truth
+
 ### Regenerate the published registration document without redeploying
 
 ```bash
@@ -219,6 +225,12 @@ Registration publication defaults can also be overridden:
 - `PROOF_OF_AUDIT_AUDITOR_OWNER`
 - `PROOF_OF_AUDIT_ERC8004_IDENTITY_MODE`
 - `PROOF_OF_AUDIT_ERC8004_IDENTITY_REGISTRY`
+- `PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS`
+- `PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE`
+- `PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY`
+- `PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY`
+- `PROOF_OF_AUDIT_VALIDATOR_ADDRESS`
+- `PROOF_OF_AUDIT_RUNTIME_API_URL`
 
 The API can target the deployed contract with:
 
@@ -280,6 +292,7 @@ After a successful deploy, `deployments/base-sepolia.json` records:
 - registration document URI, source manifest, and generated file path
 - on-chain auditor identity registry address and agent id
 - identity source metadata so the repo can distinguish the official ERC-8004 path from the project-local fallback
+- validation bridge registry address and source metadata
 
 ### Rollback and redeploy basics
 
@@ -308,6 +321,7 @@ Live Base Sepolia deployment:
 - arbiter: `0x9Ed13E9b9FC135D35CE78C35866412dB08897E29`
 - explorer: `https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
 - canonical ERC-8004 Base Sepolia identity registry: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- canonical ERC-8004 Base Sepolia validation registry: `0x8004B663056A597Dffe9eCcC1965A193B7388713`
 - auditor agent id: see `deployments/base-sepolia.json`
 
 Verification has been recorded in `deployments/base-sepolia.json` and the contract is verified on BaseScan.

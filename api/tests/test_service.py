@@ -93,6 +93,7 @@ class AuditServiceTest(unittest.TestCase):
                 contract_config=onchain.contract_config,
                 publisher=onchain.publisher,
                 arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
             )
             created = service.create_audit(
                 onchain.web3.eth.accounts[2],
@@ -122,6 +123,28 @@ class AuditServiceTest(unittest.TestCase):
                 )
             )
             self.assertEqual(published["onchain"]["audit_id"], 1)
+            self.assertEqual(published["validation"]["status"], "requested")
+            self.assertEqual(
+                published["validation"]["registry_address"],
+                onchain.validation_registry.address,
+            )
+            self.assertEqual(published["validation"]["agent_id"], 1)
+            self.assertEqual(
+                published["validation"]["validator_address"],
+                onchain.contract_config.validator_address,
+            )
+            self.assertTrue(
+                published["validation"]["request_uri"].endswith(
+                    f"/audits/{created['id']}/validation/request"
+                )
+            )
+            self.assertTrue(published["validation"]["request_tx_hash"].startswith("0x"))
+            validation_requests = onchain.validation_registry.functions.getAgentValidations(1).call()
+            self.assertEqual(len(validation_requests), 1)
+            self.assertEqual(
+                onchain.web3.to_hex(validation_requests[0]),
+                published["validation"]["request_hash"],
+            )
 
             challenged = service.challenge_audit(
                 created["id"],
@@ -182,6 +205,16 @@ class AuditServiceTest(unittest.TestCase):
             resolved_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(resolved_record[10]), 3)
             self.assertEqual(int(resolved_record[11]), 1)
+            self.assertEqual(resolved["validation"]["status"], "responded")
+            self.assertEqual(resolved["validation"]["response"], 0)
+            self.assertEqual(resolved["validation"]["response_tag"], "claim-refuted")
+            self.assertEqual(resolved["validation"]["linked_resolution"], "upheld")
+            self.assertTrue(resolved["validation"]["response_tx_hash"].startswith("0x"))
+            validation_status = onchain.validation_registry.functions.getValidationStatus(
+                resolved["validation"]["request_hash"]
+            ).call()
+            self.assertEqual(int(validation_status[2]), 0)
+            self.assertEqual(validation_status[4], "claim-refuted")
 
     def test_verified_clean_fixture_challenge_auto_resolves_upheld(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -191,6 +224,7 @@ class AuditServiceTest(unittest.TestCase):
                 contract_config=onchain.contract_config,
                 publisher=onchain.publisher,
                 arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
             )
             created = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
@@ -219,6 +253,9 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["resolved_by"],
                 "deterministic-verifier",
             )
+            self.assertEqual(challenged["validation"]["status"], "responded")
+            self.assertEqual(challenged["validation"]["response"], 0)
+            self.assertEqual(challenged["validation"]["response_tag"], "claim-refuted")
             resolved_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(resolved_record[10]), 3)
             self.assertEqual(int(resolved_record[11]), 1)
@@ -231,6 +268,7 @@ class AuditServiceTest(unittest.TestCase):
                 contract_config=onchain.contract_config,
                 publisher=onchain.publisher,
                 arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
             )
             created = service.create_audit(
                 "0x1000000000000000000000000000000000000001",
@@ -255,6 +293,9 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["resolution_path"],
                 "deterministic",
             )
+            self.assertEqual(challenged["validation"]["status"], "responded")
+            self.assertEqual(challenged["validation"]["response"], 100)
+            self.assertEqual(challenged["validation"]["response_tag"], "claim-confirmed")
             resolved_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(resolved_record[10]), 3)
             self.assertEqual(int(resolved_record[11]), 2)
