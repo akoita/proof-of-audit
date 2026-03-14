@@ -17,7 +17,7 @@ The current implementation focuses on:
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by stake and challenge bonds
-- deterministic challenge verification for curated fixture PoCs
+- deterministic challenge verification for curated fixture PoCs, with manual review only for ambiguous evidence
 - a browser-based trust loop for submit, publish, challenge, and explorer-linked chain state
 - a compact Foundry contract with tested stake accounting
 
@@ -216,6 +216,8 @@ Unknown contracts return a low-confidence informational report instead of fabric
 3. The API persists the claim and prepares on-chain publication metadata when the target is deployable.
 4. The contract records the staked attestation and challenge lifecycle.
 5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts under fixed rules.
+
+For the default demo path, curated fixture evidence resolves automatically on-chain. Human arbitration stays as fallback governance for evidence the verifier cannot confirm.
 
 ### Demo challenge artifacts
 

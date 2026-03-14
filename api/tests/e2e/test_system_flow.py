@@ -114,6 +114,7 @@ def test_http_publish_and_verified_challenge_rejection_resolve_onchain(
     assert challenged["challenge"]["status"] == "rejected"
     assert challenged["challenge"]["resolution"] == "rejected"
     assert challenged["challenge"]["verification_status"] == "verified"
+    assert challenged["challenge"]["resolution_path"] == "deterministic"
     assert challenged["challenge"]["resolve_tx_hash"].startswith("0x")
 
     fetched = system_stack.client.get(f"/audits/{created['id']}")
@@ -139,6 +140,7 @@ def test_invalid_evidence_requires_manual_resolution_over_http(
     assert challenged["status"] == "challenged"
     assert challenged["challenge"]["status"] == "opened"
     assert challenged["challenge"]["verification_status"] == "invalid_evidence"
+    assert challenged["challenge"]["resolution_path"] == "manual_fallback"
 
     resolved = system_stack.client.post(
         f"/audits/{created['id']}/resolve",

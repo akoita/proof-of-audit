@@ -31,7 +31,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 - the auditor is surfaced as a named service with a stable manifest hash and discovery path
 - cooperation comes from neutral enforcement, not platform discretion
 - Base is the chain where the public claim and challenge lifecycle live
-- deterministic verification is the fast path; human arbitration is fallback only
+- deterministic verification is the default path for curated cases; human arbitration is fallback only when evidence is ambiguous
 
 ## What not to emphasize
 

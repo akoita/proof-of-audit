@@ -306,6 +306,10 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             "verified",
         )
         self.assertEqual(
+            challenge_payload["challenge"]["resolution_path"],
+            "deterministic",
+        )
+        self.assertEqual(
             challenge_payload["challenge"]["challenger_address"],
             self.client.app.state.audit_service.publisher.account.address,
         )
@@ -344,4 +348,8 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(
             challenge_payload["challenge"]["verification_status"],
             "invalid_evidence",
+        )
+        self.assertEqual(
+            challenge_payload["challenge"]["resolution_path"],
+            "manual_fallback",
         )

@@ -122,6 +122,7 @@ type AuditRecord = {
     submitted_at: string;
     verifier: string;
     status: string;
+    resolution_path: string;
     verification_status?: string | null;
     verification_summary?: string | null;
     verification_detail?: string | null;
@@ -321,6 +322,32 @@ function submissionTargetLabel(audit: AuditRecord): string {
   return shortenHex(audit.contract_address, 8, 6);
 }
 
+function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
+  if (fixtures.length === 0) {
+    return null;
+  }
+  return fixtures.find((fixture) => fixture.id === "clean-vault") ?? fixtures[0];
+}
+
+function challengePathLabel(audit: AuditRecord): string {
+  if (!audit.challenge) {
+    return "Deterministic path ready";
+  }
+  return audit.challenge.resolution_path === "deterministic"
+    ? "Deterministic path"
+    : "Manual fallback";
+}
+
+function challengePathSummary(audit: AuditRecord): string {
+  if (!audit.challenge) {
+    return "Curated fixture evidence auto-resolves known benchmark cases on-chain. Human review is only needed when the verifier cannot confirm the evidence.";
+  }
+  if (audit.challenge.resolution_path === "deterministic") {
+    return "The verifier matched curated benchmark evidence and completed the on-chain resolution automatically.";
+  }
+  return "The verifier could not confirm a curated case, so the challenge remains on the manual fallback path.";
+}
+
 export function AuditWorkbench() {
   const [submissionMode, setSubmissionMode] = useState<InputKind>("demo_fixture");
   const [contractAddress, setContractAddress] = useState("");
@@ -373,7 +400,10 @@ export function AuditWorkbench() {
         setActiveAudit((current) => current ?? auditPayload.items[0]);
       }
       if (fixturePayload.items.length > 0 && !selectedFixtureId) {
-        const firstFixture = fixturePayload.items[0];
+        const firstFixture = preferredDemoFixture(fixturePayload.items);
+        if (!firstFixture) {
+          return;
+        }
         setSubmissionMode("demo_fixture");
         setSelectedFixtureId(firstFixture.id);
         setContractAddress(firstFixture.address);
@@ -907,7 +937,7 @@ export function AuditWorkbench() {
                   </button>
                 </div>
                 <div className="action-card action-card-wide">
-                  <span>Challenge claim</span>
+                  <span>{challengePathLabel(activeAudit)}</span>
                   <strong>Bond {formatEth(challengeBond)}</strong>
                   <input
                     value={proofUri}
@@ -932,12 +962,13 @@ export function AuditWorkbench() {
                       : "Open challenge"}
                   </button>
                   <p className="muted">
-                    Suggested evidence artifact for this benchmark:{" "}
+                    Curated evidence artifact for the deterministic path:{" "}
                     <code>
                       {selectedFixture?.challenge_proof_uri ??
                         suggestedProofUriForBenchmark(activeAudit.report.benchmark_id)}
                     </code>
                   </p>
+                  <p className="muted">{challengePathSummary(activeAudit)}</p>
                 </div>
               </div>
 
@@ -1022,6 +1053,10 @@ export function AuditWorkbench() {
                   <p className="muted">{activeAudit.challenge.proof_uri}</p>
                   <div className="metadata-grid">
                     <div>
+                      <span>Path</span>
+                      <strong>{titleCase(activeAudit.challenge.resolution_path)}</strong>
+                    </div>
+                    <div>
                       <span>Challenger</span>
                       <strong title={activeAudit.challenge.challenger_address ?? ""}>
                         {activeAudit.challenge.challenger_address
@@ -1077,6 +1112,7 @@ export function AuditWorkbench() {
                         : "pending"}.
                     </p>
                   ) : null}
+                  <p className="muted">{challengePathSummary(activeAudit)}</p>
                   {activeAudit.challenge.verification_summary ? (
                     <p className="muted">
                       {activeAudit.challenge.verification_status ?? "verification"}:{" "}
