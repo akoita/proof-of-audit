@@ -13,6 +13,7 @@ Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web c
 The current implementation focuses on:
 
 - named agent identity and claim ownership across API, web, and on-chain publication
+- a minimal discoverable auditor service record backed by a stable manifest hash
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by stake and challenge bonds
@@ -39,6 +40,7 @@ This repo implements a compact, coherent v1:
 
 - one auditor identity
 - one manifest-backed auditor service profile
+- one discoverable service record and discovery path
 - one claim publication flow
 - one on-chain stake amount
 - one challenge type
@@ -155,6 +157,8 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
 - `GET /health`
 - `GET /config`
   - includes the live auditor service profile used by the API and web workbench
+- `GET /auditor`
+  - returns the discoverable auditor service record, manifest hash, and API paths
 - `GET /fixtures`
 - `GET /audits`
   - returns audit records with the attached auditor agent profile from draft through resolution

@@ -23,11 +23,27 @@ type AuditorProfile = {
   id: string;
   name: string;
   version: string;
+  manifest_schema: string;
   service_type: string;
   description: string;
   capabilities: string[];
   operator: string;
   resolution_policy: string;
+};
+
+type AuditorServiceRecord = {
+  service_id: string;
+  name: string;
+  manifest_schema: string;
+  manifest_hash: string;
+  registration_kind: string;
+  capability: string;
+  discovery_path: string;
+  submit_path: string;
+  publish_path_template: string;
+  challenge_path_template: string;
+  network: string;
+  registry_contract_address?: string | null;
 };
 
 type PublicContractConfig = {
@@ -37,6 +53,7 @@ type PublicContractConfig = {
   explorer_base_url: string;
   arbiter: string | null;
   auditor: AuditorProfile;
+  auditor_service: AuditorServiceRecord;
   required_stake_wei: number;
   required_challenge_bond_wei: number;
   challenge_window_seconds: number;
@@ -317,6 +334,7 @@ export function AuditWorkbench() {
   const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(
     null,
   );
+  const [auditorService, setAuditorService] = useState<AuditorServiceRecord | null>(null);
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -341,14 +359,16 @@ export function AuditWorkbench() {
   async function loadWorkbench() {
     setLoadError(null);
     try {
-      const [auditPayload, fixturePayload, configPayload] = await Promise.all([
+      const [auditPayload, fixturePayload, configPayload, auditorPayload] = await Promise.all([
         apiFetch<{ items: AuditRecord[] }>("/audits"),
         apiFetch<{ items: DemoFixture[] }>("/fixtures"),
         apiFetch<PublicContractConfig>("/config"),
+        apiFetch<AuditorServiceRecord>("/auditor"),
       ]);
       setRecentAudits(auditPayload.items);
       setDemoFixtures(fixturePayload.items);
       setContractConfig(configPayload);
+      setAuditorService(auditorPayload);
       if (auditPayload.items.length > 0) {
         setActiveAudit((current) => current ?? auditPayload.items[0]);
       }
@@ -551,17 +571,29 @@ export function AuditWorkbench() {
             </div>
           </div>
           <div className="signal-note">
-            <span className="signal-note-label">Auditor service</span>
-            <strong>{contractConfig?.auditor?.name ?? "loading"}</strong>
+            <span className="signal-note-label">Service discovery</span>
+            <strong>{auditorService?.name ?? contractConfig?.auditor?.name ?? "loading"}</strong>
             <p className="muted">
-              {contractConfig?.auditor
-                ? `${contractConfig.auditor.id} · ${titleCase(contractConfig.auditor.service_type)}`
-                : "Loading agent identity"}
+              {auditorService
+                ? `${auditorService.service_id} · ${titleCase(auditorService.capability)}`
+                : contractConfig?.auditor
+                  ? `${contractConfig.auditor.id} · ${titleCase(contractConfig.auditor.service_type)}`
+                  : "Loading agent identity"}
             </p>
             <p className="muted">
               {contractConfig?.auditor?.description ??
                 "Named auditor profile will appear here once config loads."}
             </p>
+            {auditorService ? (
+              <div className="inline-links">
+                <span>{titleCase(auditorService.registration_kind)}</span>
+                <span title={auditorService.manifest_hash}>
+                  {shortenHex(auditorService.manifest_hash, 10, 8)}
+                </span>
+                <span>{auditorService.discovery_path}</span>
+                <span>{auditorService.submit_path}</span>
+              </div>
+            ) : null}
           </div>
           <div className="signal-note">
             {contractConfig?.contract_address ? (

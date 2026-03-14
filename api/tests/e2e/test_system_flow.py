@@ -61,10 +61,20 @@ def test_system_stack_exposes_live_contract_and_fixture_metadata(
     assert health.status_code == 200
     assert health.json() == {"status": "ok"}
 
+    auditor_service = system_stack.client.get("/auditor")
+    assert auditor_service.status_code == 200
+    assert auditor_service.json()["service_id"] == "proof-of-audit-auditor"
+    assert auditor_service.json()["registration_kind"] == "offchain_manifest"
+    assert auditor_service.json()["capability"] == "audit_contract"
+
     assert system_stack.config["deployment_ready"] is True
     assert system_stack.config["network"] == "anvil-system-e2e"
     assert system_stack.config["chain_id"] == 31339
     assert system_stack.config["auditor"]["id"] == "proof-of-audit-auditor"
+    assert (
+        system_stack.config["auditor_service"]["manifest_schema"]
+        == "proof-of-audit/auditor-service@v1"
+    )
 
     fixture_ids = {fixture["id"] for fixture in system_stack.fixtures}
     assert fixture_ids == {

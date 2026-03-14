@@ -20,6 +20,7 @@ from proof_of_audit_api.publisher import (
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
+    AuditorServiceRecordModel,
     ChallengeAuditRequest,
     CreateAuditRequest,
     DemoFixtureListResponse,
@@ -99,10 +100,18 @@ def create_app(
             explorer_base_url=contract_config.explorer_base_url,
             arbiter=contract_config.arbiter,
             auditor=contract_config.auditor.to_dict(),
+            auditor_service=contract_config.auditor_service.to_dict(),
             required_stake_wei=contract_config.required_stake_wei,
             required_challenge_bond_wei=contract_config.required_challenge_bond_wei,
             challenge_window_seconds=contract_config.challenge_window_seconds,
             deployment_ready=contract_config.deployment_ready,
+        )
+
+    @app.get("/auditor", response_model=AuditorServiceRecordModel)
+    def auditor_service(request: Request) -> AuditorServiceRecordModel:
+        contract_config = request.app.state.contract_config
+        return AuditorServiceRecordModel.model_validate(
+            contract_config.auditor_service.to_dict()
         )
 
     @app.get(

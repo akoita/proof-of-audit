@@ -2,6 +2,7 @@
   "id": "proof-of-audit-auditor",
   "name": "Proof-of-Audit Auditor",
   "version": "0.1.0",
+  "manifest_schema": "proof-of-audit/auditor-service@v1",
   "service_type": "audit_contract",
   "description": "Deterministic smart contract review agent that stakes on-chain behind its published audit judgment.",
   "capabilities": [

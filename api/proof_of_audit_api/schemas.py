@@ -9,11 +9,27 @@ class AuditorProfileModel(BaseModel):
     id: str
     name: str
     version: str
+    manifest_schema: str
     service_type: str
     description: str
     capabilities: list[str]
     operator: str
     resolution_policy: str
+
+
+class AuditorServiceRecordModel(BaseModel):
+    service_id: str
+    name: str
+    manifest_schema: str
+    manifest_hash: str
+    registration_kind: str
+    capability: str
+    discovery_path: str
+    submit_path: str
+    publish_path_template: str
+    challenge_path_template: str
+    network: str
+    registry_contract_address: str | None = None
 
 
 class FindingModel(BaseModel):
@@ -134,6 +150,7 @@ class PublicContractConfigResponse(BaseModel):
     explorer_base_url: str
     arbiter: str | None = None
     auditor: AuditorProfileModel
+    auditor_service: AuditorServiceRecordModel
     required_stake_wei: int
     required_challenge_bond_wei: int
     challenge_window_seconds: int

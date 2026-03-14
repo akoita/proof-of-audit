@@ -5,9 +5,13 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await expect(
     page.getByText("Pick a live contract to drive the trust, stake, and challenge flow"),
   ).toBeVisible();
+  await expect(page.getByText("Service discovery", { exact: true })).toBeVisible();
   await expect(
     page.locator(".signal-note").getByText("Proof-of-Audit Auditor", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".signal-note").getByText("proof-of-audit-auditor")).toBeVisible();
+  await expect(page.locator(".signal-note").getByText("/auditor")).toBeVisible();
+  await expect(page.locator(".signal-note").getByText("/audits")).toBeVisible();
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByRole("button", { name: "Generate claim" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");

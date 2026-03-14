@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,7 @@ class AuditorProfile:
     id: str
     name: str
     version: str
+    manifest_schema: str
     service_type: str
     description: str
     capabilities: tuple[str, ...]
@@ -48,6 +50,7 @@ class AuditorProfile:
             id="proof-of-audit-auditor",
             name="Proof-of-Audit Auditor",
             version="0.1.0",
+            manifest_schema="proof-of-audit/auditor-service@v1",
             service_type="audit_contract",
             description=(
                 "Deterministic smart contract review agent that stakes on-chain behind "
@@ -71,6 +74,9 @@ class AuditorProfile:
             id=str(payload.get("id", cls.default().id)),
             name=str(payload.get("name", cls.default().name)),
             version=str(payload.get("version", cls.default().version)),
+            manifest_schema=str(
+                payload.get("manifest_schema", cls.default().manifest_schema)
+            ),
             service_type=str(payload.get("service_type", cls.default().service_type)),
             description=str(payload.get("description", cls.default().description)),
             capabilities=tuple(str(item) for item in payload.get("capabilities", cls.default().capabilities)),
@@ -85,11 +91,44 @@ class AuditorProfile:
             "id": self.id,
             "name": self.name,
             "version": self.version,
+            "manifest_schema": self.manifest_schema,
             "service_type": self.service_type,
             "description": self.description,
             "capabilities": list(self.capabilities),
             "operator": self.operator,
             "resolution_policy": self.resolution_policy,
+        }
+
+
+@dataclass(frozen=True)
+class AuditorServiceRecord:
+    service_id: str
+    name: str
+    manifest_schema: str
+    manifest_hash: str
+    registration_kind: str
+    capability: str
+    discovery_path: str
+    submit_path: str
+    publish_path_template: str
+    challenge_path_template: str
+    network: str
+    registry_contract_address: str | None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "service_id": self.service_id,
+            "name": self.name,
+            "manifest_schema": self.manifest_schema,
+            "manifest_hash": self.manifest_hash,
+            "registration_kind": self.registration_kind,
+            "capability": self.capability,
+            "discovery_path": self.discovery_path,
+            "submit_path": self.submit_path,
+            "publish_path_template": self.publish_path_template,
+            "challenge_path_template": self.challenge_path_template,
+            "network": self.network,
+            "registry_contract_address": self.registry_contract_address,
         }
 
 
@@ -108,6 +147,7 @@ class ContractConfig:
     required_challenge_bond_wei: int
     challenge_window_seconds: int
     auditor: AuditorProfile
+    auditor_manifest_file: Path | None
 
     @classmethod
     def from_env(
@@ -159,6 +199,7 @@ class ContractConfig:
                 source.get("PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS", "86400")
             ),
             auditor=AuditorProfile.from_manifest_file(manifest_file),
+            auditor_manifest_file=manifest_file if manifest_file.exists() else None,
         )
 
     @property
@@ -167,3 +208,33 @@ class ContractConfig:
 
     def transaction_url(self, tx_hash: str) -> str:
         return f"{self.explorer_base_url}/tx/{tx_hash}"
+
+    @property
+    def auditor_manifest_hash(self) -> str:
+        if self.auditor_manifest_file and self.auditor_manifest_file.exists():
+            content = self.auditor_manifest_file.read_text(encoding="utf-8")
+        else:
+            content = json.dumps(self.auditor.to_dict(), sort_keys=True)
+        return sha256(content.encode("utf-8")).hexdigest()
+
+    @property
+    def auditor_service(self) -> AuditorServiceRecord:
+        capability = (
+            self.auditor.capabilities[0]
+            if self.auditor.capabilities
+            else self.auditor.service_type
+        )
+        return AuditorServiceRecord(
+            service_id=self.auditor.id,
+            name=self.auditor.name,
+            manifest_schema=self.auditor.manifest_schema,
+            manifest_hash=self.auditor_manifest_hash,
+            registration_kind="offchain_manifest",
+            capability=capability,
+            discovery_path="/auditor",
+            submit_path="/audits",
+            publish_path_template="/audits/{id}/publish",
+            challenge_path_template="/audits/{id}/challenge",
+            network=self.network,
+            registry_contract_address=self.contract_address,
+        )
