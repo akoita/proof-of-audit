@@ -1,15 +1,35 @@
 {
-  "id": "proof-of-audit-auditor",
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Proof-of-Audit Auditor",
-  "version": "0.1.0",
-  "manifest_schema": "proof-of-audit/auditor-service@v1",
-  "service_type": "audit_contract",
-  "description": "Deterministic smart contract review agent that stakes on-chain behind its published audit judgment.",
-  "capabilities": [
-    "audit_contract",
-    "publish_staked_attestation",
-    "review_challenge_evidence"
+  "description": "Deterministic smart contract review agent that publishes stake-backed code judgments and faces transparent on-chain challenges.",
+  "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%230f1f4b'/><path d='M24 24h48v48H24z' fill='none' stroke='%23f28d52' stroke-width='6'/><circle cx='48' cy='48' r='14' fill='%23f6f1e8'/></svg>",
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "https://github.com/akoita/proof-of-audit"
+    },
+    {
+      "name": "api",
+      "endpoint": "http://127.0.0.1:8080/auditor/registration",
+      "version": "v0.2.0"
+    }
   ],
-  "operator": "Proof-of-Audit",
-  "resolution_policy": "deterministic-first-with-human-fallback"
+  "x402Support": false,
+  "active": true,
+  "registrations": [],
+  "supportedTrust": [
+    "crypto-economic"
+  ],
+  "x-proof-of-audit": {
+    "id": "proof-of-audit-auditor",
+    "version": "0.1.0",
+    "serviceType": "audit_contract",
+    "capabilities": [
+      "audit_contract",
+      "publish_staked_attestation",
+      "review_challenge_evidence"
+    ],
+    "operator": "Proof-of-Audit",
+    "resolutionPolicy": "deterministic-first-with-human-fallback"
+  }
 }

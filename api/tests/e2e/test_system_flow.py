@@ -73,7 +73,7 @@ def test_system_stack_exposes_live_contract_and_fixture_metadata(
     assert system_stack.config["auditor"]["id"] == "proof-of-audit-auditor"
     assert (
         system_stack.config["auditor_service"]["manifest_schema"]
-        == "proof-of-audit/auditor-service@v1"
+        == "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
     )
 
     fixture_ids = {fixture["id"] for fixture in system_stack.fixtures}

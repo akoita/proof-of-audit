@@ -108,8 +108,9 @@ If the UI is unavailable:
 
 1. show `/config`
 2. show `/auditor`
-3. create an audit via `POST /audits`
-4. publish via `POST /audits/:id/publish`
-5. challenge via `POST /audits/:id/challenge`
+3. show `/auditor/registration`
+4. create an audit via `POST /audits`
+5. publish via `POST /audits/:id/publish`
+6. challenge via `POST /audits/:id/challenge`
 
 Those endpoints expose the same story without relying on the browser.

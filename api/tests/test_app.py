@@ -67,7 +67,11 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["auditor"]["id"], "proof-of-audit-auditor")
         self.assertEqual(
             payload["auditor"]["manifest_schema"],
-            "proof-of-audit/auditor-service@v1",
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+        )
+        self.assertEqual(
+            payload["auditor"]["type"],
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
         )
         self.assertEqual(payload["auditor"]["service_type"], "audit_contract")
         self.assertEqual(
@@ -75,6 +79,10 @@ class AuditApiAppTest(unittest.TestCase):
             "proof-of-audit-auditor",
         )
         self.assertEqual(payload["auditor_service"]["registration_kind"], "offchain_manifest")
+        self.assertEqual(
+            payload["auditor_service"]["registration_type"],
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+        )
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
@@ -91,6 +99,18 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
         self.assertEqual(payload["challenge_path_template"], "/audits/{id}/challenge")
         self.assertTrue(payload["manifest_hash"])
+
+    def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
+        response = self.client.get("/auditor/registration")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["type"],
+            "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+        )
+        self.assertEqual(payload["supportedTrust"], ["crypto-economic"])
+        self.assertEqual(payload["x-proof-of-audit"]["id"], "proof-of-audit-auditor")
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
         response = self.client.get("/fixtures")
