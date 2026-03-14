@@ -88,6 +88,7 @@ class ChallengeModel(BaseModel):
     submitted_at: str
     verifier: str
     status: str
+    resolution_path: str
     verification_status: str | None = None
     verification_summary: str | None = None
     verification_detail: str | None = None

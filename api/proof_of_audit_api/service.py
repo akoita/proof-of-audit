@@ -165,6 +165,7 @@ class AuditService:
             "submitted_at": datetime.now(UTC).isoformat(),
             "verifier": verification_result.verifier,
             "status": "opened",
+            "resolution_path": "manual_fallback",
             "verification_status": verification_result.status,
             "verification_summary": verification_result.summary,
             "verification_detail": verification_result.detail,
@@ -197,6 +198,7 @@ class AuditService:
                 challenge_record.update(
                     {
                         "status": resolution_result.resolution,
+                        "resolution_path": "deterministic",
                         "resolution": resolution_result.resolution,
                         "resolved_at": datetime.now(UTC).isoformat(),
                         "resolved_by": "deterministic-verifier",
@@ -238,6 +240,7 @@ class AuditService:
         challenge.update(
             {
                 "status": resolution_result.resolution,
+                "resolution_path": "manual_fallback",
                 "resolution": resolution_result.resolution,
                 "resolved_at": datetime.now(UTC).isoformat(),
                 "resolved_by": resolved_by,
@@ -283,6 +286,9 @@ class AuditService:
             onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
             onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
             normalized["onchain"] = onchain
+        challenge = normalized.get("challenge")
+        if isinstance(challenge, dict):
+            normalized["challenge"] = self._normalize_challenge(challenge)
         normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
 
@@ -294,6 +300,23 @@ class AuditService:
         if normalized != record:
             self.store.write(record_id, normalized)
         return normalized
+
+    def _normalize_challenge(self, challenge: Any) -> dict[str, Any]:
+        payload = deepcopy(challenge) if isinstance(challenge, dict) else {}
+        if payload.get("resolution_path") in {"deterministic", "manual_fallback"}:
+            return payload
+
+        resolved_by = str(payload.get("resolved_by") or "")
+        status = str(payload.get("status") or "opened")
+        verification_status = str(payload.get("verification_status") or "")
+
+        if resolved_by == "deterministic-verifier" or (
+            verification_status == "verified" and status in {"upheld", "rejected"}
+        ):
+            payload["resolution_path"] = "deterministic"
+        else:
+            payload["resolution_path"] = "manual_fallback"
+        return payload
 
     def _normalize_agent(self, agent: Any) -> dict[str, object]:
         payload = agent if isinstance(agent, dict) else {}

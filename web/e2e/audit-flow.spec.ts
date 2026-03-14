@@ -15,6 +15,7 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByRole("button", { name: "Generate claim" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+  await expect(page.getByText("Deterministic path ready")).toBeVisible();
 }
 
 async function publishActiveAudit(page: Page) {
@@ -36,7 +37,7 @@ test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
       name: /No benchmark issue found across the supported checks/i,
     }),
   ).toBeVisible();
-  await expect(page.getByText(/Suggested evidence artifact for this benchmark:/i)).toContainText(
+  await expect(page.getByText(/Curated evidence artifact for the deterministic path:/i)).toContainText(
     "ipfs://clean-vault/missed-reentrancy",
   );
 
@@ -45,6 +46,7 @@ test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("resolved");
   await expect(page.getByTestId("challenge-status")).toHaveText("upheld");
+  await expect(page.getByText("Deterministic path", { exact: true })).toBeVisible();
   await expect(page.getByText(/Resolution upheld by deterministic-verifier/i)).toBeVisible();
   await expect(
     page.getByText(/verified: The submitted PoC demonstrates a missed issue/i),
@@ -60,6 +62,7 @@ test("invalid challenge evidence stays open for manual review", async ({ page })
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
   await expect(page.getByTestId("challenge-status")).toHaveText("opened");
+  await expect(page.getByText("Manual fallback", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/invalid_evidence: The submitted PoC does not match/i),
   ).toBeVisible();

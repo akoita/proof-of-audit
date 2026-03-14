@@ -212,6 +212,10 @@ class AuditServiceTest(unittest.TestCase):
                 "verified",
             )
             self.assertEqual(
+                challenged["challenge"]["resolution_path"],
+                "deterministic",
+            )
+            self.assertEqual(
                 challenged["challenge"]["resolved_by"],
                 "deterministic-verifier",
             )
@@ -247,6 +251,10 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["verification_status"],
                 "verified",
             )
+            self.assertEqual(
+                challenged["challenge"]["resolution_path"],
+                "deterministic",
+            )
             resolved_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(resolved_record[10]), 3)
             self.assertEqual(int(resolved_record[11]), 2)
@@ -277,6 +285,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 challenged["challenge"]["verification_status"],
                 "invalid_evidence",
+            )
+            self.assertEqual(
+                challenged["challenge"]["resolution_path"],
+                "manual_fallback",
             )
 
     def test_challenge_requires_publish(self) -> None:
