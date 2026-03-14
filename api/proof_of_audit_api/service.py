@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, UTC
 from hashlib import sha256
 from pathlib import Path
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -70,10 +72,13 @@ class AuditService:
         return record
 
     def get_audit(self, audit_id: str) -> dict[str, Any] | None:
-        return self.store.read(audit_id)
+        record = self.store.read(audit_id)
+        if record is None:
+            return None
+        return self._normalize_stored_record(record)
 
     def list_audits(self) -> list[dict[str, Any]]:
-        records = self.store.list_all()
+        records = [self._normalize_stored_record(record) for record in self.store.list_all()]
         return sorted(records, key=lambda record: record["created_at"], reverse=True)
 
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
@@ -248,6 +253,159 @@ class AuditService:
         if record is None:
             raise KeyError(audit_id)
         return record
+
+    def _normalize_stored_record(self, record: dict[str, Any]) -> dict[str, Any]:
+        normalized = deepcopy(record)
+        record_id = normalized.get("id")
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError("stored audit record is missing its id")
+
+        contract_address = normalized.get("contract_address")
+        onchain = normalized.get("onchain")
+        chain_id = onchain.get("chain_id") if isinstance(onchain, dict) else None
+        submission = normalized.get("submission")
+        if not isinstance(submission, dict):
+            submission = {}
+        submission_payload = dict(submission)
+        if not submission_payload.get("contract_address") and contract_address:
+            submission_payload["contract_address"] = contract_address
+        if submission_payload.get("chain_id") is None and chain_id is not None:
+            submission_payload["chain_id"] = chain_id
+        if "input_kind" not in submission_payload:
+            submission_payload["input_kind"] = "deployed_address"
+        normalized["submission"] = self._normalize_submission(submission_payload)
+        normalized["contract_address"] = normalized["submission"]["contract_address"]
+
+        normalized["report"] = self._normalize_report(
+            normalized.get("report"),
+            contract_address=normalized["contract_address"],
+        )
+
+        if normalized != record:
+            self.store.write(record_id, normalized)
+        return normalized
+
+    def _normalize_report(
+        self, report: Any, *, contract_address: str
+    ) -> dict[str, Any]:
+        payload = deepcopy(report) if isinstance(report, dict) else {}
+        findings = payload.get("findings")
+        if not isinstance(findings, list):
+            findings = []
+
+        normalized_findings: list[dict[str, Any]] = []
+        for index, finding in enumerate(findings):
+            normalized_findings.append(
+                self._normalize_finding(
+                    finding,
+                    benchmark_id=str(payload.get("benchmark_id", "unknown")),
+                    report_confidence=str(payload.get("confidence", "medium")),
+                    index=index,
+                )
+            )
+
+        payload["benchmark_id"] = str(payload.get("benchmark_id", "unknown"))
+        payload["contract_address"] = str(payload.get("contract_address") or contract_address)
+        payload["summary"] = str(payload.get("summary", "No summary available."))
+        payload["findings"] = normalized_findings
+        payload["supported_checks"] = self._normalize_supported_checks(
+            payload.get("supported_checks")
+        )
+        payload["confidence"] = str(payload.get("confidence", "medium"))
+        payload["finding_count"] = len(normalized_findings)
+        payload["severity_breakdown"] = self._build_severity_breakdown(normalized_findings)
+        payload["max_severity"] = self._max_severity(normalized_findings)
+        return payload
+
+    def _normalize_finding(
+        self,
+        finding: Any,
+        *,
+        benchmark_id: str,
+        report_confidence: str,
+        index: int,
+    ) -> dict[str, Any]:
+        payload = deepcopy(finding) if isinstance(finding, dict) else {}
+        title = str(payload.get("title") or f"Finding {index + 1}")
+        detector = str(payload.get("detector") or "deterministic.legacy")
+        severity = str(payload.get("severity") or "info").lower()
+        payload["title"] = title
+        payload["severity"] = severity
+        payload["detector"] = detector
+        payload["description"] = str(payload.get("description") or "No description provided.")
+        payload["recommendation"] = str(
+            payload.get("recommendation")
+            or "Review the reported issue and patch before deployment."
+        )
+        payload["confidence"] = str(payload.get("confidence") or report_confidence or "medium")
+        payload["category"] = str(
+            payload.get("category") or self._infer_category(detector=detector, title=title)
+        )
+        payload["impact"] = str(
+            payload.get("impact")
+            or self._default_impact(severity=severity, description=payload["description"])
+        )
+        payload["finding_id"] = str(
+            payload.get("finding_id")
+            or self._make_finding_id(
+                benchmark_id=benchmark_id,
+                detector=detector,
+                title=title,
+                index=index,
+            )
+        )
+        return payload
+
+    def _normalize_supported_checks(self, checks: Any) -> list[str]:
+        if isinstance(checks, list) and checks:
+            return [str(check) for check in checks]
+        return ["reentrancy", "access_control", "unchecked_external_call"]
+
+    def _build_severity_breakdown(
+        self, findings: list[dict[str, Any]]
+    ) -> dict[str, int]:
+        breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+        for finding in findings:
+            severity = str(finding.get("severity", "info")).lower()
+            breakdown[severity] = breakdown.get(severity, 0) + 1
+        return breakdown
+
+    def _max_severity(self, findings: list[dict[str, Any]]) -> int:
+        ranking = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+        if not findings:
+            return 0
+        return max(ranking.get(str(finding.get("severity", "info")).lower(), 0) for finding in findings)
+
+    def _infer_category(self, *, detector: str, title: str) -> str:
+        lowered = f"{detector} {title}".lower()
+        if "reentrancy" in lowered:
+            return "reentrancy"
+        if "access" in lowered or "owner" in lowered or "admin" in lowered:
+            return "access_control"
+        if "unchecked" in lowered or "external" in lowered or "call" in lowered:
+            return "unchecked_external_call"
+        return "general"
+
+    def _default_impact(self, *, severity: str, description: str) -> str:
+        if severity == "critical":
+            return "Critical issue with severe loss or takeover risk."
+        if severity == "high":
+            return "High-risk issue that can likely lead to direct asset loss or control abuse."
+        if severity == "medium":
+            return "Moderate-risk issue that can break assumptions or degrade protocol safety."
+        if severity == "low":
+            return "Low-risk issue with limited direct impact."
+        if description:
+            return description
+        return "Informational issue that should still be reviewed."
+
+    def _make_finding_id(
+        self, *, benchmark_id: str, detector: str, title: str, index: int
+    ) -> str:
+        normalized_title = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+        normalized_detector = detector.split(".")[-1].lower()
+        suffix = normalized_title or f"finding-{index + 1}"
+        return f"{benchmark_id}.{normalized_detector}.{suffix}"
 
     def _normalize_submission(self, submission: dict[str, Any]) -> dict[str, Any]:
         input_kind = submission.get("input_kind", "deployed_address")

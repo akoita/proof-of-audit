@@ -140,6 +140,55 @@ class AuditApiAppTest(unittest.TestCase):
             payload["detail"][0]["msg"],
         )
 
+    def test_list_audits_normalizes_legacy_records(self) -> None:
+        legacy_record = {
+            "id": "legacy-audit",
+            "contract_address": "0x1000000000000000000000000000000000000001",
+            "submitted_by": "legacy-user",
+            "status": "draft",
+            "created_at": "2026-03-14T10:00:00+00:00",
+            "report": {
+                "benchmark_id": "reentrancy-bank",
+                "contract_address": "0x1000000000000000000000000000000000000001",
+                "summary": "Withdraw updates balance after the external call.",
+                "findings": [
+                    {
+                        "title": "Reentrancy in withdraw()",
+                        "severity": "high",
+                        "description": "ETH is sent to msg.sender before accounting is updated.",
+                        "recommendation": "Apply checks-effects-interactions.",
+                        "detector": "pattern.reentrancy",
+                    }
+                ],
+                "supported_checks": [
+                    "reentrancy",
+                    "access_control",
+                    "unchecked_external_call",
+                ],
+                "confidence": "high",
+                "report_hash": "legacy-report-hash",
+                "metadata_hash": "legacy-metadata-hash",
+                "max_severity": 3,
+            },
+            "onchain": None,
+            "challenge": None,
+        }
+        (Path(self.tempdir.name) / "data" / "legacy-audit.json").write_text(
+            json.dumps(legacy_record, indent=2),
+            encoding="utf-8",
+        )
+
+        response = self.client.get("/audits")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["items"][0]["submission"]["input_kind"], "deployed_address")
+        self.assertEqual(payload["items"][0]["report"]["finding_count"], 1)
+        self.assertEqual(
+            payload["items"][0]["report"]["findings"][0]["category"],
+            "reentrancy",
+        )
+
     def test_richer_multi_finding_report_shape_is_exposed(self) -> None:
         response = self.client.post(
             "/audits",
