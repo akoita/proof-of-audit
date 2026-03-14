@@ -50,6 +50,10 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_service.agent_registry,
             manifest["auditor_identity"]["registry_address"],
         )
+        self.assertEqual(
+            config.auditor_service.identity_source,
+            manifest["auditor_identity"]["source"],
+        )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")
         self.assertTrue(config.auditor_service.manifest_hash)

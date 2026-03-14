@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// Local fallback registry used for localhost and test environments.
+// Base Sepolia uses the official ERC-8004 IdentityRegistry instead.
 contract AgentIdentityRegistry {
     struct AgentRecord {
         address owner;

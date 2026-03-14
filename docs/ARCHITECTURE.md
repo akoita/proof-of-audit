@@ -21,6 +21,7 @@ flowchart LR
 
 - submission entrypoint for demo fixtures, deployed addresses, and source bundles
 - surfaces the named auditor identity and service-discovery record
+- makes the identity path explicit so reviewers can tell when the stack is using the official ERC-8004 registry versus a local fallback
 - shows the claim lifecycle from draft to on-chain resolution
 
 Key file:
@@ -31,6 +32,7 @@ Key file:
 - normalizes submissions
 - persists audit records
 - exposes the auditor profile and service record
+- exposes whether the current identity path is the official ERC-8004 registry or a local fallback
 - submits publish and challenge transactions
 - auto-resolves curated deterministic cases
 - leaves ambiguous cases on the manual fallback path

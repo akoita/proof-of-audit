@@ -75,6 +75,7 @@ class AuditorServiceRecordModel(BaseModel):
     registration_uri: str
     agent_id: int | None = None
     agent_registry: str | None = None
+    identity_source: str | None = None
     capability: str
     discovery_path: str
     submit_path: str

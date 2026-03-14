@@ -28,6 +28,9 @@ DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI = (
     "https://raw.githubusercontent.com/akoita/proof-of-audit/main/"
     "docs/registrations/proof-of-audit-auditor.json"
 )
+OFFICIAL_ERC8004_IDENTITY_REGISTRIES = {
+    ("base-sepolia", 84532): "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+}
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -300,6 +303,7 @@ class AuditorServiceRecord:
     registration_uri: str
     agent_id: int | None
     agent_registry: str | None
+    identity_source: str | None
     capability: str
     discovery_path: str
     submit_path: str
@@ -322,6 +326,7 @@ class AuditorServiceRecord:
             "registration_uri": self.registration_uri,
             "agent_id": self.agent_id,
             "agent_registry": self.agent_registry,
+            "identity_source": self.identity_source,
             "capability": self.capability,
             "discovery_path": self.discovery_path,
             "submit_path": self.submit_path,
@@ -356,6 +361,7 @@ class ContractConfig:
     auditor_public_api_base_url: str | None
     auditor_agent_id: int | None
     auditor_agent_registry: str | None
+    auditor_agent_identity_source: str | None
 
     @classmethod
     def from_env(
@@ -458,6 +464,38 @@ class ContractConfig:
                     else None
                 )
             ),
+            auditor_agent_identity_source=(
+                source.get("PROOF_OF_AUDIT_AUDITOR_IDENTITY_SOURCE")
+                or (
+                    str(auditor_identity["source"])
+                    if auditor_identity.get("source")
+                    else (
+                        "erc8004-official"
+                        if (
+                            (
+                                source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY")
+                                or (
+                                    str(auditor_identity["registry_address"])
+                                    if auditor_identity.get("registry_address")
+                                    else None
+                                )
+                            )
+                            and OFFICIAL_ERC8004_IDENTITY_REGISTRIES.get(
+                                (network, int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532")))
+                            )
+                            == str(
+                                source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY")
+                                or (
+                                    str(auditor_identity["registry_address"])
+                                    if auditor_identity.get("registry_address")
+                                    else ""
+                                )
+                            ).lower()
+                        )
+                        else None
+                    )
+                )
+            ),
         )
 
     @property
@@ -548,6 +586,7 @@ class ContractConfig:
             registration_uri=self.auditor_registration_uri,
             agent_id=self.auditor_agent_id,
             agent_registry=self.auditor_agent_registry,
+            identity_source=self.auditor_agent_identity_source,
             capability=capability,
             discovery_path="/auditor",
             submit_path="/audits",

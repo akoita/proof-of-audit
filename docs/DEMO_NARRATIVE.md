@@ -29,6 +29,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 
 - trust comes from visible economic commitment, not branding
 - the auditor is surfaced as a named service with a stable manifest hash and discovery path
+- the workbench makes it obvious when the public identity is the canonical official ERC-8004 path rather than a local fallback
 - cooperation comes from neutral enforcement, not platform discretion
 - Base is the chain where the public claim and challenge lifecycle live
 - deterministic verification is the default path for curated cases; human arbitration is fallback only when evidence is ambiguous

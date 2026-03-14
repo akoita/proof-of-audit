@@ -40,6 +40,7 @@ type AuditorServiceRecord = {
   registration_uri: string;
   agent_id?: number | null;
   agent_registry?: string | null;
+  identity_source?: string | null;
   capability: string;
   discovery_path: string;
   submit_path: string;
@@ -191,6 +192,17 @@ function titleCase(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatIdentitySource(value: string | null | undefined): string {
+  switch (value) {
+    case "erc8004-official":
+      return "Official ERC-8004";
+    case "project-local-custom":
+      return "Local fallback";
+    default:
+      return "Unspecified path";
+  }
 }
 
 function formatWindow(seconds: number): string {
@@ -631,6 +643,9 @@ export function AuditWorkbench() {
                     agent #{auditorService.agent_id} @{" "}
                     {shortenHex(auditorService.agent_registry, 10, 8)}
                   </span>
+                ) : null}
+                {auditorService.identity_source ? (
+                  <span>{formatIdentitySource(auditorService.identity_source)}</span>
                 ) : null}
                 <span>{auditorService.discovery_path}</span>
                 <span>{auditorService.submit_path}</span>
