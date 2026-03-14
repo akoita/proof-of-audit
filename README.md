@@ -6,6 +6,12 @@
 
 Proof-of-Audit is a monorepo for agent trust and enforcement infrastructure: a named auditor agent makes a code judgment, stakes on that claim, and can be challenged through a transparent on-chain process.
 
+For the best first pass through the repo:
+
+1. read this page
+2. follow the short runbook in [Demo script](./docs/DEMO_SCRIPT.md)
+3. inspect [Architecture](./docs/ARCHITECTURE.md)
+
 ## Overview
 
 Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web client, and an on-chain settlement contract to demonstrate how software agents can make claims that are visible, challengeable, and economically accountable.
@@ -24,6 +30,19 @@ The current implementation focuses on:
 ## Status
 
 This repository is an early-stage prototype intended for rapid iteration. The current codebase is designed for local development and demos, with a clear path toward stronger chain integration, verification, and operational hardening.
+
+## Public alpha reviewer path
+
+- run the local stack from the quick start below
+- follow [Demo script](./docs/DEMO_SCRIPT.md) for the fastest walkthrough
+- use [Architecture](./docs/ARCHITECTURE.md) for a compact system map
+- use [Release notes draft](./docs/RELEASE_NOTES_DRAFT.md) for an external-facing summary
+
+## Demo snapshots
+
+![Workbench overview](./docs/assets/workbench-overview.png)
+
+![Deterministic resolution flow](./docs/assets/workbench-deterministic-resolution.png)
 
 ## What is in this repo
 
@@ -230,8 +249,12 @@ For the default demo path, curated fixture evidence resolves automatically on-ch
 
 - [Strategic alignment](./docs/STRATEGIC_ALIGNMENT.md)
 - [Demo narrative](./docs/DEMO_NARRATIVE.md)
+- [Demo script](./docs/DEMO_SCRIPT.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Release notes draft](./docs/RELEASE_NOTES_DRAFT.md)
 - [Submission UX](./docs/SUBMISSION_UX.md)
 - [Deployment guide](./docs/DEPLOYMENT.md)
+- [Demo assets](./docs/assets/README.md)
 
 ## Development
 
