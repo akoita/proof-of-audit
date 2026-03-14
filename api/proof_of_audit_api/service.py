@@ -57,8 +57,10 @@ class AuditService:
         normalized_submission = self._normalize_submission(submission)
         report = self.worker.run_submission(**normalized_submission)
         audit_id = str(uuid4())
+        auditor = self.contract_config.auditor.to_dict()
         record = {
             "id": audit_id,
+            "agent": auditor,
             "contract_address": normalized_submission["contract_address"],
             "submission": normalized_submission,
             "submitted_by": submitted_by,
@@ -85,7 +87,7 @@ class AuditService:
         return self.worker.list_demo_fixtures()
 
     def publish_audit(
-        self, audit_id: str, stake_wei: int, agent_identity: str
+        self, audit_id: str, stake_wei: int, agent_identity: str | None
     ) -> dict[str, Any]:
         record = self._require_audit(audit_id)
         if record["status"] != "draft":
@@ -98,6 +100,7 @@ class AuditService:
             raise OnchainConfigurationError(
                 "On-chain publishing is not configured for this API instance."
             )
+        agent_identity = agent_identity or self.contract_config.auditor.id
         report = record["report"]
         publish_result = self.publisher.publish_audit(
             target_address=record["contract_address"],
@@ -115,6 +118,8 @@ class AuditService:
             "contract_address": self.contract_config.contract_address,
             "explorer_base_url": self.contract_config.explorer_base_url,
             "agent_identity": agent_identity,
+            "agent_name": self.contract_config.auditor.name,
+            "agent_version": self.contract_config.auditor.version,
             "stake_wei": stake_wei,
             "report_hash": report["report_hash"],
             "metadata_hash": report["metadata_hash"],
@@ -273,6 +278,11 @@ class AuditService:
             submission_payload["chain_id"] = chain_id
         if "input_kind" not in submission_payload:
             submission_payload["input_kind"] = "deployed_address"
+        normalized["agent"] = self._normalize_agent(normalized.get("agent"))
+        if isinstance(onchain, dict):
+            onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
+            onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
+            normalized["onchain"] = onchain
         normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
 
@@ -283,6 +293,17 @@ class AuditService:
 
         if normalized != record:
             self.store.write(record_id, normalized)
+        return normalized
+
+    def _normalize_agent(self, agent: Any) -> dict[str, object]:
+        payload = agent if isinstance(agent, dict) else {}
+        defaults = self.contract_config.auditor.to_dict()
+        normalized = dict(defaults)
+        for key, value in payload.items():
+            if key == "capabilities" and isinstance(value, list):
+                normalized[key] = [str(item) for item in value]
+            elif value is not None:
+                normalized[key] = value
         return normalized
 
     def _normalize_report(

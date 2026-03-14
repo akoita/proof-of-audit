@@ -3,6 +3,9 @@ import { expect, Locator, Page, test } from "@playwright/test";
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.goto("/");
   await expect(page.getByText("Pick a live contract to drive the audit flow")).toBeVisible();
+  await expect(
+    page.locator(".signal-note").getByText("Proof-of-Audit Auditor", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByRole("button", { name: "Run audit" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
@@ -19,6 +22,8 @@ function challengeInput(page: Page): Locator {
 
 test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
+
+  await expect(page.locator(".report-panel").getByText("proof-of-audit-auditor")).toBeVisible();
 
   await expect(
     page.getByRole("heading", {

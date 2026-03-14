@@ -64,6 +64,8 @@ class AuditApiAppTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["network"], "base-sepolia")
         self.assertEqual(payload["chain_id"], 84532)
+        self.assertEqual(payload["auditor"]["id"], "proof-of-audit-auditor")
+        self.assertEqual(payload["auditor"]["service_type"], "audit_contract")
         self.assertFalse(payload["deployment_ready"])
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
@@ -89,6 +91,8 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(created.status_code, 201)
         created_payload = created.json()
         audit_id = created_payload["id"]
+        self.assertEqual(created_payload["agent"]["id"], "proof-of-audit-auditor")
+        self.assertEqual(created_payload["agent"]["name"], "Proof-of-Audit Auditor")
         self.assertEqual(created_payload["report"]["finding_count"], 1)
         self.assertEqual(
             created_payload["report"]["findings"][0]["finding_id"],
@@ -101,7 +105,7 @@ class AuditApiAppTest(unittest.TestCase):
 
         published = self.client.post(
             f"/audits/{audit_id}/publish",
-            json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+            json={"stake_wei": 10**16},
         )
         self.assertEqual(published.status_code, 503)
         self.assertEqual(published.json()["error"], "onchain_not_configured")
@@ -183,6 +187,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["items"][0]["submission"]["input_kind"], "deployed_address")
+        self.assertEqual(payload["items"][0]["agent"]["id"], "proof-of-audit-auditor")
         self.assertEqual(payload["items"][0]["report"]["finding_count"], 1)
         self.assertEqual(
             payload["items"][0]["report"]["findings"][0]["category"],
@@ -201,6 +206,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.json()
         self.assertEqual(payload["report"]["benchmark_id"], "dual-risk-vault")
+        self.assertEqual(payload["agent"]["id"], "proof-of-audit-auditor")
         self.assertEqual(payload["report"]["finding_count"], 2)
         self.assertEqual(payload["report"]["severity_breakdown"]["high"], 1)
         self.assertEqual(payload["report"]["severity_breakdown"]["medium"], 1)
@@ -246,12 +252,15 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
 
         published = self.client.post(
             f"/audits/{audit_id}/publish",
-            json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+            json={"stake_wei": 10**16},
         )
         self.assertEqual(published.status_code, 200)
         payload = published.json()
         self.assertEqual(payload["status"], "published")
+        self.assertEqual(payload["agent"]["id"], "proof-of-audit-auditor")
         self.assertEqual(payload["onchain"]["audit_id"], 1)
+        self.assertEqual(payload["onchain"]["agent_identity"], "proof-of-audit-auditor")
+        self.assertEqual(payload["onchain"]["agent_name"], "Proof-of-Audit Auditor")
         self.assertTrue(payload["onchain"]["publish_tx_hash"].startswith("0x"))
         self.assertEqual(payload["onchain"]["stake_wei"], 10**16)
         self.assertEqual(payload["onchain"]["chain_id"], self.chain_id)
@@ -296,7 +305,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
 
         published = self.client.post(
             f"/audits/{audit_id}/publish",
-            json={"stake_wei": 10**16, "agent_identity": "auditor-agent-v1"},
+            json={"stake_wei": 10**16},
         )
         self.assertEqual(published.status_code, 200)
 

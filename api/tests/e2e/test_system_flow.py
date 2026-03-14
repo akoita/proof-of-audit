@@ -33,7 +33,6 @@ def publish_audit(
         f"/audits/{audit_id}/publish",
         json={
             "stake_wei": stake_wei or stack.config["required_stake_wei"],
-            "agent_identity": "auditor-agent-v1",
         },
     )
     assert response.status_code == 200, response.text
@@ -65,6 +64,7 @@ def test_system_stack_exposes_live_contract_and_fixture_metadata(
     assert system_stack.config["deployment_ready"] is True
     assert system_stack.config["network"] == "anvil-system-e2e"
     assert system_stack.config["chain_id"] == 31339
+    assert system_stack.config["auditor"]["id"] == "proof-of-audit-auditor"
 
     fixture_ids = {fixture["id"] for fixture in system_stack.fixtures}
     assert fixture_ids == {
@@ -89,11 +89,13 @@ def test_http_publish_and_verified_challenge_rejection_resolve_onchain(
     fixture = system_stack.fixture_by_id("vulnerable-bank")
     created = create_audit(system_stack, fixture["address"])
     assert created["status"] == "draft"
+    assert created["agent"]["id"] == "proof-of-audit-auditor"
     assert created["report"]["benchmark_id"] == "reentrancy-bank"
     assert created["report"]["finding_count"] == 1
 
     published = publish_audit(system_stack, created["id"])
     assert published["status"] == "published"
+    assert published["onchain"]["agent_identity"] == "proof-of-audit-auditor"
     assert published["onchain"]["chain_id"] == 31339
     assert published["onchain"]["contract_address"] == system_stack.config["contract_address"]
 
@@ -156,7 +158,6 @@ def test_http_interface_rejects_duplicate_publish_and_duplicate_challenge(
         f"/audits/{created['id']}/publish",
         json={
             "stake_wei": system_stack.config["required_stake_wei"],
-            "agent_identity": "auditor-agent-v1",
         },
     )
     assert republish.status_code == 400

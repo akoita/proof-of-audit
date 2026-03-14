@@ -5,6 +5,17 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+class AuditorProfileModel(BaseModel):
+    id: str
+    name: str
+    version: str
+    service_type: str
+    description: str
+    capabilities: list[str]
+    operator: str
+    resolution_policy: str
+
+
 class FindingModel(BaseModel):
     finding_id: str
     title: str
@@ -43,6 +54,8 @@ class OnchainPublicationModel(BaseModel):
     contract_address: str | None = None
     explorer_base_url: str
     agent_identity: str
+    agent_name: str | None = None
+    agent_version: str | None = None
     stake_wei: int
     report_hash: str
     metadata_hash: str
@@ -80,6 +93,7 @@ class ChallengeModel(BaseModel):
 class AuditRecordModel(BaseModel):
     id: str
     contract_address: str
+    agent: AuditorProfileModel
     submission: "AuditSubmissionModel"
     submitted_by: str
     status: str
@@ -119,6 +133,7 @@ class PublicContractConfigResponse(BaseModel):
     contract_address: str | None = None
     explorer_base_url: str
     arbiter: str | None = None
+    auditor: AuditorProfileModel
     required_stake_wei: int
     required_challenge_bond_wei: int
     challenge_window_seconds: int
@@ -158,7 +173,7 @@ class CreateAuditRequest(AuditSubmissionModel):
 
 class PublishAuditRequest(BaseModel):
     stake_wei: int = Field(default=10_000_000_000_000_000, ge=0)
-    agent_identity: str = "auditor-agent-v1"
+    agent_identity: str | None = None
 
 
 class ChallengeAuditRequest(BaseModel):

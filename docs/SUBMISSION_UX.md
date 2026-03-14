@@ -5,7 +5,7 @@ This document defines the recommended input UX for Proof-of-Audit across two env
 - local development and demos
 - hosted SaaS usage
 
-The goal is to keep the happy path simple without boxing the product into "single address only" workflows.
+The goal is to keep the happy path simple without boxing the product into "single address only" workflows, while keeping the auditor visible as a named agent service instead of an anonymous backend.
 
 ## Recommendation
 

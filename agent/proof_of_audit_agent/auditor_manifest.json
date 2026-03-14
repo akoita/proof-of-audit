@@ -1,0 +1,14 @@
+{
+  "id": "proof-of-audit-auditor",
+  "name": "Proof-of-Audit Auditor",
+  "version": "0.1.0",
+  "service_type": "audit_contract",
+  "description": "Deterministic smart contract review agent that stakes on-chain behind its published audit judgment.",
+  "capabilities": [
+    "audit_contract",
+    "publish_staked_attestation",
+    "review_challenge_evidence"
+  ],
+  "operator": "Proof-of-Audit",
+  "resolution_policy": "deterministic-first-with-human-fallback"
+}

@@ -4,11 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 ![Status: Prototype](https://img.shields.io/badge/status-prototype-orange)
 
-Proof-of-Audit is a monorepo for an agent that audits smart contracts, publishes a staked attestation on-chain, and can be challenged with deterministic evidence.
+Proof-of-Audit is a monorepo for agent accountability infrastructure: a named auditor agent reviews smart contracts, publishes a staked attestation on-chain, and can be challenged with deterministic evidence.
 
 ## Overview
 
-Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web client, and an on-chain settlement contract to demonstrate how software agents can make review claims with economic accountability.
+Proof-of-Audit combines a deterministic audit worker, a lightweight API, a web client, and an on-chain settlement contract to demonstrate how software agents can make review claims with visible economic accountability.
 
 The current implementation focuses on:
 
@@ -27,6 +27,7 @@ This repository is an early-stage prototype intended for rapid iteration. The cu
 
 - `contracts/`: Foundry contract for publishing audits, opening challenges, and resolving stake payouts.
 - `agent/`: Python audit worker with deterministic outputs for benchmark contracts.
+- `agent/proof_of_audit_agent/auditor_manifest.json`: stable manifest describing the named auditor agent service.
 - `api/`: FastAPI service for submit, view, publish, and challenge flows.
 - `web/`: Minimal Next.js app scaffold for the demo UI.
 - `demo/`: Sample contracts that map to benchmark audit outputs.
@@ -36,6 +37,7 @@ This repository is an early-stage prototype intended for rapid iteration. The cu
 This repo implements a compact, coherent v1:
 
 - one auditor identity
+- one manifest-backed auditor service profile
 - one on-chain stake amount
 - one challenge type
 - one HTTP API flow
@@ -150,8 +152,10 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
 
 - `GET /health`
 - `GET /config`
+  - includes the live auditor service profile used by the API and web workbench
 - `GET /fixtures`
 - `GET /audits`
+  - returns audit records with the attached auditor agent profile from draft through resolution
 - `POST /audits`
 - `GET /audits/:id`
 - `POST /audits/:id/publish`
