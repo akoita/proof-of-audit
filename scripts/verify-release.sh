@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+CONTRACTS_DIR="${ROOT_DIR}/contracts"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 NETWORK="${PROOF_OF_AUDIT_DEPLOY_NETWORK:-base-sepolia}"
@@ -43,9 +44,19 @@ VERIFY_CMD=(
   "${CONTRACT_REFERENCE}"
 )
 
+DISPLAY_VERIFY_CMD=(
+  forge verify-contract
+  --chain "${CHAIN_ID}"
+  --watch
+  --constructor-args "${CONSTRUCTOR_ARGS_HEX}"
+  --etherscan-api-key '<redacted>'
+  "${CONTRACT_ADDRESS}"
+  "${CONTRACT_REFERENCE}"
+)
+
 echo "Preparing verification for ${CONTRACT_ADDRESS} on ${NETWORK} (chain ${CHAIN_ID})."
 printf 'Command:'
-printf ' %q' "${VERIFY_CMD[@]}"
+printf ' %q' "${DISPLAY_VERIFY_CMD[@]}"
 printf '\n'
 
 if [[ "${DRY_RUN}" == "1" ]]; then
@@ -53,7 +64,10 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   exit 0
 fi
 
-"${VERIFY_CMD[@]}"
+(
+  cd "${CONTRACTS_DIR}"
+  "${VERIFY_CMD[@]}"
+)
 
 VERIFIED_AT="$("${PYTHON_BIN}" - <<'PY'
 from datetime import UTC, datetime
@@ -65,7 +79,7 @@ PY
   --manifest-file "${MANIFEST_FILE}" \
   --verification-status "verified" \
   --verification-provider "basescan" \
-  --verification-command "$(printf '%q ' "${VERIFY_CMD[@]}")" \
+  --verification-command "$(printf '%q ' "${DISPLAY_VERIFY_CMD[@]}")" \
   --verified-at "${VERIFIED_AT}"
 
 echo "Verification recorded in ${MANIFEST_FILE}."

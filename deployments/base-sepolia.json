@@ -2,26 +2,30 @@
   "network": "base-sepolia",
   "chain_id": 84532,
   "contract_name": "ProofOfAudit",
-  "address": null,
-  "status": "pending_live_deployment",
-  "arbiter": null,
-  "rpc_url": null,
+  "address": "0xf2da3947d028b85e597fe1df4633a87ef4a85f24",
+  "status": "deployed",
+  "arbiter": "0x9Ed13E9b9FC135D35CE78C35866412dB08897E29",
+  "rpc_url": "https://base-sepolia.drpc.org",
   "explorer_base_url": "https://sepolia.basescan.org",
   "required_stake_wei": "10000000000000000",
   "required_challenge_bond_wei": "5000000000000000",
   "challenge_window_seconds": 86400,
   "constructor_args": {
-    "arbiter": null,
+    "arbiter": "0x9Ed13E9b9FC135D35CE78C35866412dB08897E29",
     "required_stake_wei": "10000000000000000",
     "required_challenge_bond_wei": "5000000000000000",
     "challenge_window_seconds": 86400,
-    "encoded": null
+    "encoded": "0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e29000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180"
   },
   "verification": {
-    "status": "not_requested",
+    "status": "verified",
     "provider": "basescan",
-    "command": null,
-    "verified_at": null
+    "command": "forge verify-contract --chain 84532 --watch --constructor-args 0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e29000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180 --etherscan-api-key \\<redacted\\> 0xf2da3947d028b85e597fe1df4633a87ef4a85f24 src/ProofOfAudit.sol:ProofOfAudit ",
+    "verified_at": "2026-03-14T13:01:25.099947+00:00"
   },
-  "notes": "Run scripts/deploy-base-sepolia.sh with funded deployer credentials, then scripts/verify-base-sepolia.sh once the deployment address is recorded."
+  "notes": "Deployed via scripts/deploy-release.sh",
+  "deployment_tx_hash": "0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41",
+  "deployment_block_number": 38862439,
+  "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",
+  "updated_at": "2026-03-14T13:01:25.222542+00:00"
 }
