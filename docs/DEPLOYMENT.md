@@ -156,6 +156,7 @@ The release path is now split into two explicit scripts:
 
 1. `./scripts/deploy-base-sepolia.sh`
 2. `./scripts/verify-base-sepolia.sh`
+3. `./scripts/deploy-base-sepolia-identity.sh`
 
 The deploy script:
 
@@ -172,6 +173,13 @@ The verify script:
 - reuses the recorded encoded constructor args
 - runs `forge verify-contract`
 - writes verification status back into the manifest when verification succeeds
+
+The identity deploy script:
+
+- deploys the dedicated `AgentIdentityRegistry` contract
+- registers the auditor against the published registration document URI
+- rewrites `docs/registrations/proof-of-audit-auditor.json` with the on-chain registration reference
+- records the registry address, agent id, owner, and tx hashes in `deployments/base-sepolia.json`
 
 ### Regenerate the published registration document without redeploying
 
@@ -204,6 +212,9 @@ Registration publication defaults can also be overridden:
 - `PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE`
 - `PROOF_OF_AUDIT_AUDITOR_AGENT_ID`
 - `PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY`
+- `PROOF_OF_AUDIT_AGENT_REGISTRY_ADMIN`
+- `PROOF_OF_AUDIT_AGENT_REGISTRY_ADMIN_PRIVATE_KEY`
+- `PROOF_OF_AUDIT_AUDITOR_OWNER`
 
 The API can target the deployed contract with:
 
@@ -240,6 +251,13 @@ cd /home/koita/dev/hackatons/proof-of-audit
 PROOF_OF_AUDIT_DEPLOY_VERIFY=1 ./scripts/deploy-base-sepolia.sh
 ```
 
+### Deploy the on-chain auditor identity
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+./scripts/deploy-base-sepolia-identity.sh
+```
+
 ### Release manifest fields
 
 After a successful deploy, `deployments/base-sepolia.json` records:
@@ -252,6 +270,7 @@ After a successful deploy, `deployments/base-sepolia.json` records:
 - constructor args as encoded hex for verification reuse
 - verification status and provider metadata
 - registration document URI, source manifest, and generated file path
+- on-chain auditor identity registry address and agent id
 
 ### Rollback and redeploy basics
 
@@ -279,5 +298,9 @@ Live Base Sepolia deployment:
 - deploy tx: `0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41`
 - arbiter: `0x9Ed13E9b9FC135D35CE78C35866412dB08897E29`
 - explorer: `https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
+- auditor identity registry: `0x9eB733cBD7C13d619eD72e610366715676089708`
+- auditor agent id: `1`
+- identity deploy tx: `0x6895c3391d328bfd9a594d1dbde5eecb3f8059208205831802b8ed6007c25e38`
+- identity registration tx: `0x4062a27914aa64841b5d54be99016a2885b56de3f9b09c7233a2a1c441fc12d8`
 
 Verification has been recorded in `deployments/base-sepolia.json` and the contract is verified on BaseScan.

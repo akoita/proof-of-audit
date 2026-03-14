@@ -51,6 +51,8 @@ def test_contract_config_loads_erc8004_shaped_manifest(tmp_path: Path) -> None:
             "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI": "https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
             "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL": "https://proof-of-audit.example.invalid",
             "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL": "https://api.proof-of-audit.example.invalid",
+            "PROOF_OF_AUDIT_AUDITOR_AGENT_ID": "7",
+            "PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY": "0x0000000000000000000000000000000000000A11",
         }
     )
 
@@ -71,6 +73,12 @@ def test_contract_config_loads_erc8004_shaped_manifest(tmp_path: Path) -> None:
     assert registration["services"][1]["endpoint"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
     assert registration["services"][2]["endpoint"] == "https://api.proof-of-audit.example.invalid/auditor"
     assert registration["x-proof-of-audit"]["registrationUri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+    assert registration["registrations"] == [
+        {
+            "agentId": 7,
+            "agentRegistry": "0x0000000000000000000000000000000000000A11",
+        }
+    ]
 
 
 def test_contract_config_backfills_erc8004_fields_from_legacy_manifest(tmp_path: Path) -> None:
@@ -140,6 +148,8 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
                 "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI=https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
                 "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL=https://proof-of-audit.example.invalid",
                 "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL=https://api.proof-of-audit.example.invalid",
+                "PROOF_OF_AUDIT_AUDITOR_AGENT_ID=7",
+                "PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY=0x0000000000000000000000000000000000000A11",
             ]
         )
         + "\n",
@@ -160,6 +170,12 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
     assert payload["supportedTrust"] == ["crypto-economic"]
     assert payload["x-proof-of-audit"]["id"] == "proof-of-audit-auditor"
     assert payload["x-proof-of-audit"]["registrationUri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+    assert payload["registrations"] == [
+        {
+            "agentId": 7,
+            "agentRegistry": "0x0000000000000000000000000000000000000A11",
+        }
+    ]
 
     discovery = client.get("/auditor")
     assert discovery.status_code == 200
@@ -167,4 +183,6 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
     assert discovery_payload["registration_type"] == "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
     assert discovery_payload["registration_endpoint"] == "/auditor/registration"
     assert discovery_payload["registration_uri"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+    assert discovery_payload["agent_id"] == 7
+    assert discovery_payload["agent_registry"] == "0x0000000000000000000000000000000000000A11"
     assert discovery_payload["supported_trust"] == ["crypto-economic"]

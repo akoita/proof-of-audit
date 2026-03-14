@@ -31,6 +31,11 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_service.registration_uri,
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
+        self.assertEqual(config.auditor_service.agent_id, 1)
+        self.assertEqual(
+            config.auditor_service.agent_registry,
+            "0x9eb733cbd7c13d619ed72e610366715676089708",
+        )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")
         self.assertTrue(config.auditor_service.manifest_hash)

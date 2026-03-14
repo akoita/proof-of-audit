@@ -16,6 +16,7 @@ DEFAULT_AUDITOR_MANIFEST_FILE = (
     / "proof_of_audit_agent"
     / "auditor_manifest.json"
 )
+DEFAULT_DEPLOYMENTS_DIR = Path(__file__).resolve().parents[2] / "deployments"
 DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_FILE = (
     Path(__file__).resolve().parents[2]
     / "docs"
@@ -41,6 +42,12 @@ def load_env_file(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         values[key.strip()] = value.strip()
     return values
+
+
+def load_json_file(path: Path | None) -> dict[str, object]:
+    if path is None or not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @dataclass(frozen=True)
@@ -291,6 +298,8 @@ class AuditorServiceRecord:
     registration_type: str
     registration_endpoint: str
     registration_uri: str
+    agent_id: int | None
+    agent_registry: str | None
     capability: str
     discovery_path: str
     submit_path: str
@@ -311,6 +320,8 @@ class AuditorServiceRecord:
             "registration_type": self.registration_type,
             "registration_endpoint": self.registration_endpoint,
             "registration_uri": self.registration_uri,
+            "agent_id": self.agent_id,
+            "agent_registry": self.agent_registry,
             "capability": self.capability,
             "discovery_path": self.discovery_path,
             "submit_path": self.submit_path,
@@ -343,6 +354,8 @@ class ContractConfig:
     auditor_registration_uri: str
     auditor_public_web_url: str
     auditor_public_api_base_url: str | None
+    auditor_agent_id: int | None
+    auditor_agent_registry: str | None
 
     @classmethod
     def from_env(
@@ -355,13 +368,26 @@ class ContractConfig:
             source.update(os.environ)
         else:
             source = dict(env)
+        network = source.get("PROOF_OF_AUDIT_NETWORK", "base-sepolia")
+        deployment_manifest_file = (
+            Path(source["PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE"])
+            if source.get("PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE")
+            else DEFAULT_DEPLOYMENTS_DIR / f"{network}.json"
+        )
+        deployment_manifest = load_json_file(deployment_manifest_file)
+        auditor_identity = deployment_manifest.get("auditor_identity", {})
+        if not isinstance(auditor_identity, dict):
+            auditor_identity = {}
+        registration_document = deployment_manifest.get("registration_document", {})
+        if not isinstance(registration_document, dict):
+            registration_document = {}
         manifest_file = (
             Path(source["PROOF_OF_AUDIT_AGENT_MANIFEST_FILE"])
             if source.get("PROOF_OF_AUDIT_AGENT_MANIFEST_FILE")
             else DEFAULT_AUDITOR_MANIFEST_FILE
         )
         return cls(
-            network=source.get("PROOF_OF_AUDIT_NETWORK", "base-sepolia"),
+            network=network,
             chain_id=int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532")),
             contract_address=source.get("PROOF_OF_AUDIT_CONTRACT_ADDRESS") or None,
             explorer_base_url=source.get(
@@ -403,7 +429,10 @@ class ContractConfig:
             ),
             auditor_registration_uri=source.get(
                 "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI",
-                DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI,
+                str(
+                    registration_document.get("uri")
+                    or DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI
+                ),
             ),
             auditor_public_web_url=source.get(
                 "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL",
@@ -411,6 +440,23 @@ class ContractConfig:
             ),
             auditor_public_api_base_url=(
                 source.get("PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL") or None
+            ),
+            auditor_agent_id=(
+                int(source["PROOF_OF_AUDIT_AUDITOR_AGENT_ID"])
+                if source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_ID")
+                else (
+                    int(auditor_identity["agent_id"])
+                    if auditor_identity.get("agent_id") is not None
+                    else None
+                )
+            ),
+            auditor_agent_registry=(
+                source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY")
+                or (
+                    str(auditor_identity["registry_address"])
+                    if auditor_identity.get("registry_address")
+                    else None
+                )
             ),
         )
 
@@ -471,6 +517,17 @@ class ContractConfig:
         if self.contract_address:
             extension["settlementContractAddress"] = self.contract_address
         payload["x-proof-of-audit"] = extension
+        if (
+            not payload.get("registrations")
+            and self.auditor_agent_id is not None
+            and self.auditor_agent_registry
+        ):
+            payload["registrations"] = [
+                {
+                    "agentId": self.auditor_agent_id,
+                    "agentRegistry": self.auditor_agent_registry,
+                }
+            ]
         return payload
 
     @property
@@ -489,6 +546,8 @@ class ContractConfig:
             registration_type=self.auditor.registration_type,
             registration_endpoint="/auditor/registration",
             registration_uri=self.auditor_registration_uri,
+            agent_id=self.auditor_agent_id,
+            agent_registry=self.auditor_agent_registry,
             capability=capability,
             discovery_path="/auditor",
             submit_path="/audits",

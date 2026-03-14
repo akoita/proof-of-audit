@@ -31,6 +31,12 @@ The current implementation focuses on:
 
 This repository is an early-stage prototype intended for rapid iteration. The current codebase is designed for local development and demos, with a clear path toward stronger chain integration, verification, and operational hardening.
 
+Current public identity references:
+
+- `ProofOfAudit` on Base Sepolia: `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
+- auditor identity registry on Base Sepolia: `0x9eB733cBD7C13d619eD72e610366715676089708`
+- auditor agent id: `1`
+
 ## Public alpha reviewer path
 
 - run the local stack from the quick start below
@@ -61,6 +67,7 @@ This repo implements a compact, coherent v1:
 - one auditor identity
 - one manifest-backed auditor service profile
 - one discoverable service record and discovery path
+- one ERC-8004-style on-chain identity registration
 - one claim publication flow
 - one on-chain stake amount
 - one challenge type
@@ -178,7 +185,7 @@ The UI e2e harness starts a dedicated Anvil instance, deploys the local contract
 - `GET /config`
   - includes the live auditor service profile used by the API and web workbench
 - `GET /auditor`
-  - returns the discoverable auditor service record, manifest hash, canonical registration URI, and API paths
+  - returns the discoverable auditor service record, manifest hash, canonical registration URI, optional on-chain agent id, and API paths
 - `GET /auditor/registration`
   - returns the ERC-8004-aligned auditor registration document with service endpoints and trust model metadata
 - `GET /fixtures`

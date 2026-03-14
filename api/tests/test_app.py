@@ -87,6 +87,11 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
+        self.assertEqual(payload["auditor_service"]["agent_id"], 1)
+        self.assertEqual(
+            payload["auditor_service"]["agent_registry"],
+            "0x9eb733cbd7c13d619ed72e610366715676089708",
+        )
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
@@ -102,6 +107,11 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(
             payload["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
+        )
+        self.assertEqual(payload["agent_id"], 1)
+        self.assertEqual(
+            payload["agent_registry"],
+            "0x9eb733cbd7c13d619ed72e610366715676089708",
         )
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
@@ -122,6 +132,10 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(
             payload["services"][1]["endpoint"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
+        )
+        self.assertEqual(
+            payload["registrations"][0]["agentRegistry"],
+            "0x9eb733cbd7c13d619ed72e610366715676089708",
         )
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:

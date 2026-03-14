@@ -38,6 +38,8 @@ type AuditorServiceRecord = {
   manifest_hash: string;
   registration_kind: string;
   registration_uri: string;
+  agent_id?: number | null;
+  agent_registry?: string | null;
   capability: string;
   discovery_path: string;
   submit_path: string;
@@ -624,6 +626,12 @@ export function AuditWorkbench() {
                 <span title={auditorService.registration_uri}>
                   {shortenHex(auditorService.registration_uri, 28, 18)}
                 </span>
+                {auditorService.agent_id && auditorService.agent_registry ? (
+                  <span title={auditorService.agent_registry}>
+                    agent #{auditorService.agent_id} @{" "}
+                    {shortenHex(auditorService.agent_registry, 10, 8)}
+                  </span>
+                ) : null}
                 <span>{auditorService.discovery_path}</span>
                 <span>{auditorService.submit_path}</span>
               </div>

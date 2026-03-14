@@ -15,7 +15,12 @@
   ],
   "x402Support": false,
   "active": true,
-  "registrations": [],
+  "registrations": [
+    {
+      "agentId": 1,
+      "agentRegistry": "0x9eb733cbd7c13d619ed72e610366715676089708"
+    }
+  ],
   "supportedTrust": [
     "crypto-economic"
   ],
