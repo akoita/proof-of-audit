@@ -119,7 +119,7 @@ def create_app(
     def auditor_registration(request: Request) -> AuditorRegistrationDocumentModel:
         contract_config = request.app.state.contract_config
         return AuditorRegistrationDocumentModel.model_validate(
-            contract_config.auditor.to_registration_dict()
+            contract_config.auditor_registration_document()
         )
 
     @app.get(

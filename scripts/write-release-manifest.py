@@ -32,6 +32,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--verification-provider")
     parser.add_argument("--verification-command")
     parser.add_argument("--verified-at")
+    parser.add_argument("--registration-document-uri")
+    parser.add_argument("--registration-document-file")
+    parser.add_argument("--registration-source-manifest")
     parser.add_argument("--notes")
     return parser.parse_args()
 
@@ -95,6 +98,17 @@ def main() -> None:
     set_if_present(verification, "verified_at", args.verified_at)
     if verification:
         manifest["verification"] = verification
+
+    registration_document = manifest.get("registration_document", {})
+    set_if_present(registration_document, "uri", args.registration_document_uri)
+    set_if_present(registration_document, "file", args.registration_document_file)
+    set_if_present(
+        registration_document,
+        "source_manifest",
+        args.registration_source_manifest,
+    )
+    if registration_document:
+        manifest["registration_document"] = registration_document
 
     manifest["updated_at"] = datetime.now(UTC).isoformat()
 

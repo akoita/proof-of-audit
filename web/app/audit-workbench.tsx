@@ -37,6 +37,7 @@ type AuditorServiceRecord = {
   manifest_schema: string;
   manifest_hash: string;
   registration_kind: string;
+  registration_uri: string;
   capability: string;
   discovery_path: string;
   submit_path: string;
@@ -619,6 +620,9 @@ export function AuditWorkbench() {
                 <span>{titleCase(auditorService.registration_kind)}</span>
                 <span title={auditorService.manifest_hash}>
                   {shortenHex(auditorService.manifest_hash, 10, 8)}
+                </span>
+                <span title={auditorService.registration_uri}>
+                  {shortenHex(auditorService.registration_uri, 28, 18)}
                 </span>
                 <span>{auditorService.discovery_path}</span>
                 <span>{auditorService.submit_path}</span>

@@ -60,6 +60,7 @@ def test_deploy_release_writes_repeatable_manifest(tmp_path: Path) -> None:
     anvil = start_anvil(port=9663, chain_id=31353)
     try:
         manifest_file = tmp_path / "anvil-release.json"
+        registration_file = tmp_path / "published-registration.json"
         rpc_url = "http://127.0.0.1:9663"
         result = subprocess.run(
             [str(DEPLOY_RELEASE_SCRIPT)],
@@ -71,6 +72,10 @@ def test_deploy_release_writes_repeatable_manifest(tmp_path: Path) -> None:
                 "PROOF_OF_AUDIT_DEPLOY_RPC_URL": rpc_url,
                 "PROOF_OF_AUDIT_EXPLORER_BASE_URL": rpc_url,
                 "PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE": str(manifest_file),
+                "PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE": str(registration_file),
+                "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI": "https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL": "https://proof-of-audit.example.invalid",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL": "https://api.proof-of-audit.example.invalid",
                 "DEPLOYER_PRIVATE_KEY": DEFAULT_LOCAL_DEPLOYER_PRIVATE_KEY,
                 "PROOF_OF_AUDIT_ARBITER": DEFAULT_LOCAL_ARBITER,
                 "PYTHON_BIN": os.environ.get("PYTHON_BIN") or "python3",
@@ -81,6 +86,7 @@ def test_deploy_release_writes_repeatable_manifest(tmp_path: Path) -> None:
         )
 
         manifest = load_manifest(manifest_file)
+        registration = load_manifest(registration_file)
 
         assert "Release deployment complete." in result.stdout
         assert manifest["network"] == "anvil-release"
@@ -92,6 +98,15 @@ def test_deploy_release_writes_repeatable_manifest(tmp_path: Path) -> None:
         assert manifest["verification"]["status"] == "not_requested"
         assert manifest["constructor_args"]["arbiter"] == DEFAULT_LOCAL_ARBITER
         assert str(manifest["constructor_args"]["encoded"]).startswith("0x")
+        assert (
+            manifest["registration_document"]["uri"]
+            == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+        )
+        assert manifest["registration_document"]["file"] == str(registration_file)
+        assert registration["services"][0]["endpoint"] == "https://proof-of-audit.example.invalid"
+        assert registration["services"][1]["endpoint"] == "https://registry.example.invalid/auditors/proof-of-audit-auditor.json"
+        assert registration["services"][2]["endpoint"] == "https://api.proof-of-audit.example.invalid/auditor"
+        assert registration["x-proof-of-audit"]["settlementContractAddress"] == manifest["address"]
     finally:
         anvil.terminate()
         anvil.wait(timeout=20)
@@ -102,6 +117,7 @@ def test_verify_release_dry_run_uses_recorded_constructor_args(tmp_path: Path) -
     anvil = start_anvil(port=9664, chain_id=31354)
     try:
         manifest_file = tmp_path / "anvil-release.json"
+        registration_file = tmp_path / "published-registration.json"
         rpc_url = "http://127.0.0.1:9664"
         subprocess.run(
             [str(DEPLOY_RELEASE_SCRIPT)],
@@ -113,6 +129,9 @@ def test_verify_release_dry_run_uses_recorded_constructor_args(tmp_path: Path) -
                 "PROOF_OF_AUDIT_DEPLOY_RPC_URL": rpc_url,
                 "PROOF_OF_AUDIT_EXPLORER_BASE_URL": rpc_url,
                 "PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE": str(manifest_file),
+                "PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE": str(registration_file),
+                "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI": "https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL": "https://proof-of-audit.example.invalid",
                 "DEPLOYER_PRIVATE_KEY": DEFAULT_LOCAL_DEPLOYER_PRIVATE_KEY,
                 "PROOF_OF_AUDIT_ARBITER": DEFAULT_LOCAL_ARBITER,
                 "PYTHON_BIN": os.environ.get("PYTHON_BIN") or "python3",

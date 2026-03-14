@@ -22,6 +22,14 @@ The auditor registration document lives at:
 
 - `GET /auditor/registration`
 
+The stable published copy lives at:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json`
+
+The default canonical URI is:
+
+- `https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json`
+
 The document follows an ERC-8004-shaped structure with these top-level fields:
 
 - `type`
@@ -37,6 +45,8 @@ The document follows an ERC-8004-shaped structure with these top-level fields:
 This shape is backed by:
 
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json`
+
+The source manifest is the editable source of truth. The published registration file is generated from that source manifest during release or deploy flows.
 
 ### Project extension block
 
@@ -64,6 +74,7 @@ The discoverable service record remains available at:
 That endpoint is intentionally more operational than the registration document. It includes:
 
 - manifest hash
+- canonical registration URI
 - API path templates
 - network context
 - capability metadata used by the local workbench

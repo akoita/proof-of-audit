@@ -13,6 +13,13 @@ RPC_URL="${PROOF_OF_AUDIT_DEPLOY_RPC_URL:-${BASE_SEPOLIA_RPC_URL:-}}"
 EXPLORER_BASE_URL="${PROOF_OF_AUDIT_EXPLORER_BASE_URL:-https://sepolia.basescan.org}"
 MANIFEST_FILE="${PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE:-${ROOT_DIR}/deployments/${NETWORK}.json}"
 DEPLOY_VERIFY="${PROOF_OF_AUDIT_DEPLOY_VERIFY:-0}"
+AUDITOR_MANIFEST_FILE="${PROOF_OF_AUDIT_AGENT_MANIFEST_FILE:-${ROOT_DIR}/agent/proof_of_audit_agent/auditor_manifest.json}"
+AUDITOR_PUBLISHED_REGISTRATION_FILE="${PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE:-${ROOT_DIR}/docs/registrations/proof-of-audit-auditor.json}"
+AUDITOR_REGISTRATION_URI="${PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI:-https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json}"
+AUDITOR_PUBLIC_WEB_URL="${PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL:-https://github.com/akoita/proof-of-audit}"
+AUDITOR_PUBLIC_API_URL="${PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL:-}"
+AUDITOR_AGENT_ID="${PROOF_OF_AUDIT_AUDITOR_AGENT_ID:-}"
+AUDITOR_AGENT_REGISTRY="${PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY:-}"
 
 DEPLOYER_PRIVATE_KEY="${DEPLOYER_PRIVATE_KEY:-}"
 ARBITER="${PROOF_OF_AUDIT_ARBITER:-}"
@@ -96,7 +103,29 @@ cd "${ROOT_DIR}"
   --constructor-args-hex "${CONSTRUCTOR_ARGS_HEX}" \
   --verification-status "not_requested" \
   --verification-provider "basescan" \
+  --registration-document-uri "${AUDITOR_REGISTRATION_URI}" \
+  --registration-document-file "${AUDITOR_PUBLISHED_REGISTRATION_FILE}" \
+  --registration-source-manifest "${AUDITOR_MANIFEST_FILE}" \
   --notes "Deployed via scripts/deploy-release.sh"
+
+REGISTRATION_SCRIPT_ARGS=(
+  "${ROOT_DIR}/scripts/write-published-registration.py"
+  --manifest-file "${AUDITOR_MANIFEST_FILE}"
+  --deployment-manifest-file "${MANIFEST_FILE}"
+  --output-file "${AUDITOR_PUBLISHED_REGISTRATION_FILE}"
+  --registration-uri "${AUDITOR_REGISTRATION_URI}"
+  --public-web-url "${AUDITOR_PUBLIC_WEB_URL}"
+)
+
+if [[ -n "${AUDITOR_PUBLIC_API_URL}" ]]; then
+  REGISTRATION_SCRIPT_ARGS+=(--public-api-base-url "${AUDITOR_PUBLIC_API_URL}")
+fi
+
+if [[ -n "${AUDITOR_AGENT_ID}" && -n "${AUDITOR_AGENT_REGISTRY}" ]]; then
+  REGISTRATION_SCRIPT_ARGS+=(--agent-id "${AUDITOR_AGENT_ID}" --agent-registry "${AUDITOR_AGENT_REGISTRY}")
+fi
+
+"${PYTHON_BIN}" "${REGISTRATION_SCRIPT_ARGS[@]}"
 
 echo
 echo "Release deployment complete."
@@ -105,6 +134,8 @@ echo "Contract: ProofOfAudit"
 echo "Address: ${CONTRACT_ADDRESS}"
 echo "Deployment tx: ${DEPLOYMENT_TX_HASH}"
 echo "Manifest: ${MANIFEST_FILE}"
+echo "Registration document: ${AUDITOR_PUBLISHED_REGISTRATION_FILE}"
+echo "Registration URI: ${AUDITOR_REGISTRATION_URI}"
 
 if [[ "${DEPLOY_VERIFY}" == "1" ]]; then
   "${ROOT_DIR}/scripts/verify-release.sh"

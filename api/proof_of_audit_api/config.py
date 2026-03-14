@@ -16,6 +16,17 @@ DEFAULT_AUDITOR_MANIFEST_FILE = (
     / "proof_of_audit_agent"
     / "auditor_manifest.json"
 )
+DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_FILE = (
+    Path(__file__).resolve().parents[2]
+    / "docs"
+    / "registrations"
+    / "proof-of-audit-auditor.json"
+)
+DEFAULT_AUDITOR_PUBLIC_WEB_URL = "https://github.com/akoita/proof-of-audit"
+DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI = (
+    "https://raw.githubusercontent.com/akoita/proof-of-audit/main/"
+    "docs/registrations/proof-of-audit-auditor.json"
+)
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -279,6 +290,7 @@ class AuditorServiceRecord:
     registration_kind: str
     registration_type: str
     registration_endpoint: str
+    registration_uri: str
     capability: str
     discovery_path: str
     submit_path: str
@@ -298,6 +310,7 @@ class AuditorServiceRecord:
             "registration_kind": self.registration_kind,
             "registration_type": self.registration_type,
             "registration_endpoint": self.registration_endpoint,
+            "registration_uri": self.registration_uri,
             "capability": self.capability,
             "discovery_path": self.discovery_path,
             "submit_path": self.submit_path,
@@ -326,6 +339,10 @@ class ContractConfig:
     challenge_window_seconds: int
     auditor: AuditorProfile
     auditor_manifest_file: Path | None
+    auditor_published_registration_file: Path
+    auditor_registration_uri: str
+    auditor_public_web_url: str
+    auditor_public_api_base_url: str | None
 
     @classmethod
     def from_env(
@@ -378,6 +395,23 @@ class ContractConfig:
             ),
             auditor=AuditorProfile.from_manifest_file(manifest_file),
             auditor_manifest_file=manifest_file if manifest_file.exists() else None,
+            auditor_published_registration_file=Path(
+                source.get(
+                    "PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE",
+                    str(DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_FILE),
+                )
+            ),
+            auditor_registration_uri=source.get(
+                "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI",
+                DEFAULT_PUBLISHED_AUDITOR_REGISTRATION_URI,
+            ),
+            auditor_public_web_url=source.get(
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL",
+                DEFAULT_AUDITOR_PUBLIC_WEB_URL,
+            ),
+            auditor_public_api_base_url=(
+                source.get("PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL") or None
+            ),
         )
 
     @property
@@ -395,6 +429,50 @@ class ContractConfig:
             content = json.dumps(self.auditor.to_dict(), sort_keys=True)
         return sha256(content.encode("utf-8")).hexdigest()
 
+    def auditor_registration_document(self) -> dict[str, object]:
+        payload = self.auditor.to_registration_dict()
+        extra_services = [
+            service.to_dict()
+            for service in self.auditor.services
+            if service.name not in {"web", "api", "registration"}
+        ]
+        services: list[dict[str, object]] = [
+            {
+                "name": "web",
+                "endpoint": self.auditor_public_web_url,
+            },
+            {
+                "name": "registration",
+                "endpoint": self.auditor_registration_uri,
+            },
+        ]
+        if self.auditor_public_api_base_url:
+            services.append(
+                {
+                    "name": "api",
+                    "endpoint": f"{self.auditor_public_api_base_url.rstrip('/')}/auditor",
+                    "version": f"v{self.auditor.version}",
+                }
+            )
+        payload["services"] = services + extra_services
+        extension = dict(payload.get("x-proof-of-audit", {}))
+        extension.update(
+            {
+                "registrationUri": self.auditor_registration_uri,
+                "discoveryPath": "/auditor",
+                "submitPath": "/audits",
+                "publishPathTemplate": "/audits/{id}/publish",
+                "challengePathTemplate": "/audits/{id}/challenge",
+                "resolvePathTemplate": "/audits/{id}/resolve",
+                "network": self.network,
+                "chainId": self.chain_id,
+            }
+        )
+        if self.contract_address:
+            extension["settlementContractAddress"] = self.contract_address
+        payload["x-proof-of-audit"] = extension
+        return payload
+
     @property
     def auditor_service(self) -> AuditorServiceRecord:
         capability = (
@@ -410,6 +488,7 @@ class ContractConfig:
             registration_kind="offchain_manifest",
             registration_type=self.auditor.registration_type,
             registration_endpoint="/auditor/registration",
+            registration_uri=self.auditor_registration_uri,
             capability=capability,
             discovery_path="/auditor",
             submit_path="/audits",
