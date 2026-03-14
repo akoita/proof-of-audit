@@ -15,6 +15,17 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.required_stake_wei, 10**16)
         self.assertEqual(config.required_challenge_bond_wei, 5 * 10**15)
         self.assertEqual(config.challenge_window_seconds, 86400)
+        self.assertEqual(
+            config.auditor.manifest_schema,
+            "proof-of-audit/auditor-service@v1",
+        )
+        self.assertEqual(
+            config.auditor_service.registration_kind,
+            "offchain_manifest",
+        )
+        self.assertEqual(config.auditor_service.discovery_path, "/auditor")
+        self.assertEqual(config.auditor_service.submit_path, "/audits")
+        self.assertTrue(config.auditor_service.manifest_hash)
         self.assertFalse(config.deployment_ready)
 
     def test_reads_environment_overrides(self) -> None:

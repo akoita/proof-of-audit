@@ -65,8 +65,32 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["network"], "base-sepolia")
         self.assertEqual(payload["chain_id"], 84532)
         self.assertEqual(payload["auditor"]["id"], "proof-of-audit-auditor")
+        self.assertEqual(
+            payload["auditor"]["manifest_schema"],
+            "proof-of-audit/auditor-service@v1",
+        )
         self.assertEqual(payload["auditor"]["service_type"], "audit_contract")
+        self.assertEqual(
+            payload["auditor_service"]["service_id"],
+            "proof-of-audit-auditor",
+        )
+        self.assertEqual(payload["auditor_service"]["registration_kind"], "offchain_manifest")
+        self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
+        self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
+
+    def test_auditor_endpoint_returns_service_record(self) -> None:
+        response = self.client.get("/auditor")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["service_id"], "proof-of-audit-auditor")
+        self.assertEqual(payload["capability"], "audit_contract")
+        self.assertEqual(payload["registration_kind"], "offchain_manifest")
+        self.assertEqual(payload["submit_path"], "/audits")
+        self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
+        self.assertEqual(payload["challenge_path_template"], "/audits/{id}/challenge")
+        self.assertTrue(payload["manifest_hash"])
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
         response = self.client.get("/fixtures")

@@ -19,7 +19,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 
 ## 60-second demo arc
 
-1. This is the auditor agent identity and the active chain configuration.
+1. This is the auditor agent identity, its discoverable service record, and the active chain configuration.
 2. I submit a contract and the agent produces a review claim.
 3. The agent stakes on that claim and publishes it on-chain.
 4. A challenger submits evidence against the claim.
@@ -28,6 +28,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 ## What to emphasize
 
 - trust comes from visible economic commitment, not branding
+- the auditor is surfaced as a named service with a stable manifest hash and discovery path
 - cooperation comes from neutral enforcement, not platform discretion
 - Base is the chain where the public claim and challenge lifecycle live
 - deterministic verification is the fast path; human arbitration is fallback only
