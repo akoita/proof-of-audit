@@ -2,17 +2,19 @@ import { expect, Locator, Page, test } from "@playwright/test";
 
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.goto("/");
-  await expect(page.getByText("Pick a live contract to drive the audit flow")).toBeVisible();
+  await expect(
+    page.getByText("Pick a live contract to drive the trust, stake, and challenge flow"),
+  ).toBeVisible();
   await expect(
     page.locator(".signal-note").getByText("Proof-of-Audit Auditor", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: fixtureName }).click();
-  await page.getByRole("button", { name: "Run audit" }).click();
+  await page.getByRole("button", { name: "Generate claim" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
 }
 
 async function publishActiveAudit(page: Page) {
-  await page.getByRole("button", { name: "Publish stake" }).click();
+  await page.getByRole("button", { name: "Stake and publish" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("published");
 }
 
@@ -30,12 +32,12 @@ test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
       name: /No benchmark issue found across the supported checks/i,
     }),
   ).toBeVisible();
-  await expect(page.getByText(/Suggested artifact for this benchmark:/i)).toContainText(
+  await expect(page.getByText(/Suggested evidence artifact for this benchmark:/i)).toContainText(
     "ipfs://clean-vault/missed-reentrancy",
   );
 
   await publishActiveAudit(page);
-  await page.getByRole("button", { name: "Challenge with PoC" }).click();
+  await page.getByRole("button", { name: "Open challenge" }).click();
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("resolved");
   await expect(page.getByTestId("challenge-status")).toHaveText("upheld");
@@ -50,7 +52,7 @@ test("invalid challenge evidence stays open for manual review", async ({ page })
   await publishActiveAudit(page);
 
   await challengeInput(page).fill("ipfs://wrong-proof");
-  await page.getByRole("button", { name: "Challenge with PoC" }).click();
+  await page.getByRole("button", { name: "Open challenge" }).click();
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
   await expect(page.getByTestId("challenge-status")).toHaveText("opened");
