@@ -242,7 +242,11 @@ Base Sepolia deployment settings and manifest scaffolding are included in this r
 - deploy script: `scripts/deploy-base-sepolia.sh`
 - Foundry deployment script: `contracts/script/DeployProofOfAudit.s.sol`
 
-The live contract address is still pending until a funded deployer and RPC credentials are available.
+Current Base Sepolia deployment:
+
+- contract: `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
+- deploy tx: `0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41`
+- explorer: `https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
 
 Repeatable release commands:
 
