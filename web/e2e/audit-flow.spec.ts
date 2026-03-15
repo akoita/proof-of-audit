@@ -11,7 +11,9 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   ).toBeVisible();
   await expect(page.locator(".signal-note").getByText("proof-of-audit-auditor")).toBeVisible();
   await expect(page.locator(".signal-note").getByText("/auditor")).toBeVisible();
-  await expect(page.locator(".signal-note").getByText("/audits")).toBeVisible();
+  await expect(
+    page.locator(".signal-note").getByText("/audits", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByRole("button", { name: "Generate claim" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
