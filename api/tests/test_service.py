@@ -64,9 +64,10 @@ class AuditServiceTest(unittest.TestCase):
                 listed[0]["report"]["findings"][0]["category"],
                 "reentrancy",
             )
-            persisted = json.loads((data_root / "legacy-audit.json").read_text(encoding="utf-8"))
-            self.assertIn("submission", persisted)
-            self.assertEqual(persisted["report"]["severity_breakdown"]["high"], 1)
+            hydrated = service.get_audit("legacy-audit")
+            self.assertIsNotNone(hydrated)
+            self.assertIn("submission", hydrated)
+            self.assertEqual(hydrated["report"]["severity_breakdown"]["high"], 1)
 
     def test_list_audits_returns_newest_first(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

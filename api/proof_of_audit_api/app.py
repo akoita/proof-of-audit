@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from proof_of_audit_api.config import ContractConfig, DEFAULT_API_ENV_FILE
+from proof_of_audit_api.config import ContractConfig, DEFAULT_API_ENV_FILE, load_env_file
 from proof_of_audit_api.publisher import (
     OnchainChallengeError,
     OnchainConfigurationError,
@@ -42,7 +42,11 @@ def create_app(
     env_file: Path | None = DEFAULT_API_ENV_FILE,
     audit_service: AuditService | None = None,
 ) -> FastAPI:
+    runtime_env = load_env_file(env_file or DEFAULT_API_ENV_FILE)
+    runtime_env.update(os.environ)
     contract_config = ContractConfig.from_env(env_file=env_file)
+    store_kind = runtime_env.get("PROOF_OF_AUDIT_STORE_KIND", "sqlite")
+    store_path = runtime_env.get("PROOF_OF_AUDIT_STORE_PATH")
     app = FastAPI(
         title="Proof-of-Audit API",
         version="0.2.0",
@@ -57,6 +61,8 @@ def create_app(
     app.state.audit_service = audit_service or AuditService(
         data_root or Path(os.environ.get("PROOF_OF_AUDIT_DATA_ROOT", DATA_ROOT)),
         contract_config=contract_config,
+        store_kind=store_kind,
+        store_path=Path(store_path) if store_path else None,
     )
     if audit_service is not None:
         contract_config = audit_service.contract_config

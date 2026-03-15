@@ -23,7 +23,7 @@ from proof_of_audit_api.validation_bridge import (
 from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
-from proof_of_audit_api.store import JsonStore
+from proof_of_audit_api.store import AuditStore, create_store
 
 
 class AuditService:
@@ -34,8 +34,15 @@ class AuditService:
         publisher: ProofOfAuditPublisher | None = None,
         arbiter_client: ProofOfAuditPublisher | None = None,
         validation_bridge: ValidationRegistryBridge | None = None,
+        store: AuditStore | None = None,
+        store_kind: str = "sqlite",
+        store_path: Path | None = None,
     ) -> None:
-        self.store = JsonStore(data_root)
+        self.store = store or create_store(
+            root=data_root,
+            kind=store_kind,
+            database_path=store_path,
+        )
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(
             self.contract_config.demo_fixtures_file,
