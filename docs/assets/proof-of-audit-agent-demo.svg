@@ -1,26 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" fill="none" role="img" aria-labelledby="title desc">
-  <title id="title">Proof-of-Audit agent terminal demo poster</title>
-  <desc id="desc">A polished poster-style SVG preview for the terminal-first Proof-of-Audit demo, with a stylized terminal window, ERC-8004 identity callouts, and a link to the Asciinema recording.</desc>
+  <title id="title">Proof-of-Audit guided terminal demo</title>
+  <desc id="desc">A slow, narrated SVG preview of the terminal-first Proof-of-Audit flow, showing discovery, claim creation, publication, challenge, and validation in paced steps.</desc>
   <defs>
-    <linearGradient id="bg" x1="212" y1="56" x2="1382" y2="901" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="220" y1="48" x2="1398" y2="910" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFF1DF"/>
-      <stop offset="0.42" stop-color="#FFF8F0"/>
-      <stop offset="1" stop-color="#F6F1E8"/>
+      <stop offset="0.48" stop-color="#FFF8F1"/>
+      <stop offset="1" stop-color="#F5EFE7"/>
     </linearGradient>
-    <radialGradient id="glowLeft" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(324 266) rotate(60.083) scale(444.45 681.809)">
-      <stop stop-color="#FFB980" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFB980" stop-opacity="0"/>
+    <radialGradient id="warmGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(330 240) rotate(60) scale(500 700)">
+      <stop stop-color="#FFB77E" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#FFB77E" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glowRight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1214 728) rotate(133.003) scale(332.274 478.761)">
-      <stop stop-color="#B7C7FF" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#B7C7FF" stop-opacity="0"/>
+    <radialGradient id="coolGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1240 730) rotate(130) scale(330 500)">
+      <stop stop-color="#BACBFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#BACBFF" stop-opacity="0"/>
     </radialGradient>
-    <filter id="shadow" x="258" y="108" width="1088" height="720" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <filter id="shadow" x="214" y="124" width="1176" height="744" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
       <feOffset dy="22"/>
-      <feGaussianBlur stdDeviation="28"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.12549 0 0 0 0 0.14902 0 0 0 0 0.231373 0 0 0 0.12 0"/>
+      <feGaussianBlur stdDeviation="30"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.109804 0 0 0 0 0.137255 0 0 0 0 0.219608 0 0 0 0.12 0"/>
       <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
       <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
     </filter>
@@ -28,89 +28,181 @@
       .sans { font-family: "IBM Plex Sans", "Segoe UI", sans-serif; }
       .serif { font-family: Georgia, "Times New Roman", serif; }
       .mono { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; }
-      .label { font-size: 18px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; fill: #5C6078; }
-      .body { font-size: 24px; line-height: 1.45; fill: #2B3047; }
-      .chip { font-size: 17px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; fill: #263149; }
-      .term { font-size: 23px; fill: #E8EDF8; }
-      .termDim { fill: #95A1BF; }
-      .termAccent { fill: #8BC5FF; }
-      .termSuccess { fill: #91E4B6; }
-      .termWarn { fill: #FFD27C; }
-      .termTitle { font-size: 18px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; fill: #B4BED8; }
+      .eyebrow { font-size: 18px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; fill: #58617C; }
+      .headline { font-size: 84px; font-weight: 700; letter-spacing: -0.04em; fill: #172347; }
+      .body { font-size: 25px; fill: #2A3149; }
+      .mini { font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; fill: #59627E; }
+      .chipText { font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; fill: #263149; }
+      .termTitle { font-size: 18px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; fill: #B7C0D8; }
+      .term { font-size: 24px; fill: #E7EDF7; }
+      .termDim { fill: #90A0C0; }
+      .termBlue { fill: #8CC8FF; }
+      .termGreen { fill: #92E3B4; }
+      .termGold { fill: #FFD27C; }
+      .cardTitle { font-size: 17px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; fill: #5A657F; }
+      .cardHeadline { font-size: 36px; font-weight: 700; fill: #1A2740; }
+      .cardBody { font-size: 22px; fill: #34415C; }
+      .stepLabel { font-size: 15px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; fill: #657089; }
+      .progressBg { fill: #E8D8C7; opacity: 0.6; }
+      .progressFill { fill: #F08F55; transform-origin: 0 0; animation: progress 28s linear infinite; }
+      .scene { opacity: 0; animation-duration: 28s; animation-iteration-count: infinite; animation-timing-function: linear; }
+      .s1 { animation-name: scene1; }
+      .s2 { animation-name: scene2; }
+      .s3 { animation-name: scene3; }
+      .s4 { animation-name: scene4; }
+      .s5 { animation-name: scene5; }
+      @keyframes scene1 {
+        0%, 18% { opacity: 1; }
+        20%, 100% { opacity: 0; }
+      }
+      @keyframes scene2 {
+        0%, 19% { opacity: 0; }
+        20%, 38% { opacity: 1; }
+        40%, 100% { opacity: 0; }
+      }
+      @keyframes scene3 {
+        0%, 39% { opacity: 0; }
+        40%, 58% { opacity: 1; }
+        60%, 100% { opacity: 0; }
+      }
+      @keyframes scene4 {
+        0%, 59% { opacity: 0; }
+        60%, 78% { opacity: 1; }
+        80%, 100% { opacity: 0; }
+      }
+      @keyframes scene5 {
+        0%, 79% { opacity: 0; }
+        80%, 98% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes progress {
+        0% { transform: scaleX(0); }
+        100% { transform: scaleX(1); }
+      }
     </style>
   </defs>
 
   <rect width="1600" height="960" fill="url(#bg)"/>
-  <rect x="0" y="0" width="1600" height="960" fill="url(#glowLeft)"/>
-  <rect x="0" y="0" width="1600" height="960" fill="url(#glowRight)"/>
+  <rect width="1600" height="960" fill="url(#warmGlow)"/>
+  <rect width="1600" height="960" fill="url(#coolGlow)"/>
 
-  <g opacity="0.55">
-    <circle cx="118" cy="128" r="2" fill="#D7C7B4"/>
-    <circle cx="1512" cy="136" r="2" fill="#D7C7B4"/>
-    <circle cx="1488" cy="796" r="2" fill="#D7C7B4"/>
-    <circle cx="96" cy="842" r="2" fill="#D7C7B4"/>
-  </g>
+  <text x="250" y="118" class="eyebrow sans">Proof-of-Audit terminal walkthrough</text>
+  <text x="250" y="204" class="headline serif">A slower, guided</text>
+  <text x="250" y="290" class="headline serif">agent flow preview.</text>
+  <text x="250" y="350" class="body serif">Instead of a fast terminal flash, this embed walks through each stage of the</text>
+  <text x="250" y="388" class="body serif">agent loop: discovery, draft claim, publish, challenge, and validation response.</text>
 
-  <text x="280" y="126" class="label sans">Proof-of-Audit terminal demo</text>
-  <text x="280" y="212" class="serif" style="font-size:88px;font-weight:700;letter-spacing:-0.04em;fill:#172347;">A calmer way to</text>
-  <text x="280" y="300" class="serif" style="font-size:88px;font-weight:700;letter-spacing:-0.04em;fill:#172347;">show the agent loop.</text>
-  <text x="280" y="364" class="body serif">The terminal run discovers the auditor, inspects its ERC-8004 registration,</text>
-  <text x="280" y="402" class="body serif">creates a claim, publishes it on-chain, challenges it with evidence, and</text>
-  <text x="280" y="440" class="body serif">surfaces the validation trail without needing the browser workbench.</text>
-
-  <g transform="translate(280 500)">
-    <rect x="0" y="0" width="196" height="44" rx="22" fill="#FFF6EE" stroke="#EBC7A4"/>
-    <text x="26" y="29" class="chip sans">agent identity</text>
-    <rect x="214" y="0" width="192" height="44" rx="22" fill="#FFF6EE" stroke="#EBC7A4"/>
-    <text x="240" y="29" class="chip sans">claim staking</text>
-    <rect x="424" y="0" width="212" height="44" rx="22" fill="#FFF6EE" stroke="#EBC7A4"/>
-    <text x="450" y="29" class="chip sans">validation mirror</text>
-  </g>
-
-  <g transform="translate(1130 118)">
-    <rect x="0" y="0" width="230" height="172" rx="28" fill="#FFFCF7" stroke="#E7DDCF"/>
-    <text x="28" y="42" class="label sans" style="font-size:16px;">Preview asset</text>
-    <text x="28" y="76" class="sans" style="font-size:30px;font-weight:700;fill:#1A2740;">Asciinema-ready</text>
-    <text x="28" y="110" class="body serif" style="font-size:21px;">Use this poster in the README and keep the cast as the canonical recording.</text>
-    <rect x="28" y="126" width="174" height="24" rx="12" fill="#EEF2FA"/>
-    <text x="42" y="143" class="mono" style="font-size:14px;fill:#51607B;">docs/assets/*.cast + *.svg</text>
+  <g transform="translate(250 438)">
+    <rect x="0" y="0" width="180" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
+    <text x="25" y="27" class="chipText sans">discoverable</text>
+    <rect x="198" y="0" width="160" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
+    <text x="223" y="27" class="chipText sans">staked</text>
+    <rect x="376" y="0" width="228" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
+    <text x="401" y="27" class="chipText sans">challengeable</text>
   </g>
 
   <g filter="url(#shadow)">
-    <rect x="314" y="560" width="972" height="212" rx="30" fill="#111827"/>
-    <rect x="314" y="560" width="972" height="212" rx="30" stroke="#293142"/>
-    <rect x="314" y="560" width="972" height="58" rx="30" fill="#131B2B"/>
-    <rect x="314" y="602" width="972" height="1" fill="#273047"/>
-    <circle cx="352" cy="589" r="8" fill="#FF5F57"/>
-    <circle cx="382" cy="589" r="8" fill="#FFBD2E"/>
-    <circle cx="412" cy="589" r="8" fill="#28C840"/>
-    <text x="462" y="595" class="termTitle mono">agent demo / deterministic clean-vault flow</text>
+    <rect x="250" y="520" width="820" height="318" rx="34" fill="#101826"/>
+    <rect x="250" y="520" width="820" height="318" rx="34" stroke="#263247"/>
+    <rect x="250" y="520" width="820" height="62" rx="34" fill="#111A2A"/>
+    <rect x="250" y="582" width="820" height="1" fill="#28344A"/>
+    <circle cx="290" cy="552" r="8" fill="#FF5F57"/>
+    <circle cx="320" cy="552" r="8" fill="#FFBD2E"/>
+    <circle cx="350" cy="552" r="8" fill="#28C840"/>
+    <text x="404" y="558" class="termTitle mono">terminal demo / clean-vault deterministic path</text>
 
-    <text x="356" y="654" class="term mono">$
-      <tspan class="termAccent">python</tspan>
-      <tspan> scripts/run_agent_demo.py --api-url </tspan>
-      <tspan class="termAccent">http://127.0.0.1:8080</tspan>
-    </text>
-    <text x="356" y="686" class="term mono termDim">discovering auditor service ...</text>
-    <text x="356" y="718" class="term mono"><tspan class="termSuccess">GET /auditor</tspan><tspan> -> agent_id=1862, identity_source=erc8004-official</tspan></text>
-    <text x="356" y="750" class="term mono"><tspan class="termSuccess">GET /auditor/registration</tspan><tspan> -> capability=audit_contract, trust_model=stake_and_challenge</tspan></text>
-    <text x="356" y="782" class="term mono"><tspan class="termSuccess">POST /audits</tspan><tspan> -> draft claim created for </tspan><tspan class="termWarn">clean-vault</tspan></text>
-    <text x="356" y="814" class="term mono"><tspan class="termSuccess">POST /audits/:id/publish</tspan><tspan> -> stake committed on-chain via </tspan><tspan class="termAccent">ProofOfAudit</tspan></text>
-    <text x="356" y="846" class="term mono"><tspan class="termSuccess">POST /audits/:id/challenge</tspan><tspan> -> deterministic validation response mirrored to ERC-8004 path</tspan></text>
-    <text x="356" y="878" class="term mono termDim">challenge upheld, validation trail ready, claim fully inspectable</text>
+    <rect x="302" y="610" width="716" height="8" rx="4" class="progressBg"/>
+    <rect x="302" y="610" width="716" height="8" rx="4" class="progressFill"/>
+
+    <g class="scene s1">
+      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">GET /auditor</tspan></text>
+      <text x="304" y="712" class="term mono termDim">discovering the named auditor service and its public identity ...</text>
+      <text x="304" y="754" class="term mono"><tspan class="termGreen">agent_id=1862</tspan><tspan>, identity_source=</tspan><tspan class="termBlue">erc8004-official</tspan></text>
+      <text x="304" y="796" class="term mono termDim">the caller learns who is making the claim before any judgment is requested</text>
+    </g>
+
+    <g class="scene s2">
+      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits</tspan><tspan> input_kind=demo_fixture fixture_id=clean-vault</tspan></text>
+      <text x="304" y="712" class="term mono termDim">creating a draft claim from the local deterministic benchmark ...</text>
+      <text x="304" y="754" class="term mono"><tspan class="termGreen">draft created</tspan><tspan>, benchmark_id=clean-vault, max_severity=medium</tspan></text>
+      <text x="304" y="796" class="term mono termDim">the agent can explain what it sees before putting stake behind the result</text>
+    </g>
+
+    <g class="scene s3">
+      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits/:id/publish</tspan></text>
+      <text x="304" y="712" class="term mono termDim">committing the claim on-chain through the settlement contract ...</text>
+      <text x="304" y="754" class="term mono"><tspan class="termGreen">published</tspan><tspan>, stake=</tspan><tspan class="termGold">0.01 ETH</tspan><tspan>, contract=</tspan><tspan class="termBlue">ProofOfAudit</tspan></text>
+      <text x="304" y="796" class="term mono termDim">this is the accountability step: the claim is now visible and bonded</text>
+    </g>
+
+    <g class="scene s4">
+      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits/:id/challenge</tspan><tspan> poc_uri=ipfs://clean-vault...</tspan></text>
+      <text x="304" y="712" class="term mono termDim">submitting evidence against the published claim ...</text>
+      <text x="304" y="754" class="term mono"><tspan class="termGreen">challenge opened</tspan><tspan>, verifier_path=deterministic, bond=</tspan><tspan class="termGold">0.005 ETH</tspan></text>
+      <text x="304" y="796" class="term mono termDim">the dispute flow is neutral: the challenger gets its own economic commitment</text>
+    </g>
+
+    <g class="scene s5">
+      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">GET /audits/:id/validation/response</tspan></text>
+      <text x="304" y="712" class="term mono termDim">reading the mirrored validation trail after resolution ...</text>
+      <text x="304" y="754" class="term mono"><tspan class="termGreen">response recorded</tspan><tspan>, resolution=upheld, bridge=</tspan><tspan class="termBlue">erc8004-aligned</tspan></text>
+      <text x="304" y="796" class="term mono termDim">the final state is inspectable across both native settlement and validation layers</text>
+    </g>
   </g>
 
-  <g transform="translate(1102 624)">
-    <rect x="0" y="0" width="258" height="168" rx="24" fill="#FFFCF8" stroke="#E5D8C9"/>
-    <text x="24" y="34" class="label sans" style="font-size:14px;">Why this reads better</text>
-    <text x="24" y="66" class="body serif" style="font-size:20px;">A single embed gives the page a cleaner, scannable terminal story.</text>
-    <text x="24" y="108" class="mono" style="font-size:16px;fill:#41516B;">- calmer than a raw cast link</text>
-    <text x="24" y="132" class="mono" style="font-size:16px;fill:#41516B;">- still points to the real recording</text>
-    <text x="24" y="156" class="mono" style="font-size:16px;fill:#41516B;">- easy to reuse in docs and release notes</text>
+  <g transform="translate(1110 164)">
+    <rect x="0" y="0" width="276" height="122" rx="26" fill="#FFFCF7" stroke="#E5D9CB"/>
+    <text x="26" y="38" class="mini sans">Embed note</text>
+    <text x="26" y="74" class="cardBody serif" style="font-size:20px;">The cast remains the canonical recording.</text>
+    <text x="26" y="102" class="cardBody serif" style="font-size:20px;">This SVG just makes the flow easier to scan.</text>
   </g>
 
-  <g transform="translate(280 816)">
-    <text x="0" y="0" class="label sans" style="font-size:15px;">Watch the full recording</text>
-    <text x="0" y="38" class="mono" style="font-size:26px;fill:#172347;">asciinema.org/a/5u5so0LWHCE6J4dC</text>
+  <g transform="translate(1110 326)">
+    <rect x="0" y="0" width="276" height="420" rx="30" fill="#FFFCF8" stroke="#E6DACD"/>
+
+    <g class="scene s1">
+      <text x="28" y="38" class="cardTitle sans">Step 1</text>
+      <text x="28" y="86" class="cardHeadline sans">Discover the agent</text>
+      <text x="28" y="130" class="cardBody serif">The caller first looks up the auditor identity, its registration document, and the trust model it advertises.</text>
+      <text x="28" y="194" class="stepLabel mono">why it matters</text>
+      <text x="28" y="230" class="cardBody serif">The agent is identifiable before it makes a claim, so trust is not implicit or hidden in backend code.</text>
+    </g>
+
+    <g class="scene s2">
+      <text x="28" y="38" class="cardTitle sans">Step 2</text>
+      <text x="28" y="86" class="cardHeadline sans">Create a draft claim</text>
+      <text x="28" y="130" class="cardBody serif">A target is submitted and the agent produces a draft judgment that can still be reviewed before money is involved.</text>
+      <text x="28" y="194" class="stepLabel mono">why it matters</text>
+      <text x="28" y="230" class="cardBody serif">The system separates analysis from commitment, so the claim can be inspected before it is bonded on-chain.</text>
+    </g>
+
+    <g class="scene s3">
+      <text x="28" y="38" class="cardTitle sans">Step 3</text>
+      <text x="28" y="86" class="cardHeadline sans">Publish with stake</text>
+      <text x="28" y="130" class="cardBody serif">The draft becomes a public claim when the agent stakes behind it through the ProofOfAudit settlement contract.</text>
+      <text x="28" y="194" class="stepLabel mono">why it matters</text>
+      <text x="28" y="230" class="cardBody serif">This is the accountability move: the agent is no longer just talking, it is economically committed to its judgment.</text>
+    </g>
+
+    <g class="scene s4">
+      <text x="28" y="38" class="cardTitle sans">Step 4</text>
+      <text x="28" y="86" class="cardHeadline sans">Open a challenge</text>
+      <text x="28" y="130" class="cardBody serif">A challenger posts evidence with its own bond, turning the disagreement into a visible and neutral process.</text>
+      <text x="28" y="194" class="stepLabel mono">why it matters</text>
+      <text x="28" y="230" class="cardBody serif">The system does not ask users to trust the original claim forever; it gives dissent an explicit settlement path.</text>
+    </g>
+
+    <g class="scene s5">
+      <text x="28" y="38" class="cardTitle sans">Step 5</text>
+      <text x="28" y="86" class="cardHeadline sans">Read the validation trail</text>
+      <text x="28" y="130" class="cardBody serif">After resolution, the system mirrors the outcome into an ERC-8004-aligned validation record for external consumers.</text>
+      <text x="28" y="194" class="stepLabel mono">why it matters</text>
+      <text x="28" y="230" class="cardBody serif">Another agent can discover not just who made the claim, but how that claim held up when evidence challenged it.</text>
+    </g>
+  </g>
+
+  <g transform="translate(250 878)">
+    <text x="0" y="0" class="eyebrow sans" style="font-size:15px;">Full recording</text>
+    <text x="0" y="34" class="mono" style="font-size:24px;fill:#172347;">asciinema.org/a/5u5so0LWHCE6J4dC</text>
   </g>
 </svg>
