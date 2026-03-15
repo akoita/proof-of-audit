@@ -67,6 +67,8 @@ Current public identity references:
 
 ![Deterministic resolution flow](./docs/assets/workbench-deterministic-resolution.png)
 
+![Terminal agent demo poster](./docs/assets/proof-of-audit-agent-demo.svg)
+
 ## What is in this repo
 
 - `contracts/`: Foundry contract for publishing audits, opening challenges, and resolving stake payouts.
