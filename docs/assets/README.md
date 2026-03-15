@@ -2,6 +2,10 @@
 
 This folder contains the current demo screenshots used for the public alpha docs.
 
+It also holds generated terminal demo recordings when available, including:
+
+- `proof-of-audit-agent-demo.cast`
+
 Generated screenshots:
 
 - `workbench-overview.png`

@@ -48,6 +48,7 @@ Current public identity references:
 
 - run the local stack from the quick start below
 - follow [Demo script](./docs/DEMO_SCRIPT.md) for the fastest walkthrough
+- use [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for the terminal-first agent flow
 - use [Architecture](./docs/ARCHITECTURE.md) for a compact system map
 - use [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) for the exact identity and validation mapping
 - use [ERC-8004 roadmap status](./docs/ERC8004_ROADMAP.md) for what is complete versus still optional
@@ -57,6 +58,7 @@ Current public identity references:
 
 - start with [Agent API](./docs/AGENT_API.md)
 - then read [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md)
+- use [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for the terminal-first recording/runbook
 - use `GET /auditor`, `GET /auditor/registration`, and `GET /config` before submitting requests
 
 ## Demo snapshots
@@ -99,21 +101,27 @@ This repo implements a compact, coherent v1:
 cd /home/koita/dev/hackatons/proof-of-audit
 ./scripts/start-anvil.sh
 
-# 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
-./scripts/deploy-local.sh
+# 1. Prepare the full local agent demo stack
+./scripts/prepare-agent-demo-stack.sh
 
-# 2. Deploy the local demo fixtures and write the fixture manifest
-./scripts/deploy-demo-fixtures.sh
-
-# 3. Start the API (loads api/.env.local automatically)
+# 2. Start the API (loads api/.env.local automatically)
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 
-# 4. Start the frontend in a separate terminal (loads web/.env.local automatically)
+# 3. Start the frontend in a separate terminal (loads web/.env.local automatically)
 cd /home/koita/dev/hackatons/proof-of-audit/web
 pnpm dev
 ```
 
-Note: `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract to the local Anvil chain, then writes ignored local config for dependent components:
+Note: `./scripts/prepare-agent-demo-stack.sh` is the highest-level local bootstrap. It deploys:
+
+- `ProofOfAudit`
+- the demo fixtures
+- a localhost `AgentIdentityRegistry`
+- a localhost `ValidationRegistryAdapter`
+
+and then writes ignored local config for the API and web app.
+
+If you want the lower-level steps separately, `./scripts/deploy-local.sh` deploys only the `ProofOfAudit` smart contract to the local Anvil chain, then writes ignored local config for dependent components:
 
 - `deployments/localhost.json`
 - `api/.env.local`
