@@ -2,6 +2,10 @@
 
 This note documents the current ERC-8004 alignment for the Proof-of-Audit auditor service.
 
+For the exact public claim language and the full identity-versus-settlement boundary, see:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ALIGNMENT.md`
+
 ## Scope
 
 The current implementation aligns the auditor registration document and discovery API with the identity and discovery concepts in ERC-8004.
@@ -79,7 +83,7 @@ That endpoint is intentionally more operational than the registration document. 
 - network context
 - capability metadata used by the local workbench
 
-## Current alignment level
+## Current registration alignment level
 
 Strongest alignment:
 

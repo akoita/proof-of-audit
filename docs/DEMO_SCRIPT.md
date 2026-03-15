@@ -39,6 +39,8 @@ Open the workbench and point to:
 
 - the named auditor identity
 - the service-discovery record
+- the official ERC-8004 identity path
+- the validation registry reference
 - the active chain configuration
 
 Say:
@@ -74,6 +76,7 @@ Point to:
 - audit id
 - publish transaction
 - stake amount
+- validation request reference
 
 Say:
 
@@ -91,6 +94,7 @@ Point to:
 - challenge tx
 - resolution tx
 - final resolution status
+- validation response reference
 
 Say:
 
@@ -102,6 +106,10 @@ Say:
 
 > The important part is not that the system generated a judgment. The important part is that the judgment became stake-backed, challengeable, and transparently enforceable.
 
+Then add:
+
+> ERC-8004 gives the auditor a standard identity and validation trail. The native ProofOfAudit contract still handles stake, dispute, and payout logic.
+
 ## Backup flow
 
 If the UI is unavailable:
@@ -111,6 +119,8 @@ If the UI is unavailable:
 3. show `/auditor/registration`
 4. create an audit via `POST /audits`
 5. publish via `POST /audits/:id/publish`
-6. challenge via `POST /audits/:id/challenge`
+6. show `/audits/:id/validation/request`
+7. challenge via `POST /audits/:id/challenge`
+8. show `/audits/:id/validation/response` after challenge resolution
 
 Those endpoints expose the same story without relying on the browser.

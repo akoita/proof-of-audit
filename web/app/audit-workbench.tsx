@@ -48,6 +48,14 @@ type AuditorServiceRecord = {
   challenge_path_template: string;
   network: string;
   registry_contract_address?: string | null;
+  validation_registry_address?: string | null;
+  validation_source?: string | null;
+  validation_request_path_template: string;
+  validation_response_path_template: string;
+  submission_modes: string[];
+  resolution_modes: string[];
+  deterministic_resolution_supported: boolean;
+  manual_fallback_supported: boolean;
 };
 
 type PublicContractConfig = {
@@ -220,6 +228,17 @@ function formatIdentitySource(value: string | null | undefined): string {
       return "Official ERC-8004";
     case "project-local-custom":
       return "Local fallback";
+    default:
+      return "Unspecified path";
+  }
+}
+
+function formatValidationSource(value: string | null | undefined): string {
+  switch (value) {
+    case "erc8004-official":
+      return "Official ERC-8004";
+    case "project-local-adapter":
+      return "Local adapter";
     default:
       return "Unspecified path";
   }
@@ -677,6 +696,37 @@ export function AuditWorkbench() {
                 ) : null}
                 <span>{auditorService.discovery_path}</span>
                 <span>{auditorService.submit_path}</span>
+              </div>
+            ) : null}
+          </div>
+          <div className="signal-note">
+            <span className="signal-note-label">ERC-8004 alignment</span>
+            <strong>
+              {auditorService?.identity_source
+                ? formatIdentitySource(auditorService.identity_source)
+                : "Loading identity path"}
+            </strong>
+            <p className="muted">
+              Identity and validation follow ERC-8004-style public records, while
+              ProofOfAudit remains the native settlement layer for stake and dispute
+              logic.
+            </p>
+            {auditorService ? (
+              <div className="inline-links">
+                {auditorService.agent_id && auditorService.agent_registry ? (
+                  <span title={auditorService.agent_registry}>
+                    identity: agent #{auditorService.agent_id} @{" "}
+                    {shortenHex(auditorService.agent_registry, 10, 8)}
+                  </span>
+                ) : null}
+                {auditorService.validation_registry_address ? (
+                  <span title={auditorService.validation_registry_address}>
+                    validation: {formatValidationSource(auditorService.validation_source)} @{" "}
+                    {shortenHex(auditorService.validation_registry_address, 10, 8)}
+                  </span>
+                ) : null}
+                <span>{auditorService.validation_request_path_template}</span>
+                <span>{auditorService.validation_response_path_template}</span>
               </div>
             ) : null}
           </div>
