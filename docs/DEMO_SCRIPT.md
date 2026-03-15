@@ -124,3 +124,7 @@ If the UI is unavailable:
 8. show `/audits/:id/validation/response` after challenge resolution
 
 Those endpoints expose the same story without relying on the browser.
+
+For a reusable terminal-first version of that fallback path, see:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/ASCIINEMA_DEMO.md`
