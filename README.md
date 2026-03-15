@@ -47,6 +47,12 @@ Current public identity references:
 - use [Architecture](./docs/ARCHITECTURE.md) for a compact system map
 - use [Release notes draft](./docs/RELEASE_NOTES_DRAFT.md) for an external-facing summary
 
+## Agent integrator path
+
+- start with [Agent API](./docs/AGENT_API.md)
+- then read [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md)
+- use `GET /auditor`, `GET /auditor/registration`, and `GET /config` before submitting requests
+
 ## Demo snapshots
 
 ![Workbench overview](./docs/assets/workbench-overview.png)
@@ -265,6 +271,8 @@ For the default demo path, curated fixture evidence resolves automatically on-ch
 
 - [Strategic alignment](./docs/STRATEGIC_ALIGNMENT.md)
 - [ERC-8004 registration alignment](./docs/ERC8004_REGISTRATION.md)
+- [Agent API](./docs/AGENT_API.md)
+- [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md)
 - [Demo narrative](./docs/DEMO_NARRATIVE.md)
 - [Demo script](./docs/DEMO_SCRIPT.md)
 - [Architecture](./docs/ARCHITECTURE.md)

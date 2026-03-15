@@ -330,6 +330,10 @@ class AuditorServiceRecord:
     validation_source: str | None
     validation_request_path_template: str
     validation_response_path_template: str
+    submission_modes: tuple[str, ...]
+    resolution_modes: tuple[str, ...]
+    deterministic_resolution_supported: bool
+    manual_fallback_supported: bool
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -357,6 +361,10 @@ class AuditorServiceRecord:
             "validation_source": self.validation_source,
             "validation_request_path_template": self.validation_request_path_template,
             "validation_response_path_template": self.validation_response_path_template,
+            "submission_modes": list(self.submission_modes),
+            "resolution_modes": list(self.resolution_modes),
+            "deterministic_resolution_supported": self.deterministic_resolution_supported,
+            "manual_fallback_supported": self.manual_fallback_supported,
         }
 
 
@@ -637,6 +645,15 @@ class ContractConfig:
                 "resolvePathTemplate": "/audits/{id}/resolve",
                 "validationRequestPathTemplate": "/audits/{id}/validation/request",
                 "validationResponsePathTemplate": "/audits/{id}/validation/response",
+                "submissionModes": [
+                    "demo_fixture",
+                    "deployed_address",
+                    "source_bundle",
+                ],
+                "resolutionModes": [
+                    "deterministic",
+                    "manual_fallback",
+                ],
                 "network": self.network,
                 "chainId": self.chain_id,
             }
@@ -693,4 +710,8 @@ class ContractConfig:
             validation_source=self.validation_bridge_source,
             validation_request_path_template="/audits/{id}/validation/request",
             validation_response_path_template="/audits/{id}/validation/response",
+            submission_modes=("demo_fixture", "deployed_address", "source_bundle"),
+            resolution_modes=("deterministic", "manual_fallback"),
+            deterministic_resolution_supported=True,
+            manual_fallback_supported=True,
         )

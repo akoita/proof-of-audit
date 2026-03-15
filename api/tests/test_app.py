@@ -117,6 +117,16 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["validation_source"],
             "erc8004-official",
         )
+        self.assertEqual(
+            payload["auditor_service"]["submission_modes"],
+            ["demo_fixture", "deployed_address", "source_bundle"],
+        )
+        self.assertEqual(
+            payload["auditor_service"]["resolution_modes"],
+            ["deterministic", "manual_fallback"],
+        )
+        self.assertTrue(payload["auditor_service"]["deterministic_resolution_supported"])
+        self.assertTrue(payload["auditor_service"]["manual_fallback_supported"])
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertFalse(payload["deployment_ready"])
@@ -151,6 +161,16 @@ class AuditApiAppTest(unittest.TestCase):
             manifest["validation_bridge"]["registry_address"],
         )
         self.assertEqual(payload["validation_source"], "erc8004-official")
+        self.assertEqual(
+            payload["submission_modes"],
+            ["demo_fixture", "deployed_address", "source_bundle"],
+        )
+        self.assertEqual(
+            payload["resolution_modes"],
+            ["deterministic", "manual_fallback"],
+        )
+        self.assertTrue(payload["deterministic_resolution_supported"])
+        self.assertTrue(payload["manual_fallback_supported"])
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
         self.assertEqual(payload["challenge_path_template"], "/audits/{id}/challenge")

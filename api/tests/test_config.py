@@ -65,6 +65,16 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_service.validation_request_path_template,
             "/audits/{id}/validation/request",
         )
+        self.assertEqual(
+            config.auditor_service.submission_modes,
+            ("demo_fixture", "deployed_address", "source_bundle"),
+        )
+        self.assertEqual(
+            config.auditor_service.resolution_modes,
+            ("deterministic", "manual_fallback"),
+        )
+        self.assertTrue(config.auditor_service.deterministic_resolution_supported)
+        self.assertTrue(config.auditor_service.manual_fallback_supported)
         self.assertTrue(config.auditor_service.manifest_hash)
         self.assertFalse(config.deployment_ready)
 
