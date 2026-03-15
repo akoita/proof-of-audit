@@ -11,6 +11,7 @@ For the best first pass through the repo:
 1. read this page
 2. follow the short runbook in [Demo script](./docs/DEMO_SCRIPT.md)
 3. inspect [Architecture](./docs/ARCHITECTURE.md)
+4. use [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) for the exact standards mapping
 
 ## Overview
 
@@ -22,6 +23,7 @@ The current implementation focuses on:
 - a minimal discoverable auditor service record backed by a stable manifest hash
 - the official ERC-8004 Base Sepolia identity path as the canonical public registration
 - an ERC-8004-aligned validation bridge that mirrors published claims and resolved outcomes
+- native settlement remaining in `ProofOfAudit`, with ERC-8004 used for identity, discovery, and validation interoperability
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
 - real publish transactions and challenge flows backed by stake and challenge bonds
@@ -45,6 +47,7 @@ Current public identity references:
 - run the local stack from the quick start below
 - follow [Demo script](./docs/DEMO_SCRIPT.md) for the fastest walkthrough
 - use [Architecture](./docs/ARCHITECTURE.md) for a compact system map
+- use [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) for the exact identity and validation mapping
 - use [Release notes draft](./docs/RELEASE_NOTES_DRAFT.md) for an external-facing summary
 
 ## Agent integrator path

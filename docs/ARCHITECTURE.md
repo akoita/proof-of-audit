@@ -2,6 +2,13 @@
 
 Proof-of-Audit is a small, opinionated stack for making agent-made code judgments visible, stake-backed, and challengeable.
 
+The public standards story is intentionally narrow:
+
+- the auditor uses the official ERC-8004 Base Sepolia identity path
+- the service exposes an ERC-8004-aligned registration document and discovery record
+- the validation trail is mirrored into ERC-8004-aligned request and response artifacts
+- native settlement still happens in `ProofOfAudit`
+
 ## System shape
 
 ```mermaid
@@ -95,6 +102,25 @@ The trust model is intentionally narrow:
 - manual arbitration only exists for evidence the verifier cannot confirm
 
 This means the product is strongest as trust and enforcement infrastructure for agent-made judgments, not as a general-purpose audit engine.
+
+## ERC-8004 boundary
+
+Proof-of-Audit should be described as ERC-8004-aligned, not as a full ERC-8004 implementation.
+
+What ERC-8004 covers here:
+
+- agent identity
+- registration and discovery
+- validation interoperability
+
+What remains domain-specific:
+
+- escrowed stake
+- challenge opening
+- resolution authority
+- payouts
+
+That division keeps the standards story honest and keeps the enforcement logic in the contract designed for it.
 
 ## Main data flows
 
