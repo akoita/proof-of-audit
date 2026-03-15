@@ -108,6 +108,7 @@ Avoid these statements unless the implementation changes materially:
 ## Related docs
 
 - `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_REGISTRATION.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ROADMAP.md`
 - `/home/koita/dev/hackatons/proof-of-audit/docs/ARCHITECTURE.md`
 - `/home/koita/dev/hackatons/proof-of-audit/docs/DEMO_SCRIPT.md`
 - `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_API.md`
