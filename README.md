@@ -155,7 +155,8 @@ PYTHONPATH=agent:api python3 -m proof_of_audit_api.app
 Server defaults:
 
 - `http://127.0.0.1:8080`
-- data persisted under `api/data/`
+- audit records persisted in SQLite by default under `api/data/audits.sqlite3`
+- set `PROOF_OF_AUDIT_STORE_KIND=json` to opt back into file-per-record JSON storage
 - interactive API docs at `http://127.0.0.1:8080/docs`
 
 ### Run the web app
