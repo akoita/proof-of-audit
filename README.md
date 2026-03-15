@@ -26,6 +26,7 @@ The current implementation focuses on:
 - native settlement remaining in `ProofOfAudit`, with ERC-8004 used for identity, discovery, and validation interoperability
 - benchmark-driven smart contract review claims
 - normalized submissions for demo fixtures, deployed addresses, and source bundles
+- an optional agent-forge-backed live execution lane for local repository-style inputs, with deterministic fallback preserved
 - real publish transactions and challenge flows backed by stake and challenge bonds
 - deterministic challenge verification for curated fixture PoCs, with manual review only for ambiguous evidence
 - a browser-based trust loop for submit, publish, challenge, and explorer-linked chain state
@@ -244,6 +245,17 @@ Additional supported submission shapes:
 }
 ```
 
+```json
+{
+  "input_kind": "repository_url",
+  "repository_url": "file:///home/koita/dev/example-vault",
+  "entry_contract": "Vault",
+  "submitted_by": "judge-demo"
+}
+```
+
+When `PROOF_OF_AUDIT_WORKER_RUNTIME_MODE` is set to `hybrid` or `agent_forge`, repository submissions can use a local checkout path or `file://` URL to run a live agent-forge audit pass. The worker copies the repository into an isolated workspace, asks agent-forge to write a structured JSON report, and stores execution artifacts alongside the returned audit record. If live execution is unavailable in `hybrid` mode, the worker falls back safely.
+
 ## Demo benchmarks
 
 - `0x1000000000000000000000000000000000000001`: reentrancy bug
@@ -255,8 +267,8 @@ Unknown contracts return a low-confidence informational report instead of fabric
 
 ## Architecture
 
-1. A user submits a demo fixture, deployed address, or source bundle through the web app or API.
-2. The auditor agent maps the normalized submission to a deterministic benchmark claim.
+1. A user submits a demo fixture, deployed address, source bundle, or repository path through the web app or API.
+2. The auditor agent either maps the normalized submission to a deterministic benchmark claim or runs an optional agent-forge-backed live pass for supported local repository inputs.
 3. The API persists the claim and prepares on-chain publication metadata when the target is deployable.
 4. The contract records the staked attestation and challenge lifecycle.
 5. A challenger can submit a curated PoC artifact, the deterministic verifier evaluates it, and the contract resolves stake payouts under fixed rules.

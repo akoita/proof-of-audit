@@ -119,7 +119,7 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(
             payload["auditor_service"]["submission_modes"],
-            ["demo_fixture", "deployed_address", "source_bundle"],
+            ["demo_fixture", "deployed_address", "source_bundle", "repository_url"],
         )
         self.assertEqual(
             payload["auditor_service"]["resolution_modes"],
@@ -163,7 +163,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["validation_source"], "erc8004-official")
         self.assertEqual(
             payload["submission_modes"],
-            ["demo_fixture", "deployed_address", "source_bundle"],
+            ["demo_fixture", "deployed_address", "source_bundle", "repository_url"],
         )
         self.assertEqual(
             payload["resolution_modes"],

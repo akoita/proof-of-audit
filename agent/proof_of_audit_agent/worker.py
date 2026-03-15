@@ -3,8 +3,14 @@ from __future__ import annotations
 from hashlib import sha256
 from pathlib import Path
 
+from proof_of_audit_agent.agent_forge_backend import (
+    AgentForgeExecutionError,
+    AuditExecutionResult,
+    AgentForgeBackend,
+)
 from proof_of_audit_agent.fixtures import DemoFixture, load_demo_fixtures
 from proof_of_audit_agent.models import AuditReport, Finding
+from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 
 
 BENCHMARK_REPORTS = {
@@ -135,14 +141,23 @@ LEGACY_BENCHMARK_ADDRESSES = {
 class AuditWorker:
     """Returns deterministic reports for demo addresses and safe fallbacks otherwise."""
 
-    def __init__(self, fixtures_file: Path | None = None) -> None:
+    def __init__(
+        self,
+        fixtures_file: Path | None = None,
+        *,
+        runtime: WorkerRuntimeConfig | None = None,
+        workspace_root: Path | None = None,
+    ) -> None:
         self.fixtures = load_demo_fixtures(fixtures_file)
+        self.runtime = runtime or WorkerRuntimeConfig()
+        self.workspace_root = workspace_root or Path.cwd() / ".proof-of-audit-runtime"
         self._fixtures_by_address = {
             fixture.address: fixture for fixture in self.fixtures
         }
         self._fixtures_by_id = {
             fixture.fixture_id: fixture for fixture in self.fixtures
         }
+        self.agent_forge = AgentForgeBackend(self.runtime.agent_forge, self.workspace_root)
 
     def run_audit(self, contract_address: str) -> AuditReport:
         normalized = contract_address.lower()
@@ -169,6 +184,7 @@ class AuditWorker:
     def run_submission(
         self,
         *,
+        audit_id: str | None = None,
         input_kind: str,
         chain_id: int | None = None,
         contract_address: str | None = None,
@@ -177,12 +193,25 @@ class AuditWorker:
         source_bundle_uri: str | None = None,
         source_bundle_label: str | None = None,
         repository_url: str | None = None,
-    ) -> AuditReport:
-        del chain_id, source_bundle_label, repository_url
+    ) -> AuditExecutionResult:
+        del chain_id, source_bundle_label
+        live_attempted = False
         if input_kind == "demo_fixture":
-            return self._report_for_fixture(self.require_fixture(fixture_id))
+            return AuditExecutionResult(
+                report=self._report_for_fixture(self.require_fixture(fixture_id))
+            )
 
         if input_kind == "source_bundle":
+            if audit_id is not None:
+                live_attempted = True
+                live_result = self.agent_forge.run_submission(
+                    audit_id=audit_id,
+                    input_kind=input_kind,
+                    source_bundle_uri=source_bundle_uri,
+                    entry_contract=entry_contract,
+                )
+                if live_result is not None:
+                    return live_result
             source_identifier = self.synthetic_contract_address(
                 source_bundle_uri or "source-bundle",
                 entry_contract=entry_contract,
@@ -192,18 +221,70 @@ class AuditWorker:
                 source_bundle_uri=source_bundle_uri,
             )
             if benchmark_id is not None:
-                return self._report_for_benchmark_id(benchmark_id, source_identifier)
-            return AuditReport(
-                benchmark_id="source-bundle",
-                contract_address=source_identifier,
-                summary="Source bundle received. No deterministic benchmark matched the supplied entry contract or bundle metadata.",
-                findings=[],
-                confidence="low",
+                return AuditExecutionResult(
+                    report=self._report_for_benchmark_id(benchmark_id, source_identifier),
+                    execution=self.agent_forge.fallback_execution(
+                        reason="No live agent-forge execution was available for this source bundle. Returned the deterministic benchmark mapping instead.",
+                        live_attempted=live_attempted,
+                        source="deterministic-benchmark",
+                    ),
+                )
+            return AuditExecutionResult(
+                report=AuditReport(
+                    benchmark_id="source-bundle",
+                    contract_address=source_identifier,
+                    summary="Source bundle received. No deterministic benchmark matched the supplied entry contract or bundle metadata.",
+                    findings=[],
+                    confidence="low",
+                ),
+                execution=self.agent_forge.fallback_execution(
+                    reason="No deterministic benchmark matched this source bundle and no live agent-forge execution result was produced.",
+                    live_attempted=live_attempted,
+                    source="safe-fallback",
+                ),
+            )
+
+        if input_kind == "repository_url":
+            if audit_id is None:
+                raise ValueError("audit_id is required for repository_url submissions")
+            live_attempted = True
+            try:
+                live_result = self.agent_forge.run_submission(
+                    audit_id=audit_id,
+                    input_kind=input_kind,
+                    repository_url=repository_url,
+                    entry_contract=entry_contract,
+                )
+            except AgentForgeExecutionError:
+                raise
+            if live_result is not None:
+                return live_result
+            if self.runtime.mode == "agent_forge":
+                raise AgentForgeExecutionError(
+                    "repository_url submissions require a local repository path or file:// URL when worker mode is agent_forge"
+                )
+            synthetic_address = self.synthetic_contract_address(
+                repository_url or "repository-url",
+                entry_contract=entry_contract,
+            )
+            return AuditExecutionResult(
+                report=AuditReport(
+                    benchmark_id="repository-url",
+                    contract_address=synthetic_address,
+                    summary="Repository submission received, but the worker fell back because no local agent-forge execution path was available.",
+                    findings=[],
+                    confidence="low",
+                ),
+                execution=self.agent_forge.fallback_execution(
+                    reason="Repository submissions use the live agent-forge path only when a local repository checkout is available.",
+                    live_attempted=live_attempted,
+                    source="safe-fallback",
+                ),
             )
 
         if contract_address is None:
             raise ValueError("contract_address is required for deployed address submissions")
-        return self.run_audit(contract_address)
+        return AuditExecutionResult(report=self.run_audit(contract_address))
 
     def require_fixture(self, fixture_id: str | None) -> DemoFixture:
         if fixture_id is None or fixture_id not in self._fixtures_by_id:

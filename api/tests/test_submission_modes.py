@@ -127,6 +127,25 @@ def test_source_bundle_publish_requires_real_deployment(client: TestClient) -> N
     assert "must be deployed before publish" in payload["message"]
 
 
+def test_repository_submission_records_fallback_execution(client: TestClient) -> None:
+    response = client.post(
+        "/audits",
+        json={
+            "input_kind": "repository_url",
+            "repository_url": "https://github.com/example/vault",
+            "entry_contract": "Vault",
+            "submitted_by": "repo-test",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["submission"]["input_kind"] == "repository_url"
+    assert payload["execution"]["backend"] == "deterministic"
+    assert payload["execution"]["fallback_used"] is True
+    assert payload["report"]["benchmark_id"] == "repository-url"
+
+
 def test_submission_mode_validation_reports_missing_fixture_id(client: TestClient) -> None:
     response = client.post(
         "/audits",

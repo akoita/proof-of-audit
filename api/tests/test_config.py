@@ -67,7 +67,7 @@ class ContractConfigTest(unittest.TestCase):
         )
         self.assertEqual(
             config.auditor_service.submission_modes,
-            ("demo_fixture", "deployed_address", "source_bundle"),
+            ("demo_fixture", "deployed_address", "source_bundle", "repository_url"),
         )
         self.assertEqual(
             config.auditor_service.resolution_modes,
@@ -97,6 +97,8 @@ class ContractConfigTest(unittest.TestCase):
                 "PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS": "0xdef",
                 "PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE": "project-local-custom",
                 "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:9999",
+                "PROOF_OF_AUDIT_WORKER_RUNTIME_MODE": "hybrid",
+                "PROOF_OF_AUDIT_AGENT_FORGE_COMMAND": "/tmp/agent-forge",
             }
         )
 
@@ -122,6 +124,8 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.validation_registry_address, "0xdef")
         self.assertEqual(config.validation_bridge_source, "project-local-custom")
         self.assertEqual(config.runtime_api_base_url, "http://127.0.0.1:9999")
+        self.assertEqual(config.worker_runtime_mode, "hybrid")
+        self.assertEqual(config.agent_forge_command, "/tmp/agent-forge")
         self.assertTrue(config.deployment_ready)
         self.assertEqual(
             config.transaction_url("0x123"),
