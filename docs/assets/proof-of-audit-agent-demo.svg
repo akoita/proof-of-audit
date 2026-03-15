@@ -44,8 +44,8 @@
       .cardBody { font-size: 22px; fill: #34415C; }
       .stepLabel { font-size: 15px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; fill: #657089; }
       .progressBg { fill: #E8D8C7; opacity: 0.6; }
-      .progressFill { fill: #F08F55; transform-origin: 0 0; animation: progress 28s linear infinite; }
-      .scene { opacity: 0; animation-duration: 28s; animation-iteration-count: infinite; animation-timing-function: linear; }
+      .progressFill { fill: #F08F55; transform-origin: 0 0; animation: progress 18s linear infinite; }
+      .scene { opacity: 0; animation-duration: 18s; animation-iteration-count: infinite; animation-timing-function: linear; }
       .s1 { animation-name: scene1; }
       .s2 { animation-name: scene2; }
       .s3 { animation-name: scene3; }
