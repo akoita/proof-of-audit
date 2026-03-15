@@ -97,6 +97,10 @@ Published recording:
 - current upload: [asciinema.org/a/5u5so0LWHCE6J4dC](https://asciinema.org/a/5u5so0LWHCE6J4dC)
 - note: this upload was created from an unauthenticated CLI session, so Asciinema marks it for automatic deletion after 7 days unless it is re-uploaded from an authenticated machine
 
+Preview asset:
+
+![Terminal demo poster](./assets/proof-of-audit-agent-demo.svg)
+
 ## What the terminal flow shows
 
 The demo runner hits these endpoints in order:
