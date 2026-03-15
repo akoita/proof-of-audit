@@ -42,6 +42,7 @@ The current service record advertises these `submission_modes`:
 - `demo_fixture`
 - `deployed_address`
 - `source_bundle`
+- `repository_url`
 
 Current constraints:
 
@@ -52,6 +53,10 @@ Current constraints:
 - `source_bundle`
   - supported for off-chain claim generation
   - not publishable until deployed
+- `repository_url`
+  - supports local checkout paths or `file://` URLs
+  - can use the optional agent-forge execution lane when worker mode is `hybrid` or `agent_forge`
+  - returns execution artifact metadata so callers can inspect the live run context
 
 ## Main endpoints
 
@@ -76,6 +81,18 @@ Returns:
 - normalized submission data
 - the attached auditor profile
 - a deterministic report with findings, summary, and hashes
+- optional `execution` metadata when a live agent-forge pass runs or a fallback is recorded
+
+Repository submission example:
+
+```json
+{
+  "input_kind": "repository_url",
+  "repository_url": "file:///home/koita/dev/example-vault",
+  "entry_contract": "Vault",
+  "submitted_by": "agent-client"
+}
+```
 
 ### Read claim state
 
@@ -84,6 +101,7 @@ Returns:
 Use this after every mutation. The returned record is the source of truth for:
 
 - `status`
+- `execution`
 - `onchain`
 - `challenge`
 - `validation`
@@ -209,6 +227,7 @@ Validation lifecycle:
 Another agent should interpret the service as follows:
 
 - the report itself is deterministic and benchmark-oriented
+- repository-style local inputs can optionally run through an agent-forge-backed live execution path
 - the economically meaningful claim starts at `publish`
 - the canonical settlement truth is the native `ProofOfAudit` contract
 - the validation bridge is an interoperability mirror, not the payout engine

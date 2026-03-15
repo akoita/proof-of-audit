@@ -191,6 +191,24 @@ class ValidationTrailModel(BaseModel):
     last_error: str | None = None
 
 
+class ExecutionArtifactModel(BaseModel):
+    backend: str
+    mode: str
+    status: str
+    source: str
+    live_attempted: bool
+    fallback_used: bool
+    task_prompt: str | None = None
+    workspace_dir: str | None = None
+    source_path: str | None = None
+    report_path: str | None = None
+    run_id: str | None = None
+    run_dir: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    error: str | None = None
+
+
 class AuditRecordModel(BaseModel):
     id: str
     contract_address: str
@@ -200,6 +218,7 @@ class AuditRecordModel(BaseModel):
     status: str
     created_at: str
     report: AuditReportModel
+    execution: ExecutionArtifactModel | None = None
     onchain: OnchainPublicationModel | None = None
     challenge: ChallengeModel | None = None
     validation: ValidationTrailModel | None = None

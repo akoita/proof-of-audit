@@ -439,6 +439,24 @@ class AuditServiceTest(unittest.TestCase):
                 "ipfs://dual-risk-vault/emergency-payout-failure",
             )
 
+    def test_repository_submission_persists_execution_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir))
+
+            created = service.create_audit_submission(
+                {
+                    "input_kind": "repository_url",
+                    "repository_url": "https://github.com/example/repo",
+                    "entry_contract": "Vault",
+                },
+                submitted_by="repo-test",
+            )
+
+            self.assertEqual(created["submission"]["input_kind"], "repository_url")
+            self.assertEqual(created["report"]["benchmark_id"], "repository-url")
+            self.assertIsNotNone(created["execution"])
+            self.assertEqual(created["execution"]["status"], "fallback")
+
     def test_lists_demo_fixtures_from_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             fixtures_file = Path(tmpdir) / "demo-fixtures.localhost.json"

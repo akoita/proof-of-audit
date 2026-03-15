@@ -21,6 +21,7 @@ from proof_of_audit_api.validation_bridge import (
     ValidationRegistryBridge,
 )
 from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
+from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import JsonStore
 
@@ -36,7 +37,18 @@ class AuditService:
     ) -> None:
         self.store = JsonStore(data_root)
         self.contract_config = contract_config or ContractConfig.from_env()
-        self.worker = AuditWorker(self.contract_config.demo_fixtures_file)
+        self.worker = AuditWorker(
+            self.contract_config.demo_fixtures_file,
+            runtime=WorkerRuntimeConfig.from_values(
+                mode=self.contract_config.worker_runtime_mode,
+                agent_forge_command=self.contract_config.agent_forge_command,
+                agent_forge_provider=self.contract_config.agent_forge_provider,
+                agent_forge_model=self.contract_config.agent_forge_model,
+                agent_forge_max_iterations=self.contract_config.agent_forge_max_iterations,
+                agent_forge_runs_home=self.contract_config.agent_forge_runs_home,
+            ),
+            workspace_root=data_root,
+        )
         self.challenge_verifier = DeterministicChallengeVerifier()
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config
@@ -64,8 +76,11 @@ class AuditService:
         self, submission: dict[str, Any], submitted_by: str = "anonymous"
     ) -> dict[str, Any]:
         normalized_submission = self._normalize_submission(submission)
-        report = self.worker.run_submission(**normalized_submission)
         audit_id = str(uuid4())
+        execution_result = self.worker.run_submission(
+            audit_id=audit_id,
+            **normalized_submission,
+        )
         auditor = self.contract_config.auditor.to_dict()
         record = {
             "id": audit_id,
@@ -75,7 +90,12 @@ class AuditService:
             "submitted_by": submitted_by,
             "status": "draft",
             "created_at": datetime.now(UTC).isoformat(),
-            "report": report.to_dict(),
+            "report": execution_result.report.to_dict(),
+            "execution": (
+                execution_result.execution.to_dict()
+                if execution_result.execution is not None
+                else None
+            ),
             "onchain": None,
             "challenge": None,
             "validation": None,
@@ -324,6 +344,9 @@ class AuditService:
         validation = normalized.get("validation")
         if isinstance(validation, dict):
             normalized["validation"] = validation
+        execution = normalized.get("execution")
+        if isinstance(execution, dict):
+            normalized["execution"] = execution
         normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
 

@@ -397,6 +397,12 @@ class ContractConfig:
     auditor_agent_identity_source: str | None
     validation_registry_address: str | None
     validation_bridge_source: str | None
+    worker_runtime_mode: str
+    agent_forge_command: str
+    agent_forge_provider: str | None
+    agent_forge_model: str | None
+    agent_forge_max_iterations: int | None
+    agent_forge_runs_home: Path | None
 
     @classmethod
     def from_env(
@@ -591,6 +597,27 @@ class ContractConfig:
                     )
                 )
             ),
+            worker_runtime_mode=source.get(
+                "PROOF_OF_AUDIT_WORKER_RUNTIME_MODE",
+                "deterministic",
+            ),
+            agent_forge_command=source.get(
+                "PROOF_OF_AUDIT_AGENT_FORGE_COMMAND",
+                "python -m agent_forge.cli",
+            ),
+            agent_forge_provider=source.get("PROOF_OF_AUDIT_AGENT_FORGE_PROVIDER")
+            or None,
+            agent_forge_model=source.get("PROOF_OF_AUDIT_AGENT_FORGE_MODEL") or None,
+            agent_forge_max_iterations=(
+                int(source["PROOF_OF_AUDIT_AGENT_FORGE_MAX_ITERATIONS"])
+                if source.get("PROOF_OF_AUDIT_AGENT_FORGE_MAX_ITERATIONS")
+                else None
+            ),
+            agent_forge_runs_home=(
+                Path(source["PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME"])
+                if source.get("PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME")
+                else None
+            ),
         )
 
     @property
@@ -710,7 +737,12 @@ class ContractConfig:
             validation_source=self.validation_bridge_source,
             validation_request_path_template="/audits/{id}/validation/request",
             validation_response_path_template="/audits/{id}/validation/response",
-            submission_modes=("demo_fixture", "deployed_address", "source_bundle"),
+            submission_modes=(
+                "demo_fixture",
+                "deployed_address",
+                "source_bundle",
+                "repository_url",
+            ),
             resolution_modes=("deterministic", "manual_fallback"),
             deterministic_resolution_supported=True,
             manual_fallback_supported=True,
