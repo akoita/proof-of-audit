@@ -12,6 +12,7 @@ For the best first pass through the repo:
 2. follow the short runbook in [Demo script](./docs/DEMO_SCRIPT.md)
 3. inspect [Architecture](./docs/ARCHITECTURE.md)
 4. use [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) for the exact standards mapping
+5. use [ERC-8004 roadmap status](./docs/ERC8004_ROADMAP.md) for implementation status and remaining optional scope
 
 ## Overview
 
@@ -49,6 +50,7 @@ Current public identity references:
 - follow [Demo script](./docs/DEMO_SCRIPT.md) for the fastest walkthrough
 - use [Architecture](./docs/ARCHITECTURE.md) for a compact system map
 - use [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) for the exact identity and validation mapping
+- use [ERC-8004 roadmap status](./docs/ERC8004_ROADMAP.md) for what is complete versus still optional
 - use [Release notes draft](./docs/RELEASE_NOTES_DRAFT.md) for an external-facing summary
 
 ## Agent integrator path
