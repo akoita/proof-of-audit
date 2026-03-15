@@ -89,6 +89,10 @@ class AuditorServiceRecordModel(BaseModel):
     validation_source: str | None = None
     validation_request_path_template: str
     validation_response_path_template: str
+    submission_modes: list[str]
+    resolution_modes: list[str]
+    deterministic_resolution_supported: bool
+    manual_fallback_supported: bool
 
 
 class FindingModel(BaseModel):
