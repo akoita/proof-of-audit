@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps test-contracts test-python test-system-e2e test-ui-e2e test-e2e
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-ui-e2e test-e2e
 
 PYTHON ?= python3
 
@@ -23,6 +23,12 @@ verify-base-sepolia:
 install-api-deps:
 	$(PYTHON) -m pip install setuptools wheel
 	$(PYTHON) -m pip install --no-build-isolation -e '.[dev]'
+
+install-git-hooks:
+	./scripts/install-git-hooks.sh
+
+security-audit-staged:
+	PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} ./scripts/run-pre-commit-security-audit.sh
 
 test-contracts:
 	forge test --root contracts

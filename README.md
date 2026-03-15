@@ -143,6 +143,15 @@ make test-python
 
 The Python suite runs with `pytest`, configured via `pyproject.toml`.
 
+### Install the local security audit hook
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+make install-git-hooks
+```
+
+This installs a repository-local `pre-commit` hook that inspects staged files and only runs extra security checks when Solidity or security-sensitive backend paths changed. The hook writes `.tmp/security-audit/pre-commit-report.md` and uses a small trusted-source policy informed by OpenZeppelin Skills, Pashov Skills, and Trail of Bits Curated Skills. The full trigger map is in [Security audit workflow](./docs/SECURITY_AUDIT_WORKFLOW.md).
+
 ### Run the API
 
 ```bash
