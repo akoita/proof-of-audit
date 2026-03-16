@@ -239,6 +239,14 @@ class AuditApiAppTest(unittest.TestCase):
         listed = self.client.get("/audits")
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(len(listed.json()["items"]), 1)
+        self.assertEqual(
+            listed.json()["items"][0]["target_key"],
+            "0x1000000000000000000000000000000000000001",
+        )
+        self.assertEqual(
+            listed.json()["items"][0]["target_auditor_key"],
+            "0x1000000000000000000000000000000000000001::proof-of-audit-auditor",
+        )
 
         published = self.client.post(
             f"/audits/{audit_id}/publish",
@@ -384,6 +392,10 @@ class AuditApiAppTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["items"][0]["submission"]["input_kind"], "deployed_address")
         self.assertEqual(payload["items"][0]["agent"]["id"], "proof-of-audit-auditor")
+        self.assertEqual(
+            payload["items"][0]["target_auditor_key"],
+            "0x1000000000000000000000000000000000000001::proof-of-audit-auditor",
+        )
         self.assertEqual(payload["items"][0]["report"]["finding_count"], 1)
         self.assertEqual(
             payload["items"][0]["report"]["findings"][0]["category"],
@@ -414,6 +426,61 @@ class AuditApiAppTest(unittest.TestCase):
             payload["report"]["findings"][1]["affected_function"],
             "emergencyPayout(uint256)",
         )
+
+    def test_list_audits_supports_target_filter_and_target_path(self) -> None:
+        first = self.client.post(
+            "/audits",
+            json={
+                "contract_address": "0x1000000000000000000000000000000000000001",
+                "submitted_by": "first",
+            },
+        )
+        self.assertEqual(first.status_code, 201)
+        second = self.client.post(
+            "/audits",
+            json={
+                "contract_address": "0x1000000000000000000000000000000000000002",
+                "submitted_by": "second",
+            },
+        )
+        self.assertEqual(second.status_code, 201)
+        third = self.client.post(
+            "/audits",
+            json={
+                "contract_address": "0x1000000000000000000000000000000000000001",
+                "submitted_by": "third",
+            },
+        )
+        self.assertEqual(third.status_code, 201)
+
+        filtered = self.client.get(
+            "/audits",
+            params={"contract_address": "0x1000000000000000000000000000000000000001"},
+        )
+        self.assertEqual(filtered.status_code, 200)
+        filtered_payload = filtered.json()
+        self.assertEqual(len(filtered_payload["items"]), 2)
+        self.assertTrue(
+            all(
+                item["contract_address"] == "0x1000000000000000000000000000000000000001"
+                for item in filtered_payload["items"]
+            )
+        )
+
+        target_view = self.client.get(
+            "/targets/0x1000000000000000000000000000000000000001/audits"
+        )
+        self.assertEqual(target_view.status_code, 200)
+        target_payload = target_view.json()
+        self.assertEqual(
+            target_payload["target_contract"],
+            "0x1000000000000000000000000000000000000001",
+        )
+        self.assertEqual(
+            target_payload["target_key"],
+            "0x1000000000000000000000000000000000000001",
+        )
+        self.assertEqual(len(target_payload["items"]), 2)
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

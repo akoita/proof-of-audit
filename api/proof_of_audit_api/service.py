@@ -89,10 +89,15 @@ class AuditService:
             **normalized_submission,
         )
         auditor = self.contract_config.auditor.to_dict()
+        target_key = self._normalize_target_key(normalized_submission["contract_address"])
         record = {
             "id": audit_id,
             "agent": auditor,
             "contract_address": normalized_submission["contract_address"],
+            "target_key": target_key,
+            "target_auditor_key": self._target_auditor_key(
+                target_key, str(auditor["id"])
+            ),
             "submission": normalized_submission,
             "submitted_by": submitted_by,
             "status": "draft",
@@ -116,9 +121,17 @@ class AuditService:
             return None
         return self._normalize_stored_record(record)
 
-    def list_audits(self) -> list[dict[str, Any]]:
-        records = [self._normalize_stored_record(record) for record in self.store.list_all()]
+    def list_audits(self, contract_address: str | None = None) -> list[dict[str, Any]]:
+        raw_records = (
+            self.store.list_by_target_key(self._normalize_target_key(contract_address))
+            if contract_address
+            else self.store.list_all()
+        )
+        records = [self._normalize_stored_record(record) for record in raw_records]
         return sorted(records, key=lambda record: record["created_at"], reverse=True)
+
+    def list_target_claims(self, contract_address: str) -> list[dict[str, Any]]:
+        return self.list_audits(contract_address=contract_address)
 
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
         return self.worker.list_demo_fixtures()
@@ -356,6 +369,11 @@ class AuditService:
             normalized["execution"] = execution
         normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
+        normalized["target_key"] = self._normalize_target_key(normalized["contract_address"])
+        normalized["target_auditor_key"] = self._target_auditor_key(
+            normalized["target_key"],
+            str(normalized["agent"]["id"]),
+        )
 
         normalized["report"] = self._normalize_report(
             normalized.get("report"),
@@ -795,3 +813,11 @@ class AuditService:
             "source_bundle_label": source_bundle_label,
             "repository_url": repository_url,
         }
+
+    def _normalize_target_key(self, contract_address: str | None) -> str:
+        if not contract_address:
+            raise ValueError("contract_address is required to derive a target key")
+        return str(contract_address).strip().lower()
+
+    def _target_auditor_key(self, target_key: str, auditor_id: str) -> str:
+        return f"{target_key}::{auditor_id.strip()}"
