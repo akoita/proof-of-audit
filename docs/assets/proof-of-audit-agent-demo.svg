@@ -1,208 +1,412 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" fill="none" role="img" aria-labelledby="title desc">
-  <title id="title">Proof-of-Audit guided terminal demo</title>
-  <desc id="desc">A slow, narrated SVG preview of the terminal-first Proof-of-Audit flow, showing discovery, claim creation, publication, challenge, and validation in paced steps.</desc>
+  <title id="title">Proof-of-Audit — Agent Trust Loop</title>
+  <desc id="desc">Animated SVG preview of the Proof-of-Audit agent interaction flow: discover, draft, publish, challenge, resolve — showing how agents make stake-backed, challengeable code judgments on-chain.</desc>
   <defs>
-    <linearGradient id="bg" x1="220" y1="48" x2="1398" y2="910" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFF1DF"/>
-      <stop offset="0.48" stop-color="#FFF8F1"/>
-      <stop offset="1" stop-color="#F5EFE7"/>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1600" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B0F1A"/>
+      <stop offset="0.5" stop-color="#101729"/>
+      <stop offset="1" stop-color="#0D1220"/>
     </linearGradient>
-    <radialGradient id="warmGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(330 240) rotate(60) scale(500 700)">
-      <stop stop-color="#FFB77E" stop-opacity="0.36"/>
-      <stop offset="1" stop-color="#FFB77E" stop-opacity="0"/>
+    <radialGradient id="glow1" cx="0.2" cy="0.3" r="0.6">
+      <stop stop-color="#3B82F6" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="coolGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1240 730) rotate(130) scale(330 500)">
-      <stop stop-color="#BACBFF" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#BACBFF" stop-opacity="0"/>
+    <radialGradient id="glow2" cx="0.8" cy="0.7" r="0.5">
+      <stop stop-color="#8B5CF6" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/>
     </radialGradient>
-    <filter id="shadow" x="214" y="124" width="1176" height="744" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="22"/>
-      <feGaussianBlur stdDeviation="30"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.109804 0 0 0 0 0.137255 0 0 0 0 0.219608 0 0 0 0.12 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    <radialGradient id="glow3" cx="0.5" cy="0.9" r="0.4">
+      <stop stop-color="#10B981" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#10B981" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12"/>
+      <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/>
+      <feBlend in="SourceGraphic"/>
     </filter>
+    <filter id="termGlow" x="-5%" y="-5%" width="110%" height="115%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="20"/>
+      <feColorMatrix values="0 0 0 0 0.1 0 0 0 0 0.15 0 0 0 0 0.35 0 0 0 0.5 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+    <linearGradient id="progressGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="0.33" stop-color="#8B5CF6"/>
+      <stop offset="0.66" stop-color="#EC4899"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="termBar" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#1E293B"/>
+      <stop offset="1" stop-color="#1A2332"/>
+    </linearGradient>
+    <clipPath id="progressClip">
+      <rect x="0" y="0" width="780" height="6" rx="3">
+        <animate attributeName="width" from="0" to="780" dur="28s" repeatCount="indefinite"/>
+      </rect>
+    </clipPath>
     <style>
-      .sans { font-family: "IBM Plex Sans", "Segoe UI", sans-serif; }
-      .serif { font-family: Georgia, "Times New Roman", serif; }
-      .mono { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; }
-      .eyebrow { font-size: 18px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; fill: #58617C; }
-      .headline { font-size: 84px; font-weight: 700; letter-spacing: -0.04em; fill: #172347; }
-      .body { font-size: 25px; fill: #2A3149; }
-      .mini { font-size: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; fill: #59627E; }
-      .chipText { font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; fill: #263149; }
-      .termTitle { font-size: 18px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; fill: #B7C0D8; }
-      .term { font-size: 24px; fill: #E7EDF7; }
-      .termDim { fill: #90A0C0; }
-      .termBlue { fill: #8CC8FF; }
-      .termGreen { fill: #92E3B4; }
-      .termGold { fill: #FFD27C; }
-      .cardTitle { font-size: 17px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; fill: #5A657F; }
-      .cardHeadline { font-size: 36px; font-weight: 700; fill: #1A2740; }
-      .cardBody { font-size: 22px; fill: #34415C; }
-      .stepLabel { font-size: 15px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; fill: #657089; }
-      .progressBg { fill: #E8D8C7; opacity: 0.6; }
-      .progressFill { fill: #F08F55; transform-origin: 0 0; animation: progress 28s linear infinite; }
-      .scene { opacity: 0; animation-duration: 28s; animation-iteration-count: infinite; animation-timing-function: linear; }
-      .s1 { animation-name: scene1; }
-      .s2 { animation-name: scene2; }
-      .s3 { animation-name: scene3; }
-      .s4 { animation-name: scene4; }
-      .s5 { animation-name: scene5; }
-      @keyframes scene1 {
-        0%, 18% { opacity: 1; }
-        20%, 100% { opacity: 0; }
-      }
-      @keyframes scene2 {
-        0%, 19% { opacity: 0; }
-        20%, 38% { opacity: 1; }
-        40%, 100% { opacity: 0; }
-      }
-      @keyframes scene3 {
-        0%, 39% { opacity: 0; }
-        40%, 58% { opacity: 1; }
-        60%, 100% { opacity: 0; }
-      }
-      @keyframes scene4 {
-        0%, 59% { opacity: 0; }
-        60%, 78% { opacity: 1; }
-        80%, 100% { opacity: 0; }
-      }
-      @keyframes scene5 {
-        0%, 79% { opacity: 0; }
-        80%, 98% { opacity: 1; }
-        100% { opacity: 0; }
-      }
-      @keyframes progress {
-        0% { transform: scaleX(0); }
-        100% { transform: scaleX(1); }
-      }
+      .sans { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
+      .mono { font-family: "JetBrains Mono", "SF Mono", "Fira Code", Consolas, monospace; }
+
+      /* Scene animation — 7 scenes across 28s */
+      .scene { opacity: 0; }
+      .sc1 { animation: sc1 28s linear infinite; }
+      .sc2 { animation: sc2 28s linear infinite; }
+      .sc3 { animation: sc3 28s linear infinite; }
+      .sc4 { animation: sc4 28s linear infinite; }
+      .sc5 { animation: sc5 28s linear infinite; }
+      .sc6 { animation: sc6 28s linear infinite; }
+      .sc7 { animation: sc7 28s linear infinite; }
+
+      /* Each scene gets ~4s (14.3%) */
+      @keyframes sc1 {  0%,  12% { opacity:1 }  14.3%, 100% { opacity:0 } }
+      @keyframes sc2 {  0%,  13.3% { opacity:0 }  14.3%,  26.6% { opacity:1 }  28.6%, 100% { opacity:0 } }
+      @keyframes sc3 {  0%,  27.6% { opacity:0 }  28.6%,  41% { opacity:1 }  42.9%, 100% { opacity:0 } }
+      @keyframes sc4 {  0%,  41.9% { opacity:0 }  42.9%,  55.3% { opacity:1 }  57.1%, 100% { opacity:0 } }
+      @keyframes sc5 {  0%,  56.1% { opacity:0 }  57.1%,  69.5% { opacity:1 }  71.4%, 100% { opacity:0 } }
+      @keyframes sc6 {  0%,  70.4% { opacity:0 }  71.4%,  83.8% { opacity:1 }  85.7%, 100% { opacity:0 } }
+      @keyframes sc7 {  0%,  84.7% { opacity:0 }  85.7%,  98% { opacity:1 }  100% { opacity:0 } }
+
+      /* Lifecycle pip fill animations */
+      .pip-fill-1 { animation: pipFill1 28s linear infinite; }
+      .pip-fill-2 { animation: pipFill2 28s linear infinite; }
+      .pip-fill-3 { animation: pipFill3 28s linear infinite; }
+      .pip-fill-4 { animation: pipFill4 28s linear infinite; }
+      .pip-fill-5 { animation: pipFill5 28s linear infinite; }
+      .pip-fill-6 { animation: pipFill6 28s linear infinite; }
+      .pip-fill-7 { animation: pipFill7 28s linear infinite; }
+
+      @keyframes pipFill1 { 0%, 100% { opacity: 1; } }
+      @keyframes pipFill2 { 0%, 13.3%  { opacity:0.2 } 14.3%, 100% { opacity: 1; } }
+      @keyframes pipFill3 { 0%, 27.6%  { opacity:0.2 } 28.6%, 100% { opacity: 1; } }
+      @keyframes pipFill4 { 0%, 41.9%  { opacity:0.2 } 42.9%, 100% { opacity: 1; } }
+      @keyframes pipFill5 { 0%, 56.1%  { opacity:0.2 } 57.1%, 100% { opacity: 1; } }
+      @keyframes pipFill6 { 0%, 70.4%  { opacity:0.2 } 71.4%, 100% { opacity: 1; } }
+      @keyframes pipFill7 { 0%, 84.7%  { opacity:0.2 } 85.7%, 100% { opacity: 1; } }
     </style>
   </defs>
 
-  <rect width="1600" height="960" fill="url(#bg)"/>
-  <rect width="1600" height="960" fill="url(#warmGlow)"/>
-  <rect width="1600" height="960" fill="url(#coolGlow)"/>
+  <!-- Background -->
+  <rect width="1600" height="960" fill="url(#bgGrad)"/>
+  <rect width="1600" height="960" fill="url(#glow1)"/>
+  <rect width="1600" height="960" fill="url(#glow2)"/>
+  <rect width="1600" height="960" fill="url(#glow3)"/>
 
-  <text x="250" y="118" class="eyebrow sans">Proof-of-Audit terminal walkthrough</text>
-  <text x="250" y="204" class="headline serif">A slower, guided</text>
-  <text x="250" y="290" class="headline serif">agent flow preview.</text>
-  <text x="250" y="350" class="body serif">Instead of a fast terminal flash, this embed walks through each stage of the</text>
-  <text x="250" y="388" class="body serif">agent loop: discovery, draft claim, publish, challenge, and validation response.</text>
-
-  <g transform="translate(250 438)">
-    <rect x="0" y="0" width="180" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
-    <text x="25" y="27" class="chipText sans">discoverable</text>
-    <rect x="198" y="0" width="160" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
-    <text x="223" y="27" class="chipText sans">staked</text>
-    <rect x="376" y="0" width="228" height="42" rx="21" fill="#FFF6EE" stroke="#E6C5A5"/>
-    <text x="401" y="27" class="chipText sans">challengeable</text>
+  <!-- Grid lines for techy feel -->
+  <g opacity="0.03" stroke="#94A3B8" stroke-width="1">
+    <line x1="0" y1="192" x2="1600" y2="192"/>
+    <line x1="0" y1="384" x2="1600" y2="384"/>
+    <line x1="0" y1="576" x2="1600" y2="576"/>
+    <line x1="0" y1="768" x2="1600" y2="768"/>
+    <line x1="400" y1="0" x2="400" y2="960"/>
+    <line x1="800" y1="0" x2="800" y2="960"/>
+    <line x1="1200" y1="0" x2="1200" y2="960"/>
   </g>
 
-  <g filter="url(#shadow)">
-    <rect x="250" y="520" width="820" height="318" rx="34" fill="#101826"/>
-    <rect x="250" y="520" width="820" height="318" rx="34" stroke="#263247"/>
-    <rect x="250" y="520" width="820" height="62" rx="34" fill="#111A2A"/>
-    <rect x="250" y="582" width="820" height="1" fill="#28344A"/>
-    <circle cx="290" cy="552" r="8" fill="#FF5F57"/>
-    <circle cx="320" cy="552" r="8" fill="#FFBD2E"/>
-    <circle cx="350" cy="552" r="8" fill="#28C840"/>
-    <text x="404" y="558" class="termTitle mono">terminal demo / clean-vault deterministic path</text>
+  <!-- ── Header ── -->
+  <text x="80" y="72" class="sans" font-size="14" font-weight="600" letter-spacing="0.2em" fill="#64748B" text-transform="uppercase">PROOF-OF-AUDIT</text>
+  <text x="80" y="118" class="sans" font-size="42" font-weight="700" fill="#F1F5F9" letter-spacing="-0.02em">Agent Trust Loop</text>
+  <text x="80" y="158" class="sans" font-size="20" fill="#94A3B8">A named agent makes a code judgment, stakes on that claim, and can be challenged on-chain.</text>
 
-    <rect x="302" y="610" width="716" height="8" rx="4" class="progressBg"/>
-    <rect x="302" y="610" width="716" height="8" rx="4" class="progressFill"/>
+  <!-- Feature chips -->
+  <g transform="translate(80 184)">
+    <rect x="0" y="0" width="120" height="32" rx="16" fill="#1E3A5F" stroke="#3B82F6" stroke-opacity="0.4"/>
+    <text x="16" y="21" class="mono" font-size="11" font-weight="600" fill="#60A5FA" letter-spacing="0.06em">🔍 DISCOVER</text>
 
-    <g class="scene s1">
-      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">GET /auditor</tspan></text>
-      <text x="304" y="712" class="term mono termDim">discovering the named auditor service and its public identity ...</text>
-      <text x="304" y="754" class="term mono"><tspan class="termGreen">agent_id=1862</tspan><tspan>, identity_source=</tspan><tspan class="termBlue">erc8004-official</tspan></text>
-      <text x="304" y="796" class="term mono termDim">the caller learns who is making the claim before any judgment is requested</text>
+    <rect x="134" y="0" width="96" height="32" rx="16" fill="#2D1B4E" stroke="#8B5CF6" stroke-opacity="0.4"/>
+    <text x="148" y="21" class="mono" font-size="11" font-weight="600" fill="#A78BFA" letter-spacing="0.06em">📝 DRAFT</text>
+
+    <rect x="244" y="0" width="98" height="32" rx="16" fill="#1B3B3B" stroke="#10B981" stroke-opacity="0.4"/>
+    <text x="258" y="21" class="mono" font-size="11" font-weight="600" fill="#34D399" letter-spacing="0.06em">⛓️ STAKE</text>
+
+    <rect x="356" y="0" width="126" height="32" rx="16" fill="#3B1B2E" stroke="#EC4899" stroke-opacity="0.4"/>
+    <text x="370" y="21" class="mono" font-size="11" font-weight="600" fill="#F472B6" letter-spacing="0.06em">⚔️ CHALLENGE</text>
+
+    <rect x="496" y="0" width="112" height="32" rx="16" fill="#1B2E3B" stroke="#06B6D4" stroke-opacity="0.4"/>
+    <text x="510" y="21" class="mono" font-size="11" font-weight="600" fill="#22D3EE" letter-spacing="0.06em">✅ RESOLVE</text>
+  </g>
+
+  <!-- ── Terminal window ── -->
+  <g filter="url(#termGlow)">
+    <rect x="60" y="244" width="880" height="460" rx="16" fill="#0F172A" stroke="#1E293B" stroke-width="1"/>
+    <!-- Title bar -->
+    <rect x="60" y="244" width="880" height="44" rx="16" fill="url(#termBar)"/>
+    <rect x="60" y="272" width="880" height="16" fill="#0F172A"/>
+    <rect x="60" y="287" width="880" height="1" fill="#1E293B"/>
+    <circle cx="92" cy="266" r="6" fill="#EF4444" opacity="0.8"/>
+    <circle cx="112" cy="266" r="6" fill="#EAB308" opacity="0.8"/>
+    <circle cx="132" cy="266" r="6" fill="#22C55E" opacity="0.8"/>
+    <text x="160" y="271" class="mono" font-size="12" font-weight="600" fill="#475569" letter-spacing="0.1em">proof-of-audit — agent terminal demo</text>
+
+    <!-- Progress bar -->
+    <rect x="90" y="300" width="780" height="6" rx="3" fill="#1E293B"/>
+    <g clip-path="url(#progressClip)" transform="translate(90 300)">
+      <rect x="0" y="0" width="780" height="6" rx="3" fill="url(#progressGrad)"/>
     </g>
 
-    <g class="scene s2">
-      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits</tspan><tspan> input_kind=demo_fixture fixture_id=clean-vault</tspan></text>
-      <text x="304" y="712" class="term mono termDim">creating a draft claim from the local deterministic benchmark ...</text>
-      <text x="304" y="754" class="term mono"><tspan class="termGreen">draft created</tspan><tspan>, benchmark_id=clean-vault, max_severity=medium</tspan></text>
-      <text x="304" y="796" class="term mono termDim">the agent can explain what it sees before putting stake behind the result</text>
+    <!-- ── Scene 1: Discover ── -->
+    <g class="scene sc1">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 1</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#60A5FA">🔍 DISCOVER THE AUDITOR</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ Who is the agent? Can I trust it?</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s /auditor</text>
+      <text x="90" y="440" class="mono" font-size="15" fill="#94A3B8">Service ID:    <tspan fill="#F59E0B">proof-of-audit-auditor</tspan></text>
+      <text x="90" y="464" class="mono" font-size="15" fill="#94A3B8">Capability:    <tspan fill="#22D3EE">audit_contract</tspan></text>
+      <text x="90" y="488" class="mono" font-size="15" fill="#94A3B8">Identity:      <tspan fill="#A78BFA">erc8004-official</tspan></text>
+      <text x="90" y="512" class="mono" font-size="15" fill="#94A3B8">Resolution:    <tspan fill="#22D3EE">deterministic</tspan>, <tspan fill="#64748B">manual_fallback</tspan></text>
+
+      <text x="90" y="550" class="mono" font-size="13" fill="#475569">$ curl -s /auditor/registration</text>
+      <text x="90" y="578" class="mono" font-size="15" fill="#94A3B8">Trust model:   <tspan fill="#34D399">crypto-economic</tspan></text>
+      <text x="90" y="602" class="mono" font-size="15" fill="#94A3B8">Standard:      <tspan fill="#A78BFA">ERC-8004 registration-v1</tspan></text>
+
+      <rect x="90" y="626" width="220" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="645" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Auditor discovered</text>
     </g>
 
-    <g class="scene s3">
-      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits/:id/publish</tspan></text>
-      <text x="304" y="712" class="term mono termDim">committing the claim on-chain through the settlement contract ...</text>
-      <text x="304" y="754" class="term mono"><tspan class="termGreen">published</tspan><tspan>, stake=</tspan><tspan class="termGold">0.01 ETH</tspan><tspan>, contract=</tspan><tspan class="termBlue">ProofOfAudit</tspan></text>
-      <text x="304" y="796" class="term mono termDim">this is the accountability step: the claim is now visible and bonded</text>
+    <!-- ── Scene 2: Select fixture ── -->
+    <g class="scene sc2">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 2</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#60A5FA">📋 SELECT BENCHMARK</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ Pick a known contract to audit.</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s /fixtures</text>
+      <text x="90" y="444" class="mono" font-size="15" fill="#94A3B8">Fixture:       <tspan fill="#F59E0B">clean-vault</tspan></text>
+      <text x="90" y="468" class="mono" font-size="15" fill="#94A3B8">Benchmark:     <tspan fill="#22D3EE">clean-vault</tspan></text>
+      <text x="90" y="492" class="mono" font-size="15" fill="#94A3B8">Address:       <tspan fill="#A78BFA">0x04c8…3fef</tspan></text>
+      <text x="90" y="516" class="mono" font-size="15" fill="#94A3B8">Challenge PoC: <tspan fill="#F472B6">ipfs://clean-vault/missed-reentrancy</tspan></text>
+      <text x="90" y="540" class="mono" font-size="15" fill="#94A3B8">Note:          <tspan fill="#64748B">Clean benchmark with medium confidence</tspan></text>
+
+      <text x="90" y="578" class="mono" font-size="14" fill="#475569" font-style="italic">This fixture shows the strongest deterministic challenge path.</text>
+
+      <rect x="90" y="606" width="250" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="625" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Fixture 'clean-vault' selected</text>
     </g>
 
-    <g class="scene s4">
-      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">POST /audits/:id/challenge</tspan><tspan> poc_uri=ipfs://clean-vault...</tspan></text>
-      <text x="304" y="712" class="term mono termDim">submitting evidence against the published claim ...</text>
-      <text x="304" y="754" class="term mono"><tspan class="termGreen">challenge opened</tspan><tspan>, verifier_path=deterministic, bond=</tspan><tspan class="termGold">0.005 ETH</tspan></text>
-      <text x="304" y="796" class="term mono termDim">the dispute flow is neutral: the challenger gets its own economic commitment</text>
+    <!-- ── Scene 3: Draft ── -->
+    <g class="scene sc3">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 3</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#A78BFA">📝 CREATE DRAFT CLAIM</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ The agent produces a review judgment.</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s -X POST /audits -d '{"input_kind":"demo_fixture"}'</text>
+      <text x="90" y="444" class="mono" font-size="15" fill="#94A3B8">Status:        <tspan fill="#F59E0B" font-weight="700">DRAFT</tspan></text>
+      <text x="90" y="468" class="mono" font-size="15" fill="#94A3B8">Agent:         <tspan fill="#22D3EE">Proof-of-Audit Auditor v0.1.0</tspan></text>
+      <text x="90" y="492" class="mono" font-size="15" fill="#94A3B8">Summary:       <tspan fill="#E2E8F0">No benchmark issue found</tspan></text>
+      <text x="90" y="516" class="mono" font-size="15" fill="#94A3B8">Confidence:    <tspan fill="#F59E0B">medium</tspan></text>
+      <text x="90" y="540" class="mono" font-size="15" fill="#94A3B8">Findings:      <tspan fill="#34D399">0</tspan></text>
+      <text x="90" y="564" class="mono" font-size="15" fill="#94A3B8">Report hash:   <tspan fill="#A78BFA">8424953…349b</tspan></text>
+
+      <text x="90" y="598" class="mono" font-size="14" fill="#475569" font-style="italic">At this stage, the claim is not yet economically committed.</text>
+
+      <rect x="90" y="622" width="220" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="641" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Draft claim created</text>
     </g>
 
-    <g class="scene s5">
-      <text x="304" y="670" class="term mono">$ <tspan class="termBlue">GET /audits/:id/validation/response</tspan></text>
-      <text x="304" y="712" class="term mono termDim">reading the mirrored validation trail after resolution ...</text>
-      <text x="304" y="754" class="term mono"><tspan class="termGreen">response recorded</tspan><tspan>, resolution=upheld, bridge=</tspan><tspan class="termBlue">erc8004-aligned</tspan></text>
-      <text x="304" y="796" class="term mono termDim">the final state is inspectable across both native settlement and validation layers</text>
+    <!-- ── Scene 4: Publish ── -->
+    <g class="scene sc4">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 4</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#34D399">⛓️ STAKE &amp; PUBLISH ON-CHAIN</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ The agent puts its money where its mouth is.</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s -X POST /audits/{id}/publish -d '{"stake_wei":10000000000000000}'</text>
+      <text x="90" y="444" class="mono" font-size="15" fill="#94A3B8">Status:        <tspan fill="#34D399" font-weight="700">PUBLISHED</tspan></text>
+      <text x="90" y="468" class="mono" font-size="15" fill="#94A3B8">Stake:         <tspan fill="#F59E0B" font-weight="700">0.0100 ETH</tspan></text>
+      <text x="90" y="492" class="mono" font-size="15" fill="#94A3B8">On-chain ID:   <tspan fill="#22D3EE">10</tspan></text>
+      <text x="90" y="516" class="mono" font-size="15" fill="#94A3B8">Publish tx:    <tspan fill="#A78BFA">0x881e…3b8c</tspan></text>
+      <text x="90" y="540" class="mono" font-size="15" fill="#94A3B8">Contract:      <tspan fill="#22D3EE">ProofOfAudit</tspan></text>
+      <text x="90" y="564" class="mono" font-size="15" fill="#94A3B8">Validation:    <tspan fill="#F59E0B">requested</tspan></text>
+
+      <text x="90" y="598" class="mono" font-size="14" fill="#475569" font-style="italic">The claim is now visible, portable, and challengeable.</text>
+
+      <rect x="90" y="622" width="260" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="641" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Claim published on-chain</text>
+    </g>
+
+    <!-- ── Scene 5: Challenge ── -->
+    <g class="scene sc5">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 5</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#F472B6">⚔️ CHALLENGE THE CLAIM</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ Submit evidence that the judgment is wrong.</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s -X POST /audits/{id}/challenge -d '{"proof_uri":"ipfs://…"}'</text>
+      <text x="90" y="444" class="mono" font-size="15" fill="#94A3B8">Status:        <tspan fill="#34D399" font-weight="700">RESOLVED</tspan></text>
+      <text x="90" y="468" class="mono" font-size="15" fill="#94A3B8">Challenge:     <tspan fill="#F472B6" font-weight="700">UPHELD</tspan></text>
+      <text x="90" y="492" class="mono" font-size="15" fill="#94A3B8">Path:          <tspan fill="#22D3EE">deterministic</tspan></text>
+      <text x="90" y="516" class="mono" font-size="15" fill="#94A3B8">Verifier:      <tspan fill="#A78BFA">deterministic-benchmark-v1</tspan></text>
+      <text x="90" y="540" class="mono" font-size="15" fill="#94A3B8">Payout:        <tspan fill="#F59E0B" font-weight="700">0.0150 ETH</tspan>  <tspan fill="#64748B">(stake + bond)</tspan></text>
+      <text x="90" y="564" class="mono" font-size="15" fill="#94A3B8">Resolve tx:    <tspan fill="#A78BFA">0x6317…2165</tspan></text>
+
+      <text x="90" y="598" class="mono" font-size="14" fill="#475569" font-style="italic">Known benchmark evidence resolves deterministically on-chain.</text>
+
+      <rect x="90" y="622" width="320" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="641" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Challenge resolved deterministically</text>
+    </g>
+
+    <!-- ── Scene 6: Validation ── -->
+    <g class="scene sc6">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">PHASE 6</text>
+      <text x="168" y="346" class="mono" font-size="13" font-weight="700" fill="#22D3EE">📄 VALIDATION RESPONSE</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ ERC-8004 formatted outcome for other agents.</text>
+
+      <text x="90" y="410" class="mono" font-size="13" fill="#475569">$ curl -s /audits/{id}/validation/response</text>
+      <text x="90" y="444" class="mono" font-size="15" fill="#94A3B8">Type:          <tspan fill="#A78BFA">eip-8004#validation-response-v1</tspan></text>
+      <text x="90" y="468" class="mono" font-size="15" fill="#94A3B8">Tag:           <tspan fill="#EF4444" font-weight="700">claim-refuted</tspan></text>
+      <text x="90" y="492" class="mono" font-size="15" fill="#94A3B8">Resolution:    <tspan fill="#F472B6">upheld</tspan></text>
+      <text x="90" y="516" class="mono" font-size="15" fill="#94A3B8">Path:          <tspan fill="#22D3EE">deterministic</tspan></text>
+      <text x="90" y="540" class="mono" font-size="15" fill="#94A3B8">Evidence:      <tspan fill="#F59E0B">Missed issue against clean contract</tspan></text>
+
+      <text x="90" y="578" class="mono" font-size="14" fill="#475569" font-style="italic">Another agent can discover how the claim held up when challenged.</text>
+
+      <rect x="90" y="606" width="280" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="625" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Validation response recorded</text>
+    </g>
+
+    <!-- ── Scene 7: Summary ── -->
+    <g class="scene sc7">
+      <text x="90" y="346" class="mono" font-size="13" fill="#64748B">COMPLETE</text>
+      <text x="178" y="346" class="mono" font-size="13" font-weight="700" fill="#34D399">✅ LIFECYCLE FINISHED</text>
+      <text x="90" y="374" class="mono" font-size="14" fill="#475569">▸ One complete agent trust loop.</text>
+
+      <text x="90" y="420" class="mono" font-size="16" fill="#64748B">Lifecycle:</text>
+      <text x="90" y="450" class="mono" font-size="18" fill="#F59E0B">draft<tspan fill="#475569"> → </tspan><tspan fill="#60A5FA">published</tspan><tspan fill="#475569"> → </tspan><tspan fill="#F472B6">challenged</tspan><tspan fill="#475569"> → </tspan><tspan fill="#34D399">resolved</tspan></text>
+
+      <text x="90" y="496" class="mono" font-size="16" fill="#64748B">Settlement:</text>
+      <text x="90" y="522" class="mono" font-size="15" fill="#94A3B8">Stake slashed:          <tspan fill="#F59E0B" font-weight="700">0.01 ETH</tspan></text>
+      <text x="90" y="546" class="mono" font-size="15" fill="#94A3B8">Challenger payout:      <tspan fill="#34D399" font-weight="700">0.015 ETH</tspan></text>
+      <text x="90" y="570" class="mono" font-size="15" fill="#94A3B8">Validation:             <tspan fill="#EF4444" font-weight="700">claim-refuted</tspan></text>
+
+      <text x="90" y="610" class="mono" font-size="15" fill="#94A3B8" font-style="italic">"Trust comes from visible economic commitment, not branding."</text>
+
+      <rect x="90" y="638" width="240" height="28" rx="4" fill="#064E3B" opacity="0.6"/>
+      <text x="104" y="657" class="mono" font-size="12" font-weight="700" fill="#34D399">✓ Agent trust loop complete</text>
     </g>
   </g>
 
-  <g transform="translate(1110 164)">
-    <rect x="0" y="0" width="276" height="122" rx="26" fill="#FFFCF7" stroke="#E5D9CB"/>
-    <text x="26" y="38" class="mini sans">Embed note</text>
-    <text x="26" y="74" class="cardBody serif" style="font-size:20px;">The cast remains the canonical recording.</text>
-    <text x="26" y="102" class="cardBody serif" style="font-size:20px;">This SVG just makes the flow easier to scan.</text>
+  <!-- ── Right sidebar card ── -->
+  <g filter="url(#cardShadow)">
+    <rect x="980" y="244" width="560" height="460" rx="16" fill="#0F172A" stroke="#1E293B" stroke-width="1"/>
+  </g>
+  <text x="1010" y="282" class="sans" font-size="12" font-weight="600" letter-spacing="0.18em" fill="#64748B">WHAT THIS DEMOSTRATES</text>
+
+  <!-- Step cards — always visible, highlight changes with scenes -->
+  <g transform="translate(1010 300)">
+    <!-- Step 1 -->
+    <g>
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#3B82F6" stroke-width="1.5" class="pip-fill-1"/>
+      <circle cx="10" cy="14" r="3" fill="#3B82F6" class="pip-fill-1"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#3B82F6" letter-spacing="0.08em">DISCOVER</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Named agent identity + ERC-8004 registration</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 2 -->
+    <g transform="translate(0 52)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#8B5CF6" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#8B5CF6" class="pip-fill-2"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#8B5CF6" letter-spacing="0.08em">DRAFT CLAIM</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Deterministic review judgment, not yet committed</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 3 -->
+    <g transform="translate(0 104)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#10B981" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#10B981" class="pip-fill-3"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#10B981" letter-spacing="0.08em">STAKE &amp; PUBLISH</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Agent stakes ETH and commits claim on-chain</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 4 -->
+    <g transform="translate(0 156)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#EC4899" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#EC4899" class="pip-fill-4"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#EC4899" letter-spacing="0.08em">CHALLENGE</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Evidence submitted, dispute resolved on-chain</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 5 -->
+    <g transform="translate(0 208)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#06B6D4" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#06B6D4" class="pip-fill-5"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#06B6D4" letter-spacing="0.08em">VALIDATION TRAIL</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Outcome mirrored in ERC-8004 format</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 6 -->
+    <g transform="translate(0 260)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#F59E0B" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#F59E0B" class="pip-fill-6"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#F59E0B" letter-spacing="0.08em">SETTLEMENT</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Stake slashed, challenger paid out</text>
+      <line x1="10" y1="22" x2="10" y2="62" stroke="#1E293B" stroke-width="1.5"/>
+    </g>
+
+    <!-- Step 7 -->
+    <g transform="translate(0 312)">
+      <circle cx="10" cy="14" r="6" fill="#1E293B" stroke="#34D399" stroke-width="1.5"/>
+      <circle cx="10" cy="14" r="3" fill="#34D399" class="pip-fill-7"/>
+      <text x="28" y="12" class="sans" font-size="11" font-weight="700" fill="#34D399" letter-spacing="0.08em">TRUST PROVEN</text>
+      <text x="28" y="28" class="sans" font-size="13" fill="#94A3B8">Judgment was tested by neutral enforcement</text>
+    </g>
   </g>
 
-  <g transform="translate(1110 326)">
-    <rect x="0" y="0" width="276" height="420" rx="30" fill="#FFFCF8" stroke="#E6DACD"/>
+  <!-- Key insight box -->
+  <g transform="translate(1010 650)">
+    <rect x="0" y="0" width="510" height="42" rx="8" fill="#1E293B" stroke="#3B82F6" stroke-opacity="0.3"/>
+    <text x="16" y="16" class="mono" font-size="10" font-weight="600" fill="#3B82F6" letter-spacing="0.1em">KEY INSIGHT</text>
+    <text x="16" y="34" class="sans" font-size="13" fill="#CBD5E1">Trust from visible economic commitment, not branding or reputation.</text>
+  </g>
 
-    <g class="scene s1">
-      <text x="28" y="38" class="cardTitle sans">Step 1</text>
-      <text x="28" y="86" class="cardHeadline sans">Discover the agent</text>
-      <text x="28" y="130" class="cardBody serif">The caller first looks up the auditor identity, its registration document, and the trust model it advertises.</text>
-      <text x="28" y="194" class="stepLabel mono">why it matters</text>
-      <text x="28" y="230" class="cardBody serif">The agent is identifiable before it makes a claim, so trust is not implicit or hidden in backend code.</text>
-    </g>
+  <!-- ── Bottom bar ── -->
+  <g transform="translate(80 752)">
+    <!-- Lifecycle flow -->
+    <text x="0" y="0" class="sans" font-size="12" font-weight="600" letter-spacing="0.16em" fill="#475569">LIFECYCLE</text>
 
-    <g class="scene s2">
-      <text x="28" y="38" class="cardTitle sans">Step 2</text>
-      <text x="28" y="86" class="cardHeadline sans">Create a draft claim</text>
-      <text x="28" y="130" class="cardBody serif">A target is submitted and the agent produces a draft judgment that can still be reviewed before money is involved.</text>
-      <text x="28" y="194" class="stepLabel mono">why it matters</text>
-      <text x="28" y="230" class="cardBody serif">The system separates analysis from commitment, so the claim can be inspected before it is bonded on-chain.</text>
-    </g>
+    <g transform="translate(0 18)">
+      <rect x="0" y="0" width="74" height="26" rx="4" fill="#422006" opacity="0.6"/>
+      <text x="10" y="17" class="mono" font-size="11" font-weight="700" fill="#F59E0B">draft</text>
 
-    <g class="scene s3">
-      <text x="28" y="38" class="cardTitle sans">Step 3</text>
-      <text x="28" y="86" class="cardHeadline sans">Publish with stake</text>
-      <text x="28" y="130" class="cardBody serif">The draft becomes a public claim when the agent stakes behind it through the ProofOfAudit settlement contract.</text>
-      <text x="28" y="194" class="stepLabel mono">why it matters</text>
-      <text x="28" y="230" class="cardBody serif">This is the accountability move: the agent is no longer just talking, it is economically committed to its judgment.</text>
-    </g>
+      <text x="84" y="17" class="mono" font-size="14" fill="#334155">→</text>
 
-    <g class="scene s4">
-      <text x="28" y="38" class="cardTitle sans">Step 4</text>
-      <text x="28" y="86" class="cardHeadline sans">Open a challenge</text>
-      <text x="28" y="130" class="cardBody serif">A challenger posts evidence with its own bond, turning the disagreement into a visible and neutral process.</text>
-      <text x="28" y="194" class="stepLabel mono">why it matters</text>
-      <text x="28" y="230" class="cardBody serif">The system does not ask users to trust the original claim forever; it gives dissent an explicit settlement path.</text>
-    </g>
+      <rect x="100" y="0" width="100" height="26" rx="4" fill="#172554" opacity="0.6"/>
+      <text x="110" y="17" class="mono" font-size="11" font-weight="700" fill="#60A5FA">published</text>
 
-    <g class="scene s5">
-      <text x="28" y="38" class="cardTitle sans">Step 5</text>
-      <text x="28" y="86" class="cardHeadline sans">Read the validation trail</text>
-      <text x="28" y="130" class="cardBody serif">After resolution, the system mirrors the outcome into an ERC-8004-aligned validation record for external consumers.</text>
-      <text x="28" y="194" class="stepLabel mono">why it matters</text>
-      <text x="28" y="230" class="cardBody serif">Another agent can discover not just who made the claim, but how that claim held up when evidence challenged it.</text>
+      <text x="210" y="17" class="mono" font-size="14" fill="#334155">→</text>
+
+      <rect x="226" y="0" width="110" height="26" rx="4" fill="#4A1942" opacity="0.6"/>
+      <text x="236" y="17" class="mono" font-size="11" font-weight="700" fill="#F472B6">challenged</text>
+
+      <text x="344" y="17" class="mono" font-size="14" fill="#334155">→</text>
+
+      <rect x="360" y="0" width="90" height="26" rx="4" fill="#052E16" opacity="0.6"/>
+      <text x="370" y="17" class="mono" font-size="11" font-weight="700" fill="#34D399">resolved</text>
     </g>
   </g>
 
-  <g transform="translate(250 878)">
-    <text x="0" y="0" class="eyebrow sans" style="font-size:15px;">Full recording</text>
-    <text x="0" y="34" class="mono" style="font-size:24px;fill:#172347;">asciinema.org/a/5u5so0LWHCE6J4dC</text>
+  <!-- Tech stack badges -->
+  <g transform="translate(80 826)">
+    <text x="0" y="0" class="sans" font-size="12" font-weight="600" letter-spacing="0.16em" fill="#475569">STACK</text>
+    <g transform="translate(0 14)">
+      <rect x="0" y="0" width="80" height="24" rx="4" fill="#1E293B"/>
+      <text x="10" y="16" class="mono" font-size="10" fill="#94A3B8">Foundry</text>
+      <rect x="90" y="0" width="80" height="24" rx="4" fill="#1E293B"/>
+      <text x="100" y="16" class="mono" font-size="10" fill="#94A3B8">FastAPI</text>
+      <rect x="180" y="0" width="80" height="24" rx="4" fill="#1E293B"/>
+      <text x="190" y="16" class="mono" font-size="10" fill="#94A3B8">Next.js</text>
+      <rect x="270" y="0" width="100" height="24" rx="4" fill="#1E293B"/>
+      <text x="280" y="16" class="mono" font-size="10" fill="#94A3B8">ERC-8004</text>
+      <rect x="380" y="0" width="100" height="24" rx="4" fill="#1E293B"/>
+      <text x="390" y="16" class="mono" font-size="10" fill="#94A3B8">Base Sepolia</text>
+    </g>
+  </g>
+
+  <!-- Links -->
+  <g transform="translate(80 900)">
+    <text x="0" y="0" class="mono" font-size="13" fill="#64748B">github.com/akoita/proof-of-audit</text>
+    <text x="460" y="0" class="mono" font-size="13" fill="#475569">MIT License</text>
   </g>
 </svg>
