@@ -6,12 +6,32 @@ import sqlite3
 from typing import Any, Protocol
 
 
+def _record_target_key(record: dict[str, Any]) -> str:
+    target_key = record.get("target_key")
+    if isinstance(target_key, str) and target_key:
+        return target_key.strip().lower()
+
+    contract_address = record.get("contract_address")
+    if isinstance(contract_address, str) and contract_address:
+        return contract_address.strip().lower()
+
+    submission = record.get("submission")
+    if isinstance(submission, dict):
+        submission_contract = submission.get("contract_address")
+        if isinstance(submission_contract, str) and submission_contract:
+            return submission_contract.strip().lower()
+
+    return ""
+
+
 class AuditStore(Protocol):
     def write(self, audit_id: str, payload: dict[str, Any]) -> None: ...
 
     def read(self, audit_id: str) -> dict[str, Any] | None: ...
 
     def list_all(self) -> list[dict[str, Any]]: ...
+
+    def list_by_target_key(self, target_key: str) -> list[dict[str, Any]]: ...
 
 
 class JsonStore:
@@ -40,6 +60,14 @@ class JsonStore:
             except json.JSONDecodeError:
                 continue
         return records
+
+    def list_by_target_key(self, target_key: str) -> list[dict[str, Any]]:
+        normalized_target_key = target_key.strip().lower()
+        return [
+            record
+            for record in self.list_all()
+            if _record_target_key(record) == normalized_target_key
+        ]
 
 
 class SqliteStore:
@@ -80,6 +108,14 @@ class SqliteStore:
                 "SELECT payload FROM audits ORDER BY id ASC"
             ).fetchall()
         return [json.loads(str(row[0])) for row in rows]
+
+    def list_by_target_key(self, target_key: str) -> list[dict[str, Any]]:
+        normalized_target_key = target_key.strip().lower()
+        return [
+            record
+            for record in self.list_all()
+            if _record_target_key(record) == normalized_target_key
+        ]
 
     def import_legacy_json(self, root: Path) -> None:
         if not root.exists():

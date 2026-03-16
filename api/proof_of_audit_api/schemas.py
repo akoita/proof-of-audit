@@ -212,6 +212,8 @@ class ExecutionArtifactModel(BaseModel):
 class AuditRecordModel(BaseModel):
     id: str
     contract_address: str
+    target_key: str
+    target_auditor_key: str
     agent: AuditorProfileModel
     submission: "AuditSubmissionModel"
     submitted_by: str
@@ -225,6 +227,12 @@ class AuditRecordModel(BaseModel):
 
 
 class AuditListResponse(BaseModel):
+    items: list[AuditRecordModel]
+
+
+class TargetAuditClaimsResponse(BaseModel):
+    target_contract: str
+    target_key: str
     items: list[AuditRecordModel]
 
 

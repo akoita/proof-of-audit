@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +30,7 @@ from proof_of_audit_api.schemas import (
     PublicContractConfigResponse,
     PublishAuditRequest,
     ResolveAuditRequest,
+    TargetAuditClaimsResponse,
 )
 from proof_of_audit_api.service import AuditService
 
@@ -133,9 +134,28 @@ def create_app(
         response_model=AuditListResponse,
         responses={status.HTTP_200_OK: {"model": AuditListResponse}},
     )
-    def list_audits(request: Request) -> AuditListResponse:
+    def list_audits(
+        request: Request,
+        contract_address: str | None = Query(default=None),
+    ) -> AuditListResponse:
         service = _service(request)
-        return AuditListResponse(items=service.list_audits())
+        return AuditListResponse(items=service.list_audits(contract_address=contract_address))
+
+    @app.get(
+        "/targets/{contract_address}/audits",
+        response_model=TargetAuditClaimsResponse,
+        responses={status.HTTP_200_OK: {"model": TargetAuditClaimsResponse}},
+    )
+    def list_target_audits(
+        contract_address: str, request: Request
+    ) -> TargetAuditClaimsResponse:
+        service = _service(request)
+        items = service.list_target_claims(contract_address)
+        return TargetAuditClaimsResponse(
+            target_contract=contract_address.lower(),
+            target_key=contract_address.lower(),
+            items=items,
+        )
 
     @app.get(
         "/fixtures",

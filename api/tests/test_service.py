@@ -54,6 +54,14 @@ class AuditServiceTest(unittest.TestCase):
             listed = service.list_audits()
 
             self.assertEqual(listed[0]["agent"]["id"], "proof-of-audit-auditor")
+            self.assertEqual(
+                listed[0]["target_key"],
+                "0x1000000000000000000000000000000000000001",
+            )
+            self.assertEqual(
+                listed[0]["target_auditor_key"],
+                "0x1000000000000000000000000000000000000001::proof-of-audit-auditor",
+            )
             self.assertEqual(listed[0]["submission"]["input_kind"], "deployed_address")
             self.assertEqual(listed[0]["report"]["finding_count"], 1)
             self.assertEqual(
@@ -85,6 +93,38 @@ class AuditServiceTest(unittest.TestCase):
 
             self.assertEqual(listed[0]["id"], second["id"])
             self.assertEqual(listed[1]["id"], first["id"])
+
+    def test_list_target_claims_filters_by_normalized_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir))
+            matching_first = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="first",
+            )
+            service.create_audit(
+                "0x1000000000000000000000000000000000000004",
+                submitted_by="other",
+            )
+            matching_second = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="second",
+            )
+
+            listed = service.list_target_claims(
+                "0x1000000000000000000000000000000000000003"
+            )
+
+            self.assertEqual([record["id"] for record in listed], [
+                matching_second["id"],
+                matching_first["id"],
+            ])
+            self.assertTrue(
+                all(
+                    record["target_auditor_key"]
+                    == "0x1000000000000000000000000000000000000003::proof-of-audit-auditor"
+                    for record in listed
+                )
+            )
 
     def test_create_publish_and_challenge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

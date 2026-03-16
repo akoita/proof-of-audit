@@ -105,6 +105,8 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `GET`  | `/auditor/registration`    | ERC-8004 registration document        |
 | `GET`  | `/config`                  | Chain configuration and stake amounts |
 | `GET`  | `/fixtures`                | Available demo benchmark contracts    |
+| `GET`  | `/audits?contract_address=` | List claims for one target contract   |
+| `GET`  | `/targets/:address/audits` | Target-scoped claim history           |
 | `POST` | `/audits`                  | Create a draft audit claim            |
 | `POST` | `/audits/:id/publish`      | Stake ETH and publish on-chain        |
 | `POST` | `/audits/:id/challenge`    | Submit evidence against the claim     |

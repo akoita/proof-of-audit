@@ -8,7 +8,7 @@ from proof_of_audit_api.store import JsonStore, SqliteStore, create_store
 
 def test_sqlite_store_persists_records(tmp_path: Path) -> None:
     store = SqliteStore(tmp_path / "audits.sqlite3")
-    payload = {"id": "audit-1", "status": "draft"}
+    payload = {"id": "audit-1", "status": "draft", "target_key": "0xabc"}
 
     store.write("audit-1", payload)
 
@@ -29,6 +29,18 @@ def test_sqlite_store_imports_legacy_json_files(tmp_path: Path) -> None:
     store = SqliteStore(tmp_path / "audits.sqlite3", legacy_root=legacy_root)
 
     assert store.read("legacy-audit") == legacy_payload
+
+
+def test_sqlite_store_lists_records_by_target_key(tmp_path: Path) -> None:
+    store = SqliteStore(tmp_path / "audits.sqlite3")
+    store.write("audit-1", {"id": "audit-1", "target_key": "0xabc"})
+    store.write("audit-2", {"id": "audit-2", "target_key": "0xdef"})
+    store.write("audit-3", {"id": "audit-3", "target_key": "0xabc"})
+
+    assert [record["id"] for record in store.list_by_target_key("0xabc")] == [
+        "audit-1",
+        "audit-3",
+    ]
 
 
 def test_create_store_defaults_to_sqlite(tmp_path: Path) -> None:
