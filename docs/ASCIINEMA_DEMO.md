@@ -43,8 +43,15 @@ cd /home/koita/dev/hackatons/proof-of-audit
 /home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
   ./scripts/run_agent_demo.py \
   --api-url http://127.0.0.1:8080 \
-  --fixture-id clean-vault
+  --fixture-id clean-vault \
+  --typing-speed fast
 ```
+
+Additional flags:
+
+- `--typing-speed instant|fast|slow` — controls the typewriter effect (default: `fast`)
+- `--no-color` — disables ANSI color output
+- `--no-sleep` — skips pauses between phases
 
 Recommended fixture:
 
@@ -74,6 +81,7 @@ Useful environment overrides:
 - `CAST_PATH`
 - `TITLE`
 - `IDLE_LIMIT`
+- `TYPING_SPEED` — `instant`, `fast`, or `slow` (default: `fast`)
 
 ## Publish to Asciinema
 
@@ -103,35 +111,42 @@ Preview asset:
 
 ## What the terminal flow shows
 
-The demo runner hits these endpoints in order:
+The demo runs eight narrative phases, each with colored output, emoji markers, and selective field display:
 
-- `GET /auditor`
-- `GET /auditor/registration`
-- `GET /config`
-- `GET /fixtures`
-- `POST /audits`
-- `POST /audits/{id}/publish`
-- `GET /audits/{id}/validation/request`
-- `POST /audits/{id}/challenge`
-- `GET /audits/{id}/validation/response`
-- `GET /audits/{id}`
+1. 🔍 **Discover** — `GET /auditor`, `GET /auditor/registration`, `GET /config`
+2. 📋 **Select benchmark** — `GET /fixtures`
+3. 📝 **Create draft claim** — `POST /audits`
+4. ⛓️ **Stake & publish** — `POST /audits/{id}/publish`
+5. 🔗 **Validation request** — `GET /audits/{id}/validation/request`
+6. ⚔️ **Challenge** — `POST /audits/{id}/challenge`
+7. 📄 **Validation response** — `GET /audits/{id}/validation/response`
+8. ✅ **Final record** — `GET /audits/{id}`
 
-That keeps the story focused on:
+Each phase highlights:
 
-- agent identity
-- ERC-8004 discovery and registration
-- native on-chain settlement
+- the narrative purpose ("Who is the agent? Can I trust it?")
+- key fields (agent id, stake, tx hashes, resolution path)
+- status badges ("✓ Claim published on-chain")
+
+The story stays focused on:
+
+- agent identity and ERC-8004 discovery
+- economic commitment via on-chain stake
+- deterministic challenge resolution
 - validation interoperability
 
 ## Recommended terminal settings
 
 - font size large enough for recording
-- terminal width around 100 columns
-- terminal height around 32 rows
+- terminal width: 120 columns (the recording script sets this automatically)
+- terminal height: 36 rows (the recording script sets this automatically)
 - clean prompt with minimal shell noise
+- dark terminal background for best color contrast
 
 ## Notes
 
 - the terminal runner is deterministic for the `clean-vault` fixture
 - the browser workbench is not required for this flow
-- the cast should emphasize the API and identity story, not local setup commands
+- the cast emphasizes the agent interaction story with narrative commentary
+- use `--no-color` if piping output or recording for a light-background context
+- use `--typing-speed instant` for CI or automated runs
