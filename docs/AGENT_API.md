@@ -29,6 +29,7 @@ Use them for different purposes:
 - `GET /auditors`
   - plural discovery record
   - lists all registered auditor services exposed by this API instance
+  - includes an explainable `reputation` block for each auditor
 - `GET /auditor`
   - operational discovery record
   - backward-compatible alias for the default auditor service
@@ -119,6 +120,16 @@ Use either:
 - `GET /targets/{address}/comparison`
 
 The comparison endpoint adds a compact summary layer so callers can inspect how many claims exist for a target, how many are published, challenged, or resolved, and what the highest reported severity is before drilling into individual records.
+
+## Reputation
+
+Discovery records now include a `reputation` block with:
+
+- a neutral `50/100` score when there are no resolved challenges
+- otherwise `round(100 * challenge_rejected_count / resolved_challenge_count)`
+- the raw counts used to compute that score
+
+See [Reputation model](./REPUTATION_MODEL.md) for the full explanation and caveats.
 
 ### Publish a claim on-chain
 

@@ -103,6 +103,7 @@ def create_app(
     @app.get("/config", response_model=PublicContractConfigResponse)
     def config(request: Request) -> PublicContractConfigResponse:
         contract_config = request.app.state.contract_config
+        service = _service(request)
         return PublicContractConfigResponse(
             network=contract_config.network,
             chain_id=contract_config.chain_id,
@@ -110,7 +111,10 @@ def create_app(
             explorer_base_url=contract_config.explorer_base_url,
             arbiter=contract_config.arbiter,
             auditor=contract_config.auditor.to_dict(),
-            auditor_service=contract_config.auditor_service.to_dict(),
+            auditor_service=service.get_auditor_service(
+                contract_config.auditor_service.service_id
+            )
+            or contract_config.auditor_service.to_dict(),
             required_stake_wei=contract_config.required_stake_wei,
             required_challenge_bond_wei=contract_config.required_challenge_bond_wei,
             challenge_window_seconds=contract_config.challenge_window_seconds,
@@ -119,18 +123,19 @@ def create_app(
 
     @app.get("/auditor", response_model=AuditorServiceRecordModel)
     def auditor_service(request: Request) -> AuditorServiceRecordModel:
+        service = _service(request)
         contract_config = request.app.state.contract_config
+        payload = service.get_auditor_service(contract_config.auditor_service.service_id)
         return AuditorServiceRecordModel.model_validate(
-            contract_config.auditor_service.to_dict()
+            payload or contract_config.auditor_service.to_dict()
         )
 
     @app.get("/auditors", response_model=AuditorServiceListResponse)
     def auditor_services(request: Request) -> AuditorServiceListResponse:
-        contract_config = request.app.state.contract_config
         return AuditorServiceListResponse(
             items=[
-                AuditorServiceRecordModel.model_validate(service.to_dict())
-                for service in contract_config.auditor_services
+                AuditorServiceRecordModel.model_validate(service)
+                for service in _service(request).list_auditor_services()
             ]
         )
 
@@ -142,14 +147,13 @@ def create_app(
     def auditor_service_detail(
         service_id: str, request: Request
     ) -> AuditorServiceRecordModel:
-        contract_config = request.app.state.contract_config
-        service = contract_config.auditor_service_by_id(service_id)
-        if service is None:
+        payload = _service(request).get_auditor_service(service_id)
+        if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"error": "auditor_not_found"},
             )
-        return AuditorServiceRecordModel.model_validate(service.to_dict())
+        return AuditorServiceRecordModel.model_validate(payload)
 
     @app.get("/auditor/registration", response_model=AuditorRegistrationDocumentModel)
     def auditor_registration(request: Request) -> AuditorRegistrationDocumentModel:

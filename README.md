@@ -102,7 +102,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | Method | Endpoint                   | Purpose                               |
 | ------ | -------------------------- | ------------------------------------- |
 | `GET`  | `/auditor`                 | Discover the auditor identity         |
-| `GET`  | `/auditors`                | List registered auditor services      |
+| `GET`  | `/auditors`                | List registered auditor services and reputation |
 | `GET`  | `/auditors/:id`            | Read one auditor service record       |
 | `GET`  | `/auditor/registration`    | ERC-8004 registration document        |
 | `GET`  | `/auditors/:id/registration` | Read one auditor registration       |
@@ -119,7 +119,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 
 Interactive API docs available at `http://127.0.0.1:8080/docs` when the server is running.
 
-For detailed integration guidance, see the [Agent API](./docs/AGENT_API.md) and [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md).
+For detailed integration guidance, see the [Agent API](./docs/AGENT_API.md), [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md), and [Reputation model](./docs/REPUTATION_MODEL.md).
 
 ## On-chain deployment
 
@@ -155,6 +155,7 @@ make install-git-hooks
 | [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
 | [Agent API](./docs/AGENT_API.md)                  | Integration guide for agent callers |
 | [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) | Standards mapping                   |
+| [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Asciinema demo](./docs/ASCIINEMA_DEMO.md)        | Terminal recording runbook          |
 

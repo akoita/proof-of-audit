@@ -62,6 +62,7 @@ class AuditorProfileModel(BaseModel):
     capabilities: list[str]
     operator: str
     resolution_policy: str
+    reputation: "AuditorReputationModel | None" = None
 
 
 class AuditorServiceRecordModel(BaseModel):
@@ -93,6 +94,7 @@ class AuditorServiceRecordModel(BaseModel):
     resolution_modes: list[str]
     deterministic_resolution_supported: bool
     manual_fallback_supported: bool
+    reputation: "AuditorReputationModel | None" = None
 
 
 class AuditorServiceListResponse(BaseModel):
@@ -246,6 +248,19 @@ class TargetComparisonSummaryModel(BaseModel):
     challenged_count: int
     resolved_count: int
     max_severity: int
+
+
+class AuditorReputationModel(BaseModel):
+    score: int
+    band: Literal["provisional", "trusted", "mixed", "contested"]
+    resolved_challenge_count: int
+    challenge_rejected_count: int
+    challenge_upheld_count: int
+    open_challenge_count: int
+    published_claim_count: int
+    draft_claim_count: int
+    last_resolved_at: str | None = None
+    formula: str
 
 
 class TargetComparisonResponse(BaseModel):

@@ -29,6 +29,20 @@ type AuditorProfile = {
   capabilities: string[];
   operator: string;
   resolution_policy: string;
+  reputation?: AuditorReputation | null;
+};
+
+type AuditorReputation = {
+  score: number;
+  band: "provisional" | "trusted" | "mixed" | "contested";
+  resolved_challenge_count: number;
+  challenge_rejected_count: number;
+  challenge_upheld_count: number;
+  open_challenge_count: number;
+  published_claim_count: number;
+  draft_claim_count: number;
+  last_resolved_at?: string | null;
+  formula: string;
 };
 
 type AuditorServiceRecord = {
@@ -56,6 +70,7 @@ type AuditorServiceRecord = {
   resolution_modes: string[];
   deterministic_resolution_supported: boolean;
   manual_fallback_supported: boolean;
+  reputation?: AuditorReputation | null;
 };
 
 type PublicContractConfig = {
@@ -257,6 +272,13 @@ function formatValidationSource(value: string | null | undefined): string {
     default:
       return "Unspecified path";
   }
+}
+
+function reputationLabel(reputation: AuditorReputation | null | undefined): string {
+  if (!reputation) {
+    return "Reputation loading";
+  }
+  return `${reputation.score}/100 ${titleCase(reputation.band)}`;
 }
 
 function formatWindow(seconds: number): string {
@@ -746,6 +768,15 @@ export function AuditWorkbench() {
               {contractConfig?.auditor?.description ??
                 "Named auditor profile will appear here once config loads."}
             </p>
+            {auditorService?.reputation ? (
+              <p className="muted">
+                Reputation {reputationLabel(auditorService.reputation)} ·{" "}
+                {auditorService.reputation.challenge_rejected_count} rejected /{" "}
+                {auditorService.reputation.challenge_upheld_count} upheld across{" "}
+                {auditorService.reputation.resolved_challenge_count} resolved challenge
+                {auditorService.reputation.resolved_challenge_count === 1 ? "" : "s"}.
+              </p>
+            ) : null}
             {auditorService ? (
               <div className="inline-links">
                 <span>{titleCase(auditorService.registration_kind)}</span>
@@ -1491,6 +1522,10 @@ export function AuditWorkbench() {
                         {audit.onchain
                           ? `stake ${formatEth(audit.onchain.stake_wei)}`
                           : "not yet published"}
+                      </p>
+                      <p>
+                        reputation {reputationLabel(audit.agent.reputation)} ·{" "}
+                        {audit.agent.reputation?.resolved_challenge_count ?? 0} resolved
                       </p>
                       <small>
                         severity {severityRankLabel(audit.report.max_severity)} ·{" "}

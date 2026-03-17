@@ -164,6 +164,53 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(comparison["summary"]["challenged_count"], 1)
             self.assertEqual(comparison["summary"]["resolved_count"], 0)
             self.assertGreaterEqual(comparison["summary"]["max_severity"], 0)
+            self.assertEqual(
+                comparison["items"][0]["agent"]["reputation"]["resolved_challenge_count"],
+                0,
+            )
+
+    def test_builds_explainable_auditor_reputation_from_resolved_challenges(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+            )
+
+            first = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="resolved-rejected",
+            )
+            service.publish_audit(first["id"], 10**16, None)
+            service.challenge_audit(
+                first["id"],
+                "ipfs://reentrancy-bank/withdraw-drain",
+                "whitehat-one",
+            )
+
+            second = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="resolved-upheld",
+            )
+            service.publish_audit(second["id"], 10**16, None)
+            service.challenge_audit(
+                second["id"],
+                "ipfs://clean-vault/missed-reentrancy",
+                "whitehat-two",
+            )
+
+            all_audits = service.list_audits()
+            reputation = all_audits[0]["agent"]["reputation"]
+
+            self.assertEqual(reputation["resolved_challenge_count"], 2)
+            self.assertEqual(reputation["challenge_rejected_count"], 1)
+            self.assertEqual(reputation["challenge_upheld_count"], 1)
+            self.assertEqual(reputation["score"], 50)
+            self.assertEqual(reputation["band"], "mixed")
+            self.assertIn("round(100 * challenge_rejected_count", reputation["formula"])
 
     def test_create_publish_and_challenge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
