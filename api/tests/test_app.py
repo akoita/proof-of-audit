@@ -129,6 +129,8 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(payload["auditor_service"]["manual_fallback_supported"])
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
+        self.assertEqual(payload["auditor_service"]["reputation"]["score"], 50)
+        self.assertEqual(payload["auditor_service"]["reputation"]["band"], "provisional")
         self.assertFalse(payload["deployment_ready"])
 
     def test_auditor_endpoint_returns_service_record(self) -> None:
@@ -178,6 +180,8 @@ class AuditApiAppTest(unittest.TestCase):
             payload["validation_request_path_template"],
             "/audits/{id}/validation/request",
         )
+        self.assertEqual(payload["reputation"]["score"], 50)
+        self.assertEqual(payload["reputation"]["resolved_challenge_count"], 0)
         self.assertTrue(payload["manifest_hash"])
 
     def test_plural_auditor_endpoints_list_and_resolve_catalog_entries(self) -> None:
@@ -282,10 +286,13 @@ class AuditApiAppTest(unittest.TestCase):
             listed_payload["items"][1]["service_id"],
             "external-auditor",
         )
+        self.assertEqual(listed_payload["items"][0]["reputation"]["score"], 50)
+        self.assertEqual(listed_payload["items"][1]["reputation"]["band"], "provisional")
 
         detail = client.get("/auditors/external-auditor")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()["registration_uri"], "https://example.invalid/external-auditor.json")
+        self.assertEqual(detail.json()["reputation"]["resolved_challenge_count"], 0)
 
         registration = client.get("/auditors/external-auditor/registration")
         self.assertEqual(registration.status_code, 200)

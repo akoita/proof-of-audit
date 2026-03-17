@@ -116,18 +116,26 @@ class AuditService:
         return record
 
     def get_audit(self, audit_id: str) -> dict[str, Any] | None:
-        record = self.store.read(audit_id)
-        if record is None:
-            return None
-        return self._normalize_stored_record(record)
+        records = self._all_normalized_records()
+        reputation_index = self._build_reputation_index(records)
+        for record in records:
+            if record["id"] == audit_id:
+                return self._attach_reputation(record, reputation_index)
+        return None
 
     def list_audits(self, contract_address: str | None = None) -> list[dict[str, Any]]:
-        raw_records = (
-            self.store.list_by_target_key(self._normalize_target_key(contract_address))
+        all_records = self._all_normalized_records()
+        reputation_index = self._build_reputation_index(all_records)
+        records = (
+            [
+                record
+                for record in all_records
+                if record["target_key"] == self._normalize_target_key(contract_address)
+            ]
             if contract_address
-            else self.store.list_all()
+            else all_records
         )
-        records = [self._normalize_stored_record(record) for record in raw_records]
+        records = [self._attach_reputation(record, reputation_index) for record in records]
         return sorted(records, key=lambda record: record["created_at"], reverse=True)
 
     def list_target_claims(self, contract_address: str) -> list[dict[str, Any]]:
@@ -155,6 +163,20 @@ class AuditService:
 
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
         return self.worker.list_demo_fixtures()
+
+    def list_auditor_services(self) -> list[dict[str, Any]]:
+        reputation_index = self._build_reputation_index(self._all_normalized_records())
+        return [
+            self._build_service_payload(entry.service, reputation_index)
+            for entry in self.contract_config.auditor_directory_entries
+        ]
+
+    def get_auditor_service(self, service_id: str) -> dict[str, Any] | None:
+        service = self.contract_config.auditor_service_by_id(service_id)
+        if service is None:
+            return None
+        reputation_index = self._build_reputation_index(self._all_normalized_records())
+        return self._build_service_payload(service, reputation_index)
 
     def publish_audit(
         self, audit_id: str, stake_wei: int, agent_identity: str | None
@@ -349,10 +371,10 @@ class AuditService:
         return self._build_validation_response_document(record)
 
     def _require_audit(self, audit_id: str) -> dict[str, Any]:
-        record = self.get_audit(audit_id)
+        record = self.store.read(audit_id)
         if record is None:
             raise KeyError(audit_id)
-        return record
+        return self._normalize_stored_record(record)
 
     def _normalize_stored_record(self, record: dict[str, Any]) -> dict[str, Any]:
         normalized = deepcopy(record)
@@ -403,6 +425,116 @@ class AuditService:
         if normalized != record:
             self.store.write(record_id, normalized)
         return normalized
+
+    def _all_normalized_records(self) -> list[dict[str, Any]]:
+        return [self._normalize_stored_record(record) for record in self.store.list_all()]
+
+    def _build_reputation_index(
+        self, records: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        index: dict[str, dict[str, Any]] = {}
+        for record in records:
+            agent = record.get("agent")
+            auditor_id = (
+                str(agent.get("id"))
+                if isinstance(agent, dict) and agent.get("id") is not None
+                else self.contract_config.auditor.id
+            )
+            reputation = index.setdefault(auditor_id, self._default_reputation())
+            status = str(record.get("status") or "draft")
+            if status == "draft":
+                reputation["draft_claim_count"] += 1
+            else:
+                reputation["published_claim_count"] += 1
+            if status == "challenged":
+                reputation["open_challenge_count"] += 1
+            challenge = record.get("challenge")
+            if status == "resolved" and isinstance(challenge, dict):
+                reputation["resolved_challenge_count"] += 1
+                resolution = str(challenge.get("resolution") or "")
+                if resolution == "rejected":
+                    reputation["challenge_rejected_count"] += 1
+                elif resolution == "upheld":
+                    reputation["challenge_upheld_count"] += 1
+                resolved_at = challenge.get("resolved_at")
+                if (
+                    isinstance(resolved_at, str)
+                    and resolved_at
+                    and (
+                        reputation["last_resolved_at"] is None
+                        or resolved_at > reputation["last_resolved_at"]
+                    )
+                ):
+                    reputation["last_resolved_at"] = resolved_at
+
+        for reputation in index.values():
+            resolved_count = int(reputation["resolved_challenge_count"])
+            rejected_count = int(reputation["challenge_rejected_count"])
+            if resolved_count == 0:
+                reputation["score"] = 50
+                reputation["band"] = "provisional"
+            else:
+                reputation["score"] = round(100 * rejected_count / resolved_count)
+                if reputation["score"] >= 75:
+                    reputation["band"] = "trusted"
+                elif reputation["score"] >= 40:
+                    reputation["band"] = "mixed"
+                else:
+                    reputation["band"] = "contested"
+        return index
+
+    def _default_reputation(self) -> dict[str, Any]:
+        return {
+            "score": 50,
+            "band": "provisional",
+            "resolved_challenge_count": 0,
+            "challenge_rejected_count": 0,
+            "challenge_upheld_count": 0,
+            "open_challenge_count": 0,
+            "published_claim_count": 0,
+            "draft_claim_count": 0,
+            "last_resolved_at": None,
+            "formula": (
+                "Neutral 50 when there are no resolved challenges; otherwise "
+                "round(100 * challenge_rejected_count / resolved_challenge_count)."
+            ),
+        }
+
+    def _attach_reputation(
+        self, record: dict[str, Any], reputation_index: dict[str, dict[str, Any]]
+    ) -> dict[str, Any]:
+        enriched = deepcopy(record)
+        agent = deepcopy(enriched.get("agent", {}))
+        auditor_id = str(agent.get("id") or self.contract_config.auditor.id)
+        agent["reputation"] = deepcopy(
+            reputation_index.get(auditor_id, self._default_reputation())
+        )
+        enriched["agent"] = agent
+        return enriched
+
+    def _build_service_payload(
+        self, service: Any, reputation_index: dict[str, dict[str, Any]]
+    ) -> dict[str, Any]:
+        payload = service.to_dict()
+        auditor_id = self._auditor_id_for_service(service.service_id)
+        payload["reputation"] = deepcopy(
+            reputation_index.get(auditor_id, self._default_reputation())
+        )
+        return payload
+
+    def _auditor_id_for_service(self, service_id: str) -> str:
+        if service_id == self.contract_config.auditor_service.service_id:
+            return self.contract_config.auditor.id
+        registration = self.contract_config.auditor_registration_document_by_service_id(
+            service_id
+        )
+        if isinstance(registration, dict):
+            extension = registration.get("x-proof-of-audit")
+            if isinstance(extension, dict):
+                extension_id = extension.get("id")
+                if isinstance(extension_id, str) and extension_id.strip():
+                    return extension_id.strip()
+        return service_id.strip()
 
     def _submit_validation_request(self, record: dict[str, Any]) -> dict[str, Any] | None:
         validation = self._build_validation_seed(record)
