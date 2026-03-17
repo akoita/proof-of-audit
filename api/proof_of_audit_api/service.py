@@ -133,6 +133,26 @@ class AuditService:
     def list_target_claims(self, contract_address: str) -> list[dict[str, Any]]:
         return self.list_audits(contract_address=contract_address)
 
+    def build_target_comparison(self, contract_address: str) -> dict[str, Any]:
+        items = self.list_target_claims(contract_address)
+        return {
+            "target_contract": self._normalize_target_key(contract_address),
+            "target_key": self._normalize_target_key(contract_address),
+            "summary": {
+                "claim_count": len(items),
+                "published_count": sum(1 for item in items if item["status"] == "published"),
+                "challenged_count": sum(
+                    1 for item in items if item["status"] == "challenged"
+                ),
+                "resolved_count": sum(1 for item in items if item["status"] == "resolved"),
+                "max_severity": max(
+                    (int(item["report"]["max_severity"]) for item in items),
+                    default=0,
+                ),
+            },
+            "items": items,
+        }
+
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
         return self.worker.list_demo_fixtures()
 

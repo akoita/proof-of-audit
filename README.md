@@ -110,6 +110,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `GET`  | `/fixtures`                | Available demo benchmark contracts    |
 | `GET`  | `/audits?contract_address=` | List claims for one target contract   |
 | `GET`  | `/targets/:address/audits` | Target-scoped claim history           |
+| `GET`  | `/targets/:address/comparison` | Comparative target claim summary   |
 | `POST` | `/audits`                  | Create a draft audit claim            |
 | `POST` | `/audits/:id/publish`      | Stake ETH and publish on-chain        |
 | `POST` | `/audits/:id/challenge`    | Submit evidence against the claim     |

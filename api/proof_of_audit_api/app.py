@@ -31,6 +31,7 @@ from proof_of_audit_api.schemas import (
     PublicContractConfigResponse,
     PublishAuditRequest,
     ResolveAuditRequest,
+    TargetComparisonResponse,
     TargetAuditClaimsResponse,
 )
 from proof_of_audit_api.service import AuditService
@@ -200,6 +201,19 @@ def create_app(
             target_contract=contract_address.lower(),
             target_key=contract_address.lower(),
             items=items,
+        )
+
+    @app.get(
+        "/targets/{contract_address}/comparison",
+        response_model=TargetComparisonResponse,
+        responses={status.HTTP_200_OK: {"model": TargetComparisonResponse}},
+    )
+    def target_comparison(
+        contract_address: str, request: Request
+    ) -> TargetComparisonResponse:
+        service = _service(request)
+        return TargetComparisonResponse.model_validate(
+            service.build_target_comparison(contract_address)
         )
 
     @app.get(
