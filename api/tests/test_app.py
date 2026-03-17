@@ -180,6 +180,121 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertTrue(payload["manifest_hash"])
 
+    def test_plural_auditor_endpoints_list_and_resolve_catalog_entries(self) -> None:
+        catalog_file = Path(self.tempdir.name) / "auditors.catalog.json"
+        catalog_file.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "service": {
+                                "service_id": "external-auditor",
+                                "name": "External Auditor",
+                                "manifest_schema": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "manifest_hash": "deadbeef",
+                                "registration_kind": "offchain_manifest",
+                                "registration_type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "registration_endpoint": "/auditors/external-auditor/registration",
+                                "registration_uri": "https://example.invalid/external-auditor.json",
+                                "agent_id": 7,
+                                "agent_registry": "0x123",
+                                "identity_source": "erc8004-official",
+                                "capability": "audit_contract",
+                                "discovery_path": "/auditors/external-auditor",
+                                "submit_path": "/audits",
+                                "publish_path_template": "/audits/{id}/publish",
+                                "challenge_path_template": "/audits/{id}/challenge",
+                                "network": "base-sepolia",
+                                "active": True,
+                                "supported_trust": ["crypto-economic"],
+                                "registry_contract_address": "0x456",
+                                "validation_registry_address": "0x789",
+                                "validation_source": "erc8004-official",
+                                "validation_request_path_template": "/audits/{id}/validation/request",
+                                "validation_response_path_template": "/audits/{id}/validation/response",
+                                "submission_modes": ["deployed_address"],
+                                "resolution_modes": ["manual_fallback"],
+                                "deterministic_resolution_supported": False,
+                                "manual_fallback_supported": True,
+                            },
+                            "registration_document": {
+                                "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "name": "External Auditor",
+                                "description": "External auditor entry",
+                                "image": "https://example.invalid/external-auditor.png",
+                                "services": [
+                                    {
+                                        "name": "registration",
+                                        "endpoint": "https://example.invalid/external-auditor.json",
+                                    }
+                                ],
+                                "x402Support": False,
+                                "active": True,
+                                "registrations": [
+                                    {
+                                        "agentId": 7,
+                                        "agentRegistry": "0x123",
+                                    }
+                                ],
+                                "supportedTrust": ["crypto-economic"],
+                                "x-proof-of-audit": {
+                                    "id": "external-auditor",
+                                    "version": "1.0.0",
+                                    "serviceType": "audit_contract",
+                                    "capabilities": ["audit_contract"],
+                                    "operator": "External",
+                                    "resolutionPolicy": "manual",
+                                },
+                            },
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        catalog_env_file = Path(self.tempdir.name) / "catalog.env.local"
+        catalog_env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={Path(self.tempdir.name) / 'demo-fixtures.localhost.json'}",
+                    f"PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE={catalog_file}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        client = TestClient(
+            create_app(
+                Path(self.tempdir.name) / "catalog-data",
+                env_file=catalog_env_file,
+            )
+        )
+
+        listed = client.get("/auditors")
+        self.assertEqual(listed.status_code, 200)
+        listed_payload = listed.json()
+        self.assertEqual(len(listed_payload["items"]), 2)
+        self.assertEqual(
+            listed_payload["items"][0]["service_id"],
+            "proof-of-audit-auditor",
+        )
+        self.assertEqual(
+            listed_payload["items"][1]["service_id"],
+            "external-auditor",
+        )
+
+        detail = client.get("/auditors/external-auditor")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["registration_uri"], "https://example.invalid/external-auditor.json")
+
+        registration = client.get("/auditors/external-auditor/registration")
+        self.assertEqual(registration.status_code, 200)
+        self.assertEqual(registration.json()["name"], "External Auditor")
+
+        missing = client.get("/auditors/unknown-auditor")
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.json()["error"], "auditor_not_found")
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         manifest = load_base_sepolia_manifest()
         response = self.client.get("/auditor/registration")

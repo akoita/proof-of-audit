@@ -102,7 +102,10 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | Method | Endpoint                   | Purpose                               |
 | ------ | -------------------------- | ------------------------------------- |
 | `GET`  | `/auditor`                 | Discover the auditor identity         |
+| `GET`  | `/auditors`                | List registered auditor services      |
+| `GET`  | `/auditors/:id`            | Read one auditor service record       |
 | `GET`  | `/auditor/registration`    | ERC-8004 registration document        |
+| `GET`  | `/auditors/:id/registration` | Read one auditor registration       |
 | `GET`  | `/config`                  | Chain configuration and stake amounts |
 | `GET`  | `/fixtures`                | Available demo benchmark contracts    |
 | `GET`  | `/audits?contract_address=` | List claims for one target contract   |

@@ -95,6 +95,10 @@ class AuditorServiceRecordModel(BaseModel):
     manual_fallback_supported: bool
 
 
+class AuditorServiceListResponse(BaseModel):
+    items: list[AuditorServiceRecordModel]
+
+
 class FindingModel(BaseModel):
     finding_id: str
     title: str

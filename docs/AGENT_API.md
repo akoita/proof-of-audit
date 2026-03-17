@@ -19,14 +19,19 @@ The service can then:
 
 An agent caller should start with these endpoints:
 
-1. `GET /auditor`
-2. `GET /auditor/registration`
-3. `GET /config`
+1. `GET /auditors`
+2. `GET /auditor`
+3. `GET /auditor/registration`
+4. `GET /config`
 
 Use them for different purposes:
 
+- `GET /auditors`
+  - plural discovery record
+  - lists all registered auditor services exposed by this API instance
 - `GET /auditor`
   - operational discovery record
+  - backward-compatible alias for the default auditor service
   - includes API path templates, on-chain agent id, identity source, validation registry metadata, supported submission modes, and resolution modes
 - `GET /auditor/registration`
   - stable ERC-8004-aligned registration document

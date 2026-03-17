@@ -76,6 +76,11 @@ class ContractConfigTest(unittest.TestCase):
         self.assertTrue(config.auditor_service.deterministic_resolution_supported)
         self.assertTrue(config.auditor_service.manual_fallback_supported)
         self.assertTrue(config.auditor_service.manifest_hash)
+        self.assertEqual(len(config.auditor_services), 1)
+        self.assertEqual(
+            config.auditor_services[0].service_id,
+            config.auditor_service.service_id,
+        )
         self.assertFalse(config.deployment_ready)
 
     def test_reads_environment_overrides(self) -> None:
@@ -161,3 +166,92 @@ class ContractConfigTest(unittest.TestCase):
             self.assertEqual(config.rpc_url, "http://127.0.0.1:8545")
             self.assertEqual(config.demo_fixtures_file, fixtures_file)
             self.assertTrue(config.deployment_ready)
+
+    def test_loads_additional_auditors_from_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            catalog_file = Path(tmpdir) / "auditors.catalog.json"
+            catalog_file.write_text(
+                json.dumps(
+                    {
+                        "items": [
+                            {
+                                "service": {
+                                    "service_id": "external-auditor",
+                                    "name": "External Auditor",
+                                    "manifest_schema": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                    "manifest_hash": "deadbeef",
+                                    "registration_kind": "offchain_manifest",
+                                    "registration_type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                    "registration_endpoint": "/auditors/external-auditor/registration",
+                                    "registration_uri": "https://example.invalid/external-auditor.json",
+                                    "agent_id": 7,
+                                    "agent_registry": "0x123",
+                                    "identity_source": "erc8004-official",
+                                    "capability": "audit_contract",
+                                    "discovery_path": "/auditors/external-auditor",
+                                    "submit_path": "/audits",
+                                    "publish_path_template": "/audits/{id}/publish",
+                                    "challenge_path_template": "/audits/{id}/challenge",
+                                    "network": "base-sepolia",
+                                    "active": True,
+                                    "supported_trust": ["crypto-economic"],
+                                    "registry_contract_address": "0x456",
+                                    "validation_registry_address": "0x789",
+                                    "validation_source": "erc8004-official",
+                                    "validation_request_path_template": "/audits/{id}/validation/request",
+                                    "validation_response_path_template": "/audits/{id}/validation/response",
+                                    "submission_modes": ["deployed_address"],
+                                    "resolution_modes": ["manual_fallback"],
+                                    "deterministic_resolution_supported": False,
+                                    "manual_fallback_supported": True,
+                                },
+                                "registration_document": {
+                                    "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                    "name": "External Auditor",
+                                    "description": "External auditor entry",
+                                    "image": "https://example.invalid/external-auditor.png",
+                                    "services": [
+                                        {
+                                            "name": "registration",
+                                            "endpoint": "https://example.invalid/external-auditor.json",
+                                        }
+                                    ],
+                                    "x402Support": False,
+                                    "active": True,
+                                    "registrations": [
+                                        {
+                                            "agentId": 7,
+                                            "agentRegistry": "0x123",
+                                        }
+                                    ],
+                                    "supportedTrust": ["crypto-economic"],
+                                    "x-proof-of-audit": {
+                                        "id": "external-auditor",
+                                        "version": "1.0.0",
+                                        "serviceType": "audit_contract",
+                                        "capabilities": ["audit_contract"],
+                                        "operator": "External",
+                                        "resolutionPolicy": "manual",
+                                    },
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ContractConfig.from_env(
+                {
+                    "PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE": str(catalog_file),
+                }
+            )
+
+            self.assertEqual(len(config.auditor_services), 2)
+            self.assertEqual(
+                config.auditor_services[1].service_id,
+                "external-auditor",
+            )
+            self.assertIsNotNone(
+                config.auditor_registration_document_by_service_id("external-auditor")
+            )
