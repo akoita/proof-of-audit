@@ -299,6 +299,11 @@ def parse_args() -> argparse.Namespace:
         default="fast",
         help="Typing effect speed (instant=0, fast=0.008s, slow=0.025s per char)",
     )
+    parser.add_argument(
+        "--show-deployment",
+        action="store_true",
+        help="Show live Base Sepolia deployment info alongside the demo flow",
+    )
     return parser.parse_args()
 
 
@@ -331,6 +336,36 @@ def main() -> int:
         title="🛡️  Demo",
     )
     _pause(0.5)
+
+    # ── Live deployment info (opt-in) ────────────────────────────────
+    if args.show_deployment:
+        _blank()
+        _hr()
+        _type_print(f"  🌐  {c('LIVE DEPLOYMENT — Base Sepolia', C.BOLD, C.CYAN)}")
+        _hr()
+        _blank()
+        _narrative(
+            "This same flow runs on Base Sepolia with real ETH at stake."
+        )
+        _field(
+            "ProofOfAudit",
+            "0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24",
+        )
+        _field(
+            "Basescan",
+            "https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24",
+        )
+        _field(
+            "IdentityRegistry",
+            "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+        )
+        _field(
+            "ValidationRegistry",
+            "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+        )
+        _blank()
+        _status_badge("Verified on Base Sepolia")
+        _pause()
 
     # ── Phase 1: Discover ────────────────────────────────────────────────
     _phase_header(
@@ -671,7 +706,16 @@ def main() -> int:
             "",
             c("  Trust comes from visible economic commitment.", C.DIM, C.ITALIC),
             "",
-        ],
+        ]
+        + (
+            [
+                c("  ─── Live on Base Sepolia ───", C.DIM, C.CYAN),
+                c("  Contract: 0xf2dA…F24 · sepolia.basescan.org", C.DIM),
+                "",
+            ]
+            if args.show_deployment
+            else []
+        ),
         title="🛡️  Proof-of-Audit",
     )
 

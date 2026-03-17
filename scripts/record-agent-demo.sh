@@ -27,7 +27,7 @@ asciinema rec \
   --idle-time-limit "$IDLE_LIMIT" \
   --title "$TITLE" \
   "$CAST_PATH" \
-  --command "$PYTHON_BIN ./scripts/run_agent_demo.py --api-url $API_URL --fixture-id $FIXTURE_ID --typing-speed $TYPING_SPEED"
+  --command "$PYTHON_BIN ./scripts/run_agent_demo.py --api-url $API_URL --fixture-id $FIXTURE_ID --typing-speed $TYPING_SPEED --show-deployment"
 
 echo "Wrote cast to $CAST_PATH"
 

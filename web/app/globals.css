@@ -37,11 +37,23 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(232, 160, 32, 0.04) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 90%, rgba(196, 125, 16, 0.03) 0%, transparent 50%),
+    radial-gradient(
+      ellipse at 20% 0%,
+      rgba(232, 160, 32, 0.04) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse at 80% 90%,
+      rgba(196, 125, 16, 0.03) 0%,
+      transparent 50%
+    ),
     var(--paper);
   color: var(--ink);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -100,6 +112,43 @@ body {
 .hero-copy {
   display: grid;
   gap: 12px;
+}
+
+/* ── Deployment banner ──────────────────────────────── */
+.deployment-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 12px;
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.deployment-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--tone-confirmed);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.deployment-link {
+  color: var(--tone-confirmed);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: color 200ms ease;
+}
+
+.deployment-link:hover {
+  color: #86efac;
+  text-decoration: underline;
 }
 
 /* ── Shared panel / card chrome ──────────────────────── */
@@ -178,7 +227,9 @@ body {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(16, 14, 12, 0.5);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 
 .status-chip:hover {
@@ -210,7 +261,9 @@ body {
   color: var(--ink);
   font: inherit;
   font-size: 0.92rem;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 
 .submit-card input:focus {
@@ -280,13 +333,20 @@ body {
   padding: 10px 20px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent-light), var(--accent-strong));
+  background: linear-gradient(
+    135deg,
+    var(--accent-light),
+    var(--accent-strong)
+  );
   color: #0c0a08;
   cursor: pointer;
   font: inherit;
   font-weight: 700;
   font-size: 0.9rem;
-  transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
 }
 
 .submit-card button:hover:not(:disabled) {
@@ -667,7 +727,9 @@ body {
   color: var(--ink);
   font: inherit;
   font-size: 0.88rem;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 
 .action-card input:focus {
@@ -693,7 +755,9 @@ body {
   color: #0c0a08;
   font-weight: 700;
   font-size: 0.88rem;
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .action-card button:hover:not(:disabled) {
@@ -742,7 +806,9 @@ body {
   background: rgba(16, 14, 12, 0.5);
   border-left: 3px solid rgba(232, 160, 32, 0.3);
   min-width: 0;
-  transition: border-color 200ms ease, background 200ms ease;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease;
 }
 
 .finding-card:hover {

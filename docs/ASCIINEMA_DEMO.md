@@ -52,6 +52,7 @@ Additional flags:
 - `--typing-speed instant|fast|slow` — controls the typewriter effect (default: `fast`)
 - `--no-color` — disables ANSI color output
 - `--no-sleep` — skips pauses between phases
+- `--show-deployment` — displays live Base Sepolia deployment info alongside the demo flow
 
 Recommended fixture:
 
