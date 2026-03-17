@@ -41,24 +41,24 @@
     </linearGradient>
     <clipPath id="progressClip">
       <rect x="0" y="0" width="780" height="6" rx="3">
-        <animate attributeName="width" from="0" to="780" dur="28s" repeatCount="indefinite"/>
+        <animate attributeName="width" from="0" to="780" dur="18s" repeatCount="indefinite"/>
       </rect>
     </clipPath>
     <style>
       .sans { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
       .mono { font-family: "JetBrains Mono", "SF Mono", "Fira Code", Consolas, monospace; }
 
-      /* Scene animation — 7 scenes across 28s */
+      /* Scene animation — 7 scenes across 18s */
       .scene { opacity: 0; }
-      .sc1 { animation: sc1 28s linear infinite; }
-      .sc2 { animation: sc2 28s linear infinite; }
-      .sc3 { animation: sc3 28s linear infinite; }
-      .sc4 { animation: sc4 28s linear infinite; }
-      .sc5 { animation: sc5 28s linear infinite; }
-      .sc6 { animation: sc6 28s linear infinite; }
-      .sc7 { animation: sc7 28s linear infinite; }
+      .sc1 { animation: sc1 18s linear infinite; }
+      .sc2 { animation: sc2 18s linear infinite; }
+      .sc3 { animation: sc3 18s linear infinite; }
+      .sc4 { animation: sc4 18s linear infinite; }
+      .sc5 { animation: sc5 18s linear infinite; }
+      .sc6 { animation: sc6 18s linear infinite; }
+      .sc7 { animation: sc7 18s linear infinite; }
 
-      /* Each scene gets ~4s (14.3%) */
+      /* Each scene gets ~2.57s (14.3%) */
       @keyframes sc1 {  0%,  12% { opacity:1 }  14.3%, 100% { opacity:0 } }
       @keyframes sc2 {  0%,  13.3% { opacity:0 }  14.3%,  26.6% { opacity:1 }  28.6%, 100% { opacity:0 } }
       @keyframes sc3 {  0%,  27.6% { opacity:0 }  28.6%,  41% { opacity:1 }  42.9%, 100% { opacity:0 } }
@@ -68,13 +68,13 @@
       @keyframes sc7 {  0%,  84.7% { opacity:0 }  85.7%,  98% { opacity:1 }  100% { opacity:0 } }
 
       /* Lifecycle pip fill animations */
-      .pip-fill-1 { animation: pipFill1 28s linear infinite; }
-      .pip-fill-2 { animation: pipFill2 28s linear infinite; }
-      .pip-fill-3 { animation: pipFill3 28s linear infinite; }
-      .pip-fill-4 { animation: pipFill4 28s linear infinite; }
-      .pip-fill-5 { animation: pipFill5 28s linear infinite; }
-      .pip-fill-6 { animation: pipFill6 28s linear infinite; }
-      .pip-fill-7 { animation: pipFill7 28s linear infinite; }
+      .pip-fill-1 { animation: pipFill1 18s linear infinite; }
+      .pip-fill-2 { animation: pipFill2 18s linear infinite; }
+      .pip-fill-3 { animation: pipFill3 18s linear infinite; }
+      .pip-fill-4 { animation: pipFill4 18s linear infinite; }
+      .pip-fill-5 { animation: pipFill5 18s linear infinite; }
+      .pip-fill-6 { animation: pipFill6 18s linear infinite; }
+      .pip-fill-7 { animation: pipFill7 18s linear infinite; }
 
       @keyframes pipFill1 { 0%, 100% { opacity: 1; } }
       @keyframes pipFill2 { 0%, 13.3%  { opacity:0.2 } 14.3%, 100% { opacity: 1; } }
