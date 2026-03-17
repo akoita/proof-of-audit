@@ -335,6 +335,118 @@ class AuditorServiceRecord:
     deterministic_resolution_supported: bool
     manual_fallback_supported: bool
 
+    @classmethod
+    def from_payload(cls, payload: object) -> "AuditorServiceRecord | None":
+        if not isinstance(payload, dict):
+            return None
+        service_id = str(payload.get("service_id") or "").strip()
+        name = str(payload.get("name") or "").strip()
+        manifest_schema = str(payload.get("manifest_schema") or "").strip()
+        manifest_hash = str(payload.get("manifest_hash") or "").strip()
+        registration_kind = str(payload.get("registration_kind") or "").strip()
+        registration_type = str(payload.get("registration_type") or "").strip()
+        registration_endpoint = str(payload.get("registration_endpoint") or "").strip()
+        registration_uri = str(payload.get("registration_uri") or "").strip()
+        capability = str(payload.get("capability") or "").strip()
+        discovery_path = str(payload.get("discovery_path") or "").strip()
+        submit_path = str(payload.get("submit_path") or "").strip()
+        publish_path_template = str(
+            payload.get("publish_path_template") or ""
+        ).strip()
+        challenge_path_template = str(
+            payload.get("challenge_path_template") or ""
+        ).strip()
+        network = str(payload.get("network") or "").strip()
+        validation_request_path_template = str(
+            payload.get("validation_request_path_template") or ""
+        ).strip()
+        validation_response_path_template = str(
+            payload.get("validation_response_path_template") or ""
+        ).strip()
+        if not all(
+            [
+                service_id,
+                name,
+                manifest_schema,
+                manifest_hash,
+                registration_kind,
+                registration_type,
+                registration_endpoint,
+                registration_uri,
+                capability,
+                discovery_path,
+                submit_path,
+                publish_path_template,
+                challenge_path_template,
+                network,
+                validation_request_path_template,
+                validation_response_path_template,
+            ]
+        ):
+            return None
+        agent_id_value = payload.get("agent_id")
+        agent_id = int(agent_id_value) if isinstance(agent_id_value, int) else None
+        return cls(
+            service_id=service_id,
+            name=name,
+            manifest_schema=manifest_schema,
+            manifest_hash=manifest_hash,
+            registration_kind=registration_kind,
+            registration_type=registration_type,
+            registration_endpoint=registration_endpoint,
+            registration_uri=registration_uri,
+            agent_id=agent_id,
+            agent_registry=(
+                str(payload["agent_registry"])
+                if payload.get("agent_registry") is not None
+                else None
+            ),
+            identity_source=(
+                str(payload["identity_source"])
+                if payload.get("identity_source") is not None
+                else None
+            ),
+            capability=capability,
+            discovery_path=discovery_path,
+            submit_path=submit_path,
+            publish_path_template=publish_path_template,
+            challenge_path_template=challenge_path_template,
+            network=network,
+            active=bool(payload.get("active", True)),
+            supported_trust=tuple(
+                str(item) for item in payload.get("supported_trust", []) if str(item).strip()
+            ),
+            registry_contract_address=(
+                str(payload["registry_contract_address"])
+                if payload.get("registry_contract_address") is not None
+                else None
+            ),
+            validation_registry_address=(
+                str(payload["validation_registry_address"])
+                if payload.get("validation_registry_address") is not None
+                else None
+            ),
+            validation_source=(
+                str(payload["validation_source"])
+                if payload.get("validation_source") is not None
+                else None
+            ),
+            validation_request_path_template=validation_request_path_template,
+            validation_response_path_template=validation_response_path_template,
+            submission_modes=tuple(
+                str(item) for item in payload.get("submission_modes", []) if str(item).strip()
+            ),
+            resolution_modes=tuple(
+                str(item) for item in payload.get("resolution_modes", []) if str(item).strip()
+            ),
+            deterministic_resolution_supported=bool(
+                payload.get("deterministic_resolution_supported", False)
+            ),
+            manual_fallback_supported=bool(
+                payload.get("manual_fallback_supported", False)
+            ),
+        )
+
     def to_dict(self) -> dict[str, object]:
         return {
             "service_id": self.service_id,
@@ -369,6 +481,12 @@ class AuditorServiceRecord:
 
 
 @dataclass(frozen=True)
+class AuditorDirectoryEntry:
+    service: AuditorServiceRecord
+    registration_document: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
 class ContractConfig:
     network: str
     chain_id: int
@@ -392,6 +510,7 @@ class ContractConfig:
     auditor_public_web_url: str
     auditor_public_api_base_url: str | None
     runtime_api_base_url: str
+    auditor_catalog_file: Path | None
     auditor_agent_id: int | None
     auditor_agent_registry: str | None
     auditor_agent_identity_source: str | None
@@ -438,6 +557,11 @@ class ContractConfig:
         registration_document = deployment_manifest.get("registration_document", {})
         if not isinstance(registration_document, dict):
             registration_document = {}
+        auditor_catalog_file = (
+            Path(source["PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE"])
+            if source.get("PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE")
+            else None
+        )
         manifest_file = (
             Path(source["PROOF_OF_AUDIT_AGENT_MANIFEST_FILE"])
             if source.get("PROOF_OF_AUDIT_AGENT_MANIFEST_FILE")
@@ -520,6 +644,7 @@ class ContractConfig:
                 or source.get("PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL")
                 or DEFAULT_RUNTIME_API_BASE_URL
             ).rstrip("/"),
+            auditor_catalog_file=auditor_catalog_file,
             auditor_agent_id=(
                 int(source["PROOF_OF_AUDIT_AUDITOR_AGENT_ID"])
                 if source.get("PROOF_OF_AUDIT_AUDITOR_AGENT_ID")
@@ -747,3 +872,58 @@ class ContractConfig:
             deterministic_resolution_supported=True,
             manual_fallback_supported=True,
         )
+
+    @property
+    def auditor_directory_entries(self) -> tuple[AuditorDirectoryEntry, ...]:
+        entries: list[AuditorDirectoryEntry] = [
+            AuditorDirectoryEntry(
+                service=self.auditor_service,
+                registration_document=self.auditor_registration_document(),
+            )
+        ]
+        if self.auditor_catalog_file is None or not self.auditor_catalog_file.exists():
+            return tuple(entries)
+
+        payload = load_json_file(self.auditor_catalog_file)
+        raw_items = payload.get("items", [])
+        if not isinstance(raw_items, list):
+            return tuple(entries)
+
+        for raw_item in raw_items:
+            if not isinstance(raw_item, dict):
+                continue
+            service = AuditorServiceRecord.from_payload(raw_item.get("service"))
+            if service is None or service.service_id == self.auditor_service.service_id:
+                continue
+            registration_document = raw_item.get("registration_document")
+            entries.append(
+                AuditorDirectoryEntry(
+                    service=service,
+                    registration_document=(
+                        registration_document
+                        if isinstance(registration_document, dict)
+                        else None
+                    ),
+                )
+            )
+        return tuple(entries)
+
+    @property
+    def auditor_services(self) -> tuple[AuditorServiceRecord, ...]:
+        return tuple(entry.service for entry in self.auditor_directory_entries)
+
+    def auditor_service_by_id(self, service_id: str) -> AuditorServiceRecord | None:
+        normalized_service_id = service_id.strip()
+        for entry in self.auditor_directory_entries:
+            if entry.service.service_id == normalized_service_id:
+                return entry.service
+        return None
+
+    def auditor_registration_document_by_service_id(
+        self, service_id: str
+    ) -> dict[str, object] | None:
+        normalized_service_id = service_id.strip()
+        for entry in self.auditor_directory_entries:
+            if entry.service.service_id == normalized_service_id:
+                return entry.registration_document
+        return None
