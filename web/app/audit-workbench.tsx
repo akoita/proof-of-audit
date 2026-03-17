@@ -72,6 +72,19 @@ type PublicContractConfig = {
   deployment_ready: boolean;
 };
 
+type TargetComparisonResponse = {
+  target_contract: string;
+  target_key: string;
+  summary: {
+    claim_count: number;
+    published_count: number;
+    challenged_count: number;
+    resolved_count: number;
+    max_severity: number;
+  };
+  items: AuditRecord[];
+};
+
 type InputKind =
   | "deployed_address"
   | "demo_fixture"
@@ -92,6 +105,8 @@ type Submission = {
 type AuditRecord = {
   id: string;
   contract_address: string;
+  target_key: string;
+  target_auditor_key: string;
   agent: AuditorProfile;
   submission: Submission;
   submitted_by: string;
@@ -384,6 +399,21 @@ function submissionTargetLabel(audit: AuditRecord): string {
   return shortenHex(audit.contract_address, 8, 6);
 }
 
+function severityRankLabel(rank: number): string {
+  switch (rank) {
+    case 4:
+      return "Critical";
+    case 3:
+      return "High";
+    case 2:
+      return "Medium";
+    case 1:
+      return "Low";
+    default:
+      return "Info";
+  }
+}
+
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) {
     return null;
@@ -419,6 +449,9 @@ export function AuditWorkbench() {
   const [sourceBundleLabel, setSourceBundleLabel] = useState("");
   const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
+  const [targetComparison, setTargetComparison] = useState<TargetComparisonResponse | null>(
+    null,
+  );
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
   const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(
     null,
@@ -428,6 +461,7 @@ export function AuditWorkbench() {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isComparisonLoaded, setIsComparisonLoaded] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -444,6 +478,17 @@ export function AuditWorkbench() {
       void loadWorkbench();
     });
   }, []);
+
+  useEffect(() => {
+    if (!activeAudit?.contract_address) {
+      setTargetComparison(null);
+      setIsComparisonLoaded(false);
+      return;
+    }
+    startTransition(() => {
+      void loadTargetComparison(activeAudit.contract_address);
+    });
+  }, [activeAudit?.id, activeAudit?.contract_address]);
 
   async function loadWorkbench() {
     setLoadError(null);
@@ -480,6 +525,20 @@ export function AuditWorkbench() {
       );
     } finally {
       setIsLoaded(true);
+    }
+  }
+
+  async function loadTargetComparison(contractAddress: string) {
+    setIsComparisonLoaded(false);
+    try {
+      const payload = await apiFetch<TargetComparisonResponse>(
+        `/targets/${contractAddress}/comparison`,
+      );
+      setTargetComparison(payload);
+    } catch {
+      setTargetComparison(null);
+    } finally {
+      setIsComparisonLoaded(true);
     }
   }
 
@@ -1391,6 +1450,59 @@ export function AuditWorkbench() {
         </article>
 
         <aside className="panel recent-panel">
+          <div className="comparison-block">
+            <div className="section-heading">
+              <p>Target comparison</p>
+              <span>
+                {targetComparison?.summary.claim_count ??
+                  (isComparisonLoaded ? 0 : "...")}
+              </span>
+            </div>
+            {!activeAudit ? (
+              <p className="muted">Create or select a claim to compare target-level activity.</p>
+            ) : !isComparisonLoaded ? (
+              <p className="muted">Loading claim comparison for this target.</p>
+            ) : !targetComparison || targetComparison.items.length === 0 ? (
+              <p className="muted">No other claims tracked for this target yet.</p>
+            ) : (
+              <>
+                <p className="muted comparison-summary">
+                  {targetComparison.summary.published_count} published ·{" "}
+                  {targetComparison.summary.challenged_count} challenged ·{" "}
+                  {targetComparison.summary.resolved_count} resolved · max severity{" "}
+                  {severityRankLabel(targetComparison.summary.max_severity)}
+                </p>
+                <div className="comparison-list">
+                  {targetComparison.items.map((audit) => (
+                    <button
+                      key={audit.id}
+                      type="button"
+                      className="comparison-item"
+                      data-selected={audit.id === activeAudit?.id}
+                      onClick={() => syncAudit(audit)}
+                    >
+                      <div className="card-header">
+                        <p>{audit.agent.name}</p>
+                        <span data-tone={statusTone(audit.status)}>{audit.status}</span>
+                      </div>
+                      <small>{submissionModeLabel(audit.submission.input_kind)}</small>
+                      <strong>{lifecycleLabel(audit)}</strong>
+                      <p>
+                        {audit.onchain
+                          ? `stake ${formatEth(audit.onchain.stake_wei)}`
+                          : "not yet published"}
+                      </p>
+                      <small>
+                        severity {severityRankLabel(audit.report.max_severity)} ·{" "}
+                        {audit.report.finding_count} finding
+                        {audit.report.finding_count === 1 ? "" : "s"}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <div className="section-heading">
             <p>Recent claims</p>
             <span>{recentAudits.length}</span>

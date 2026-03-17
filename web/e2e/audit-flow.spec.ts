@@ -6,14 +6,10 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
     page.getByText("Pick a live contract to drive the trust, stake, and challenge flow"),
   ).toBeVisible();
   await expect(page.getByText("Service discovery", { exact: true })).toBeVisible();
-  await expect(
-    page.locator(".signal-note").getByText("Proof-of-Audit Auditor", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".signal-note").getByText("proof-of-audit-auditor")).toBeVisible();
-  await expect(page.locator(".signal-note").getByText("/auditor")).toBeVisible();
-  await expect(
-    page.locator(".signal-note").getByText("/audits", { exact: true }),
-  ).toBeVisible();
+  const serviceNote = page.locator(".signal-note").first();
+  await expect(serviceNote).toContainText("Proof-of-Audit");
+  await expect(serviceNote).toContainText("Audit Contract");
+  await expect(serviceNote).toContainText("proof-of-audit-auditor");
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByRole("button", { name: "Generate claim" }).click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
@@ -92,4 +88,16 @@ test("dual risk vault renders the richer multi-finding report", async ({ page })
   await expect(
     page.getByText(/Evidence: ipfs:\/\/dual-risk-vault\/emergency-payout-failure/i),
   ).toBeVisible();
+});
+
+test("target comparison groups multiple claims for one contract", async ({ page }) => {
+  await createAuditFromFixture(page, /Clean Vault/i);
+  const initialComparisonCount = await page.locator(".comparison-item").count();
+  await page.getByRole("button", { name: "Generate claim" }).click();
+
+  await expect(page.getByText("Target comparison", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => page.locator(".comparison-item").count())
+    .toBeGreaterThanOrEqual(initialComparisonCount + 1);
+  await expect(page.getByText(/published · .*challenged · .*resolved/i)).toBeVisible();
 });

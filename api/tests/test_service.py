@@ -126,6 +126,45 @@ class AuditServiceTest(unittest.TestCase):
                 )
             )
 
+    def test_build_target_comparison_summarizes_claim_states(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+            )
+            published = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="published",
+            )
+            service.publish_audit(published["id"], 10**16, None)
+
+            challenged = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="challenged",
+            )
+            service.publish_audit(challenged["id"], 10**16, None)
+            service.challenge_audit(challenged["id"], "ipfs://wrong-proof", "whitehat")
+
+            draft = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="draft",
+            )
+
+            comparison = service.build_target_comparison(
+                "0x1000000000000000000000000000000000000001"
+            )
+
+            self.assertEqual(comparison["target_key"], draft["contract_address"])
+            self.assertEqual(comparison["summary"]["claim_count"], 3)
+            self.assertEqual(comparison["summary"]["published_count"], 1)
+            self.assertEqual(comparison["summary"]["challenged_count"], 1)
+            self.assertEqual(comparison["summary"]["resolved_count"], 0)
+            self.assertGreaterEqual(comparison["summary"]["max_severity"], 0)
+
     def test_create_publish_and_challenge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()

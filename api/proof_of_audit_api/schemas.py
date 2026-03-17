@@ -240,6 +240,21 @@ class TargetAuditClaimsResponse(BaseModel):
     items: list[AuditRecordModel]
 
 
+class TargetComparisonSummaryModel(BaseModel):
+    claim_count: int
+    published_count: int
+    challenged_count: int
+    resolved_count: int
+    max_severity: int
+
+
+class TargetComparisonResponse(BaseModel):
+    target_contract: str
+    target_key: str
+    summary: TargetComparisonSummaryModel
+    items: list[AuditRecordModel]
+
+
 class DemoFixtureModel(BaseModel):
     id: str
     label: str

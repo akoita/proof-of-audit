@@ -111,6 +111,15 @@ Use this after every mutation. The returned record is the source of truth for:
 - `challenge`
 - `validation`
 
+### Compare claims on one target
+
+Use either:
+
+- `GET /targets/{address}/audits`
+- `GET /targets/{address}/comparison`
+
+The comparison endpoint adds a compact summary layer so callers can inspect how many claims exist for a target, how many are published, challenged, or resolved, and what the highest reported severity is before drilling into individual records.
+
 ### Publish a claim on-chain
 
 `POST /audits/{id}/publish`

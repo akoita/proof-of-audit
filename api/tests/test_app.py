@@ -597,6 +597,16 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(len(target_payload["items"]), 2)
 
+        comparison = self.client.get(
+            "/targets/0x1000000000000000000000000000000000000001/comparison"
+        )
+        self.assertEqual(comparison.status_code, 200)
+        comparison_payload = comparison.json()
+        self.assertEqual(comparison_payload["summary"]["claim_count"], 2)
+        self.assertEqual(comparison_payload["summary"]["published_count"], 0)
+        self.assertEqual(comparison_payload["summary"]["challenged_count"], 0)
+        self.assertEqual(comparison_payload["summary"]["resolved_count"], 0)
+
 
 class AuditApiOnchainPublishTest(unittest.TestCase):
     def setUp(self) -> None:

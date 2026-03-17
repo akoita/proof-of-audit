@@ -1,4 +1,4 @@
-export default function Legacy404Page() {
+export default function NotFound() {
   return (
     <main
       style={{
