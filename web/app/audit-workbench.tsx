@@ -628,6 +628,17 @@ export function AuditWorkbench() {
             it, and can be challenged through a neutral on-chain process when
             that claim is disputed.
           </p>
+          <div className="deployment-banner">
+            <span className="deployment-badge">✓ Verified on Base Sepolia</span>
+            <a
+              href="https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24"
+              target="_blank"
+              rel="noreferrer"
+              className="deployment-link"
+            >
+              View ProofOfAudit contract on Basescan ↗
+            </a>
+          </div>
         </div>
         <div className="signal-panel">
           <div className="panel-kicker">
