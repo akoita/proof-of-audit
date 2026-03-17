@@ -33,7 +33,7 @@ Use them for different purposes:
 - `GET /auditor`
   - operational discovery record
   - backward-compatible alias for the default auditor service
-  - includes API path templates, on-chain agent id, identity source, validation registry metadata, supported submission modes, and resolution modes
+  - includes API path templates, on-chain agent id, identity source, validation and reputation registry metadata, supported submission modes, and resolution modes
 - `GET /auditor/registration`
   - stable ERC-8004-aligned registration document
   - includes service endpoints and the `x-proof-of-audit` extension block
@@ -128,6 +128,12 @@ Discovery records now include a `reputation` block with:
 - a neutral `50/100` score when there are no resolved challenges
 - otherwise `round(100 * challenge_rejected_count / resolved_challenge_count)`
 - the raw counts used to compute that score
+- when configured, on-chain reputation registry metadata and cumulative staked value
+
+You can also read the current summary directly:
+
+- `GET /auditor/reputation`
+- `GET /auditors/{id}/reputation`
 
 See [Reputation model](./REPUTATION_MODEL.md) for the full explanation and caveats.
 
@@ -159,6 +165,8 @@ And gains:
 - `onchain.audit_id`
 - `validation.request_hash`
 - `validation.request_uri`
+- `reputation_trail.claim_hash`
+- `reputation_trail.claim_uri`
 
 ### Open a challenge
 
@@ -184,6 +192,7 @@ On success, one of two things happens:
   - audit moves directly to `resolved`
   - challenge includes `resolution_path: "deterministic"`
   - validation response is submitted
+  - reputation resolution is recorded
 - ambiguous case:
   - audit moves to `challenged`
   - challenge stays `opened`
@@ -210,6 +219,11 @@ These endpoints expose the ERC-8004-aligned bridge artifacts:
 
 - `GET /audits/{id}/validation/request`
 - `GET /audits/{id}/validation/response`
+
+These endpoints expose the reputation accumulator artifacts:
+
+- `GET /audits/{id}/reputation/claim`
+- `GET /audits/{id}/reputation/resolution`
 
 Interpretation:
 

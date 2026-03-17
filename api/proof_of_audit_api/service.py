@@ -16,6 +16,11 @@ from proof_of_audit_api.publisher import (
     OnchainResolveError,
     ProofOfAuditPublisher,
 )
+from proof_of_audit_api.reputation_bridge import (
+    OnchainReputationSnapshot,
+    ReputationBridgeError,
+    ReputationRegistryBridge,
+)
 from proof_of_audit_api.validation_bridge import (
     ValidationBridgeError,
     ValidationRegistryBridge,
@@ -34,6 +39,7 @@ class AuditService:
         publisher: ProofOfAuditPublisher | None = None,
         arbiter_client: ProofOfAuditPublisher | None = None,
         validation_bridge: ValidationRegistryBridge | None = None,
+        reputation_bridge: ReputationRegistryBridge | None = None,
         store: AuditStore | None = None,
         store_kind: str = "sqlite",
         store_path: Path | None = None,
@@ -65,6 +71,9 @@ class AuditService:
             private_key=self.contract_config.arbiter_private_key,
         )
         self.validation_bridge = validation_bridge or ValidationRegistryBridge.from_config_if_ready(
+            self.contract_config
+        )
+        self.reputation_bridge = reputation_bridge or ReputationRegistryBridge.from_config_if_ready(
             self.contract_config
         )
 
@@ -111,6 +120,7 @@ class AuditService:
             "onchain": None,
             "challenge": None,
             "validation": None,
+            "reputation_trail": None,
         }
         self.store.write(audit_id, record)
         return record
@@ -223,6 +233,7 @@ class AuditService:
             ),
         }
         record["validation"] = self._submit_validation_request(record)
+        record["reputation_trail"] = self._submit_reputation_claim(record)
         self.store.write(audit_id, record)
         return record
 
@@ -310,6 +321,7 @@ class AuditService:
         record["challenge"] = challenge_record
         if record["status"] == "resolved":
             record["validation"] = self._submit_validation_response(record)
+            record["reputation_trail"] = self._submit_reputation_resolution(record)
         self.store.write(audit_id, record)
         return record
 
@@ -349,6 +361,7 @@ class AuditService:
         )
         record["status"] = "resolved"
         record["validation"] = self._submit_validation_response(record)
+        record["reputation_trail"] = self._submit_reputation_resolution(record)
         self.store.write(audit_id, record)
         return record
 
@@ -369,6 +382,36 @@ class AuditService:
         if not isinstance(validation, dict) or not validation.get("response_hash"):
             return None
         return self._build_validation_response_document(record)
+
+    def get_reputation_claim_document(self, audit_id: str) -> dict[str, Any] | None:
+        record = self.get_audit(audit_id)
+        if record is None:
+            return None
+        reputation_trail = record.get("reputation_trail")
+        if not isinstance(reputation_trail, dict) or not reputation_trail.get("claim_hash"):
+            return None
+        return self._build_reputation_claim_document(record)
+
+    def get_reputation_resolution_document(self, audit_id: str) -> dict[str, Any] | None:
+        record = self.get_audit(audit_id)
+        if record is None:
+            return None
+        reputation_trail = record.get("reputation_trail")
+        if not isinstance(reputation_trail, dict) or not reputation_trail.get("resolution_hash"):
+            return None
+        return self._build_reputation_resolution_document(record)
+
+    def get_auditor_reputation(self, service_id: str) -> dict[str, Any] | None:
+        service = self.get_auditor_service(service_id)
+        if service is None:
+            return None
+        reputation = service.get("reputation")
+        if not isinstance(reputation, dict):
+            return None
+        return {
+            "service_id": service_id,
+            "reputation": deepcopy(reputation),
+        }
 
     def _require_audit(self, audit_id: str) -> dict[str, Any]:
         record = self.store.read(audit_id)
@@ -406,6 +449,9 @@ class AuditService:
         validation = normalized.get("validation")
         if isinstance(validation, dict):
             normalized["validation"] = validation
+        reputation_trail = normalized.get("reputation_trail")
+        if isinstance(reputation_trail, dict):
+            normalized["reputation_trail"] = reputation_trail
         execution = normalized.get("execution")
         if isinstance(execution, dict):
             normalized["execution"] = execution
@@ -481,6 +527,12 @@ class AuditService:
                     reputation["band"] = "mixed"
                 else:
                     reputation["band"] = "contested"
+        onchain_reputation = self._load_onchain_reputation()
+        if onchain_reputation is not None:
+            index[self.contract_config.auditor.id] = self._apply_onchain_reputation_snapshot(
+                index.get(self.contract_config.auditor.id, self._default_reputation()),
+                onchain_reputation,
+            )
         return index
 
     def _default_reputation(self) -> dict[str, Any]:
@@ -494,11 +546,50 @@ class AuditService:
             "published_claim_count": 0,
             "draft_claim_count": 0,
             "last_resolved_at": None,
+            "source": None,
+            "registry_address": None,
+            "agent_id": None,
+            "total_stake_wei": None,
+            "last_update": None,
             "formula": (
                 "Neutral 50 when there are no resolved challenges; otherwise "
                 "round(100 * challenge_rejected_count / resolved_challenge_count)."
             ),
         }
+
+    def _load_onchain_reputation(self) -> OnchainReputationSnapshot | None:
+        if self.reputation_bridge is None or self.contract_config.auditor_agent_id is None:
+            return None
+        try:
+            return self.reputation_bridge.get_reputation(self.contract_config.auditor_agent_id)
+        except ReputationBridgeError:
+            return None
+
+    def _apply_onchain_reputation_snapshot(
+        self,
+        reputation: dict[str, Any],
+        snapshot: OnchainReputationSnapshot,
+    ) -> dict[str, Any]:
+        enriched = deepcopy(reputation)
+        enriched["score"] = snapshot.score
+        if snapshot.resolved_challenges == 0:
+            enriched["band"] = "provisional"
+        elif snapshot.score >= 75:
+            enriched["band"] = "trusted"
+        elif snapshot.score >= 40:
+            enriched["band"] = "mixed"
+        else:
+            enriched["band"] = "contested"
+        enriched["resolved_challenge_count"] = snapshot.resolved_challenges
+        enriched["challenge_rejected_count"] = snapshot.challenge_rejected_count
+        enriched["challenge_upheld_count"] = snapshot.challenge_upheld_count
+        enriched["published_claim_count"] = snapshot.total_claims
+        enriched["source"] = snapshot.source
+        enriched["registry_address"] = snapshot.registry_address
+        enriched["agent_id"] = snapshot.agent_id
+        enriched["total_stake_wei"] = snapshot.total_stake_wei
+        enriched["last_update"] = snapshot.last_update
+        return enriched
 
     def _attach_reputation(
         self, record: dict[str, Any], reputation_index: dict[str, dict[str, Any]]
@@ -535,6 +626,84 @@ class AuditService:
                 if isinstance(extension_id, str) and extension_id.strip():
                     return extension_id.strip()
         return service_id.strip()
+
+    def _submit_reputation_claim(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        reputation_trail = self._build_reputation_seed(record)
+        if reputation_trail is None:
+            return None
+        if self.reputation_bridge is None:
+            reputation_trail["status"] = "claim_unavailable"
+            reputation_trail["last_error"] = (
+                "Reputation registry is configured, but claim submission is not enabled in this API instance."
+            )
+            return reputation_trail
+        try:
+            result = self.reputation_bridge.submit_claim(
+                claim_uri=str(reputation_trail["claim_uri"]),
+                claim_hash=str(reputation_trail["claim_hash"]),
+                stake_wei=int(reputation_trail["stake_wei"]),
+            )
+        except ReputationBridgeError as exc:
+            reputation_trail["status"] = "claim_failed"
+            reputation_trail["last_error"] = str(exc)
+            return reputation_trail
+
+        reputation_trail.update(
+            {
+                "status": "claim_recorded",
+                "claim_tx_hash": result.tx_hash,
+                "claim_tx_url": self.contract_config.transaction_url(result.tx_hash),
+                "last_error": None,
+            }
+        )
+        return reputation_trail
+
+    def _submit_reputation_resolution(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        reputation_trail = deepcopy(record.get("reputation_trail"))
+        if not isinstance(reputation_trail, dict) or not reputation_trail.get("claim_hash"):
+            return None
+        resolution_document = self._build_reputation_resolution_document(record)
+        resolution_hash = self._hash_payload(resolution_document)
+        claim_confirmed = self._claim_confirmed(record)
+        if claim_confirmed is None:
+            return reputation_trail
+        reputation_trail.update(
+            {
+                "claim_confirmed": claim_confirmed,
+                "resolution_uri": self._reputation_resolution_uri(record["id"]),
+                "resolution_hash": resolution_hash,
+                "linked_resolution": str(
+                    (record.get("challenge") or {}).get("resolution") or ""
+                )
+                or None,
+            }
+        )
+        if self.reputation_bridge is None:
+            reputation_trail["status"] = "resolution_unavailable"
+            reputation_trail["last_error"] = (
+                "Reputation registry is configured, but resolution submission is not enabled in this API instance."
+            )
+            return reputation_trail
+        try:
+            result = self.reputation_bridge.submit_resolution(
+                claim_hash=str(reputation_trail["claim_hash"]),
+                claim_confirmed=claim_confirmed,
+                resolution_uri=str(reputation_trail["resolution_uri"]),
+            )
+        except ReputationBridgeError as exc:
+            reputation_trail["status"] = "resolution_failed"
+            reputation_trail["last_error"] = str(exc)
+            return reputation_trail
+
+        reputation_trail.update(
+            {
+                "status": "resolution_recorded",
+                "resolution_tx_hash": result.tx_hash,
+                "resolution_tx_url": self.contract_config.transaction_url(result.tx_hash),
+                "last_error": None,
+            }
+        )
+        return reputation_trail
 
     def _submit_validation_request(self, record: dict[str, Any]) -> dict[str, Any] | None:
         validation = self._build_validation_seed(record)
@@ -614,6 +783,108 @@ class AuditService:
             }
         )
         return validation
+
+    def _build_reputation_seed(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        if (
+            not self.contract_config.reputation_registry_address
+            or self.contract_config.auditor_agent_id is None
+        ):
+            return None
+        onchain = record.get("onchain")
+        if not isinstance(onchain, dict):
+            return None
+        claim_document = self._build_reputation_claim_document(record)
+        return {
+            "status": "pending_claim",
+            "registry_address": self.contract_config.reputation_registry_address,
+            "source": self.contract_config.reputation_bridge_source or "configured",
+            "agent_id": self.contract_config.auditor_agent_id,
+            "claim_uri": self._reputation_claim_uri(record["id"]),
+            "claim_hash": self._hash_payload(claim_document),
+            "stake_wei": int(onchain.get("stake_wei") or 0),
+            "claim_tx_hash": None,
+            "claim_tx_url": None,
+            "claim_confirmed": None,
+            "resolution_uri": None,
+            "resolution_hash": None,
+            "resolution_tx_hash": None,
+            "resolution_tx_url": None,
+            "linked_resolution": None,
+            "last_error": None,
+        }
+
+    def _reputation_claim_uri(self, audit_id: str) -> str:
+        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/reputation/claim"
+
+    def _reputation_resolution_uri(self, audit_id: str) -> str:
+        return (
+            f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/reputation/resolution"
+        )
+
+    def _build_reputation_claim_document(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        onchain = record.get("onchain") or {}
+        report = record["report"]
+        return {
+            "type": "https://github.com/akoita/proof-of-audit#reputation-claim-v1",
+            "auditRecordId": record["id"],
+            "agentId": self.contract_config.auditor_agent_id,
+            "agentRegistry": self.contract_config.auditor_agent_registry,
+            "reputationRegistry": self.contract_config.reputation_registry_address,
+            "claim": {
+                "targetContract": record["contract_address"],
+                "reportHash": report["report_hash"],
+                "metadataHash": report["metadata_hash"],
+                "publishTxHash": onchain.get("publish_tx_hash"),
+                "publishedAuditId": onchain.get("audit_id"),
+                "stakeWei": onchain.get("stake_wei"),
+            },
+            "service": {
+                "registrationUri": self.contract_config.auditor_registration_uri,
+                "registrationEndpoint": (
+                    f"{self.contract_config.runtime_api_base_url}/auditor/registration"
+                ),
+            },
+        }
+
+    def _build_reputation_resolution_document(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        challenge = record.get("challenge") or {}
+        reputation_trail = record.get("reputation_trail") or {}
+        return {
+            "type": "https://github.com/akoita/proof-of-audit#reputation-resolution-v1",
+            "auditRecordId": record["id"],
+            "agentId": self.contract_config.auditor_agent_id,
+            "agentRegistry": self.contract_config.auditor_agent_registry,
+            "reputationRegistry": self.contract_config.reputation_registry_address,
+            "claimHash": reputation_trail.get("claim_hash"),
+            "claimConfirmed": self._claim_confirmed(record),
+            "outcome": {
+                "auditStatus": record["status"],
+                "challengeStatus": challenge.get("status"),
+                "resolution": challenge.get("resolution"),
+                "resolutionPath": challenge.get("resolution_path"),
+                "resolveTxHash": challenge.get("resolve_tx_hash"),
+            },
+            "evidence": {
+                "proofUri": challenge.get("proof_uri"),
+                "verificationStatus": challenge.get("verification_status"),
+                "verificationSummary": challenge.get("verification_summary"),
+            },
+        }
+
+    def _claim_confirmed(self, record: dict[str, Any]) -> bool | None:
+        challenge = record.get("challenge")
+        if not isinstance(challenge, dict):
+            return None
+        resolution = str(challenge.get("resolution") or "")
+        if resolution == "rejected":
+            return True
+        if resolution == "upheld":
+            return False
+        return None
 
     def _build_validation_seed(self, record: dict[str, Any]) -> dict[str, Any] | None:
         if (

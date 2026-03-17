@@ -90,6 +90,9 @@ class AuditorServiceRecordModel(BaseModel):
     validation_source: str | None = None
     validation_request_path_template: str
     validation_response_path_template: str
+    reputation_registry_address: str | None = None
+    reputation_source: str | None = None
+    reputation_path_template: str
     submission_modes: list[str]
     resolution_modes: list[str]
     deterministic_resolution_supported: bool
@@ -197,6 +200,25 @@ class ValidationTrailModel(BaseModel):
     last_error: str | None = None
 
 
+class ReputationTrailModel(BaseModel):
+    status: str
+    registry_address: str
+    source: str
+    agent_id: int
+    claim_uri: str
+    claim_hash: str
+    stake_wei: int
+    claim_tx_hash: str | None = None
+    claim_tx_url: str | None = None
+    claim_confirmed: bool | None = None
+    resolution_uri: str | None = None
+    resolution_hash: str | None = None
+    resolution_tx_hash: str | None = None
+    resolution_tx_url: str | None = None
+    linked_resolution: str | None = None
+    last_error: str | None = None
+
+
 class ExecutionArtifactModel(BaseModel):
     backend: str
     mode: str
@@ -230,6 +252,7 @@ class AuditRecordModel(BaseModel):
     onchain: OnchainPublicationModel | None = None
     challenge: ChallengeModel | None = None
     validation: ValidationTrailModel | None = None
+    reputation_trail: ReputationTrailModel | None = None
 
 
 class AuditListResponse(BaseModel):
@@ -260,7 +283,17 @@ class AuditorReputationModel(BaseModel):
     published_claim_count: int
     draft_claim_count: int
     last_resolved_at: str | None = None
+    source: str | None = None
+    registry_address: str | None = None
+    agent_id: int | None = None
+    total_stake_wei: int | None = None
+    last_update: int | None = None
     formula: str
+
+
+class AuditorReputationResponse(BaseModel):
+    service_id: str
+    reputation: AuditorReputationModel
 
 
 class TargetComparisonResponse(BaseModel):

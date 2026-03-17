@@ -21,6 +21,7 @@ from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRecordModel,
     AuditorRegistrationDocumentModel,
+    AuditorReputationResponse,
     AuditorServiceListResponse,
     AuditorServiceRecordModel,
     ChallengeAuditRequest,
@@ -163,6 +164,24 @@ def create_app(
         )
 
     @app.get(
+        "/auditor/reputation",
+        response_model=AuditorReputationResponse,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def auditor_reputation(request: Request) -> AuditorReputationResponse:
+        service = _service(request)
+        contract_config = request.app.state.contract_config
+        payload = service.get_auditor_reputation(
+            contract_config.auditor_service.service_id
+        )
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "auditor_reputation_not_found"},
+            )
+        return AuditorReputationResponse.model_validate(payload)
+
+    @app.get(
         "/auditors/{service_id}/registration",
         response_model=AuditorRegistrationDocumentModel,
         responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
@@ -178,6 +197,22 @@ def create_app(
                 detail={"error": "auditor_registration_not_found"},
             )
         return AuditorRegistrationDocumentModel.model_validate(payload)
+
+    @app.get(
+        "/auditors/{service_id}/reputation",
+        response_model=AuditorReputationResponse,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def auditor_reputation_detail(
+        service_id: str, request: Request
+    ) -> AuditorReputationResponse:
+        payload = _service(request).get_auditor_reputation(service_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "auditor_reputation_not_found"},
+            )
+        return AuditorReputationResponse.model_validate(payload)
 
     @app.get(
         "/audits",
@@ -273,6 +308,38 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"error": "validation_response_not_found"},
+            )
+        return payload
+
+    @app.get(
+        "/audits/{audit_id}/reputation/claim",
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_reputation_claim_document(
+        audit_id: str, request: Request
+    ) -> dict[str, object]:
+        service = _service(request)
+        payload = service.get_reputation_claim_document(audit_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "reputation_claim_not_found"},
+            )
+        return payload
+
+    @app.get(
+        "/audits/{audit_id}/reputation/resolution",
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_reputation_resolution_document(
+        audit_id: str, request: Request
+    ) -> dict[str, object]:
+        service = _service(request)
+        payload = service.get_reputation_resolution_document(audit_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "reputation_resolution_not_found"},
             )
         return payload
 
