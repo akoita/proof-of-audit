@@ -66,6 +66,10 @@ class ContractConfigTest(unittest.TestCase):
             "/audits/{id}/validation/request",
         )
         self.assertEqual(
+            config.auditor_service.reputation_path_template,
+            "/auditors/{id}/reputation",
+        )
+        self.assertEqual(
             config.auditor_service.submission_modes,
             ("demo_fixture", "deployed_address", "source_bundle", "repository_url"),
         )
@@ -101,6 +105,9 @@ class ContractConfigTest(unittest.TestCase):
                 "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "67",
                 "PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS": "0xdef",
                 "PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE": "project-local-custom",
+                "PROOF_OF_AUDIT_REPUTATION_REGISTRY_ADDRESS": "0x987",
+                "PROOF_OF_AUDIT_REPUTATION_BRIDGE_SOURCE": "project-local-custom",
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": "0x5de4111a884cc4ff8f4b78a1810d7a2ec61b0ff7dd86e31ed5c8984f1a58dc6b",
                 "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:9999",
                 "PROOF_OF_AUDIT_WORKER_RUNTIME_MODE": "hybrid",
                 "PROOF_OF_AUDIT_AGENT_FORGE_COMMAND": "/tmp/agent-forge",
@@ -128,6 +135,12 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.challenge_window_seconds, 67)
         self.assertEqual(config.validation_registry_address, "0xdef")
         self.assertEqual(config.validation_bridge_source, "project-local-custom")
+        self.assertEqual(config.reputation_registry_address, "0x987")
+        self.assertEqual(config.reputation_bridge_source, "project-local-custom")
+        self.assertEqual(
+            config.reputation_operator_private_key,
+            "0x5de4111a884cc4ff8f4b78a1810d7a2ec61b0ff7dd86e31ed5c8984f1a58dc6b",
+        )
         self.assertEqual(config.runtime_api_base_url, "http://127.0.0.1:9999")
         self.assertEqual(config.worker_runtime_mode, "hybrid")
         self.assertEqual(config.agent_forge_command, "/tmp/agent-forge")
@@ -200,6 +213,9 @@ class ContractConfigTest(unittest.TestCase):
                                     "validation_source": "erc8004-official",
                                     "validation_request_path_template": "/audits/{id}/validation/request",
                                     "validation_response_path_template": "/audits/{id}/validation/response",
+                                    "reputation_registry_address": "0xabc",
+                                    "reputation_source": "project-local-custom",
+                                    "reputation_path_template": "/auditors/{id}/reputation",
                                     "submission_modes": ["deployed_address"],
                                     "resolution_modes": ["manual_fallback"],
                                     "deterministic_resolution_supported": False,
@@ -254,4 +270,8 @@ class ContractConfigTest(unittest.TestCase):
             )
             self.assertIsNotNone(
                 config.auditor_registration_document_by_service_id("external-auditor")
+            )
+            self.assertEqual(
+                config.auditor_services[1].reputation_path_template,
+                "/auditors/{id}/reputation",
             )

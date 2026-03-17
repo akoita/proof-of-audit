@@ -118,6 +118,10 @@ class AuditApiAppTest(unittest.TestCase):
             "erc8004-official",
         )
         self.assertEqual(
+            payload["auditor_service"]["reputation_path_template"],
+            "/auditors/{id}/reputation",
+        )
+        self.assertEqual(
             payload["auditor_service"]["submission_modes"],
             ["demo_fixture", "deployed_address", "source_bundle", "repository_url"],
         )
@@ -180,6 +184,7 @@ class AuditApiAppTest(unittest.TestCase):
             payload["validation_request_path_template"],
             "/audits/{id}/validation/request",
         )
+        self.assertEqual(payload["reputation_path_template"], "/auditors/{id}/reputation")
         self.assertEqual(payload["reputation"]["score"], 50)
         self.assertEqual(payload["reputation"]["resolved_challenge_count"], 0)
         self.assertTrue(payload["manifest_hash"])
@@ -216,6 +221,9 @@ class AuditApiAppTest(unittest.TestCase):
                                 "validation_source": "erc8004-official",
                                 "validation_request_path_template": "/audits/{id}/validation/request",
                                 "validation_response_path_template": "/audits/{id}/validation/response",
+                                "reputation_registry_address": "0xabc",
+                                "reputation_source": "project-local-custom",
+                                "reputation_path_template": "/auditors/{id}/reputation",
                                 "submission_modes": ["deployed_address"],
                                 "resolution_modes": ["manual_fallback"],
                                 "deterministic_resolution_supported": False,
@@ -294,6 +302,11 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(detail.json()["registration_uri"], "https://example.invalid/external-auditor.json")
         self.assertEqual(detail.json()["reputation"]["resolved_challenge_count"], 0)
 
+        reputation = client.get("/auditors/external-auditor/reputation")
+        self.assertEqual(reputation.status_code, 200)
+        self.assertEqual(reputation.json()["service_id"], "external-auditor")
+        self.assertEqual(reputation.json()["reputation"]["score"], 50)
+
         registration = client.get("/auditors/external-auditor/registration")
         self.assertEqual(registration.status_code, 200)
         self.assertEqual(registration.json()["name"], "External Auditor")
@@ -326,6 +339,15 @@ class AuditApiAppTest(unittest.TestCase):
             payload["x-proof-of-audit"]["validationRegistryAddress"],
             manifest["validation_bridge"]["registry_address"],
         )
+
+    def test_default_auditor_reputation_endpoint_returns_summary(self) -> None:
+        response = self.client.get("/auditor/reputation")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["service_id"], "proof-of-audit-auditor")
+        self.assertEqual(payload["reputation"]["score"], 50)
+        self.assertEqual(payload["reputation"]["band"], "provisional")
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
         response = self.client.get("/fixtures")
@@ -409,6 +431,7 @@ class AuditApiAppTest(unittest.TestCase):
                 publisher=onchain.publisher,
                 arbiter_client=onchain.arbiter_client,
                 validation_bridge=onchain.validation_bridge,
+                reputation_bridge=onchain.reputation_bridge,
             )
             client = TestClient(create_app(Path(tmpdir), audit_service=service))
             created = client.post(
@@ -433,12 +456,28 @@ class AuditApiAppTest(unittest.TestCase):
             )
             self.assertEqual(request_payload["requestType"], "proof-of-audit.audit-claim")
             self.assertEqual(request_payload["agentId"], 1)
+            reputation_claim = client.get(f"/audits/{audit_id}/reputation/claim")
+            self.assertEqual(reputation_claim.status_code, 200)
+            reputation_claim_payload = reputation_claim.json()
+            self.assertEqual(
+                reputation_claim_payload["type"],
+                "https://github.com/akoita/proof-of-audit#reputation-claim-v1",
+            )
+            self.assertEqual(reputation_claim_payload["agentId"], 1)
 
             missing_response = client.get(f"/audits/{audit_id}/validation/response")
             self.assertEqual(missing_response.status_code, 404)
             self.assertEqual(
                 missing_response.json()["error"],
                 "validation_response_not_found",
+            )
+            missing_reputation_resolution = client.get(
+                f"/audits/{audit_id}/reputation/resolution"
+            )
+            self.assertEqual(missing_reputation_resolution.status_code, 404)
+            self.assertEqual(
+                missing_reputation_resolution.json()["error"],
+                "reputation_resolution_not_found",
             )
 
             challenged = client.post(
@@ -458,6 +497,20 @@ class AuditApiAppTest(unittest.TestCase):
             )
             self.assertEqual(response_payload["response"], 100)
             self.assertEqual(response_payload["tag"], "claim-confirmed")
+            reputation_resolution = client.get(
+                f"/audits/{audit_id}/reputation/resolution"
+            )
+            self.assertEqual(reputation_resolution.status_code, 200)
+            reputation_resolution_payload = reputation_resolution.json()
+            self.assertEqual(
+                reputation_resolution_payload["type"],
+                "https://github.com/akoita/proof-of-audit#reputation-resolution-v1",
+            )
+            self.assertTrue(reputation_resolution_payload["claimConfirmed"])
+
+            reputation_summary = client.get("/auditor/reputation")
+            self.assertEqual(reputation_summary.status_code, 200)
+            self.assertEqual(reputation_summary.json()["reputation"]["score"], 100)
 
     def test_validation_error_is_structured(self) -> None:
         response = self.client.post("/audits", json={"submitted_by": "missing-address"})

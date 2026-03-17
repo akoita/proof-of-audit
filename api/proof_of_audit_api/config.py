@@ -330,6 +330,9 @@ class AuditorServiceRecord:
     validation_source: str | None
     validation_request_path_template: str
     validation_response_path_template: str
+    reputation_registry_address: str | None
+    reputation_source: str | None
+    reputation_path_template: str
     submission_modes: tuple[str, ...]
     resolution_modes: tuple[str, ...]
     deterministic_resolution_supported: bool
@@ -363,6 +366,9 @@ class AuditorServiceRecord:
         validation_response_path_template = str(
             payload.get("validation_response_path_template") or ""
         ).strip()
+        reputation_path_template = str(
+            payload.get("reputation_path_template") or ""
+        ).strip()
         if not all(
             [
                 service_id,
@@ -381,6 +387,7 @@ class AuditorServiceRecord:
                 network,
                 validation_request_path_template,
                 validation_response_path_template,
+                reputation_path_template,
             ]
         ):
             return None
@@ -433,6 +440,17 @@ class AuditorServiceRecord:
             ),
             validation_request_path_template=validation_request_path_template,
             validation_response_path_template=validation_response_path_template,
+            reputation_registry_address=(
+                str(payload["reputation_registry_address"])
+                if payload.get("reputation_registry_address") is not None
+                else None
+            ),
+            reputation_source=(
+                str(payload["reputation_source"])
+                if payload.get("reputation_source") is not None
+                else None
+            ),
+            reputation_path_template=reputation_path_template,
             submission_modes=tuple(
                 str(item) for item in payload.get("submission_modes", []) if str(item).strip()
             ),
@@ -473,6 +491,9 @@ class AuditorServiceRecord:
             "validation_source": self.validation_source,
             "validation_request_path_template": self.validation_request_path_template,
             "validation_response_path_template": self.validation_response_path_template,
+            "reputation_registry_address": self.reputation_registry_address,
+            "reputation_source": self.reputation_source,
+            "reputation_path_template": self.reputation_path_template,
             "submission_modes": list(self.submission_modes),
             "resolution_modes": list(self.resolution_modes),
             "deterministic_resolution_supported": self.deterministic_resolution_supported,
@@ -516,6 +537,10 @@ class ContractConfig:
     auditor_agent_identity_source: str | None
     validation_registry_address: str | None
     validation_bridge_source: str | None
+    reputation_registry_address: str | None
+    reputation_bridge_source: str | None
+    reputation_operator_private_key: str | None
+    reputation_operator_address: str | None
     worker_runtime_mode: str
     agent_forge_command: str
     agent_forge_provider: str | None
@@ -554,6 +579,9 @@ class ContractConfig:
         validation_bridge = deployment_manifest.get("validation_bridge", {})
         if not isinstance(validation_bridge, dict):
             validation_bridge = {}
+        reputation_bridge = deployment_manifest.get("reputation_bridge", {})
+        if not isinstance(reputation_bridge, dict):
+            reputation_bridge = {}
         registration_document = deployment_manifest.get("registration_document", {})
         if not isinstance(registration_document, dict):
             registration_document = {}
@@ -722,6 +750,39 @@ class ContractConfig:
                     )
                 )
             ),
+            reputation_registry_address=(
+                source.get("PROOF_OF_AUDIT_REPUTATION_REGISTRY_ADDRESS")
+                or (
+                    str(reputation_bridge["registry_address"])
+                    if reputation_bridge.get("registry_address")
+                    else None
+                )
+            ),
+            reputation_bridge_source=(
+                source.get("PROOF_OF_AUDIT_REPUTATION_BRIDGE_SOURCE")
+                or (
+                    str(reputation_bridge["source"])
+                    if reputation_bridge.get("source")
+                    else None
+                )
+            ),
+            reputation_operator_private_key=source.get(
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY"
+            )
+            or source.get("PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY")
+            or source.get("PROOF_OF_AUDIT_PRIVATE_KEY")
+            or None,
+            reputation_operator_address=source.get("PROOF_OF_AUDIT_REPUTATION_OPERATOR_ADDRESS")
+            or address_from_private_key(
+                source.get("PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY")
+            )
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY"))
+            or address_from_private_key(source.get("PROOF_OF_AUDIT_PRIVATE_KEY"))
+            or None,
             worker_runtime_mode=source.get(
                 "PROOF_OF_AUDIT_WORKER_RUNTIME_MODE",
                 "deterministic",
@@ -797,6 +858,7 @@ class ContractConfig:
                 "resolvePathTemplate": "/audits/{id}/resolve",
                 "validationRequestPathTemplate": "/audits/{id}/validation/request",
                 "validationResponsePathTemplate": "/audits/{id}/validation/response",
+                "reputationPathTemplate": "/auditors/{id}/reputation",
                 "submissionModes": [
                     "demo_fixture",
                     "deployed_address",
@@ -816,6 +878,10 @@ class ContractConfig:
             extension["validationRegistryAddress"] = self.validation_registry_address
         if self.validation_bridge_source:
             extension["validationSource"] = self.validation_bridge_source
+        if self.reputation_registry_address:
+            extension["reputationRegistryAddress"] = self.reputation_registry_address
+        if self.reputation_bridge_source:
+            extension["reputationSource"] = self.reputation_bridge_source
         payload["x-proof-of-audit"] = extension
         if (
             not payload.get("registrations")
@@ -862,6 +928,9 @@ class ContractConfig:
             validation_source=self.validation_bridge_source,
             validation_request_path_template="/audits/{id}/validation/request",
             validation_response_path_template="/audits/{id}/validation/response",
+            reputation_registry_address=self.reputation_registry_address,
+            reputation_source=self.reputation_bridge_source,
+            reputation_path_template="/auditors/{id}/reputation",
             submission_modes=(
                 "demo_fixture",
                 "deployed_address",

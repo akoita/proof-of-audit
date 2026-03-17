@@ -14,6 +14,10 @@ from proof_of_audit_api.publisher import (
     load_contract_abi,
     load_contract_bytecode,
 )
+from proof_of_audit_api.reputation_bridge import (
+    ReputationRegistryBridge,
+    load_reputation_bridge_abi,
+)
 from proof_of_audit_api.validation_bridge import (
     ValidationRegistryBridge,
     load_validation_bridge_abi,
@@ -26,6 +30,13 @@ AGENT_IDENTITY_ARTIFACT = (
 )
 VALIDATION_REGISTRY_ARTIFACT = (
     ROOT_DIR / "contracts" / "out" / "ValidationRegistryAdapter.sol" / "ValidationRegistryAdapter.json"
+)
+REPUTATION_REGISTRY_ARTIFACT = (
+    ROOT_DIR
+    / "contracts"
+    / "out"
+    / "ReputationRegistryAdapter.sol"
+    / "ReputationRegistryAdapter.json"
 )
 
 
@@ -47,16 +58,24 @@ def load_validation_registry_bytecode() -> str:
     ]
 
 
+def load_reputation_registry_bytecode() -> str:
+    return json.loads(REPUTATION_REGISTRY_ARTIFACT.read_text(encoding="utf-8"))["bytecode"][
+        "object"
+    ]
+
+
 @dataclass(frozen=True)
 class OnchainTestContext:
     web3: Web3
     contract: Contract
     identity_registry: Contract
     validation_registry: Contract
+    reputation_registry: Contract
     contract_config: ContractConfig
     publisher: ProofOfAuditPublisher
     arbiter_client: ProofOfAuditPublisher
     validation_bridge: ValidationRegistryBridge
+    reputation_bridge: ReputationRegistryBridge
 
 
 def build_onchain_test_context() -> OnchainTestContext:
@@ -170,6 +189,33 @@ def build_onchain_test_context() -> OnchainTestContext:
         address=validation_receipt["contractAddress"],
         abi=load_validation_bridge_abi(),
     )
+    reputation_factory = web3.eth.contract(
+        abi=load_reputation_bridge_abi(),
+        bytecode=load_reputation_registry_bytecode(),
+    )
+    reputation_deployment = reputation_factory.constructor(
+        identity_receipt["contractAddress"],
+        validator_address,
+    ).build_transaction(
+        {
+            "from": deployer_address,
+            "nonce": web3.eth.get_transaction_count(deployer_address),
+            "gas": 3_000_000,
+            "maxFeePerGas": web3.to_wei(2, "gwei"),
+            "maxPriorityFeePerGas": web3.to_wei(1, "gwei"),
+            "chainId": web3.eth.chain_id,
+        }
+    )
+    signed_reputation = web3.eth.account.sign_transaction(
+        reputation_deployment,
+        deployer_key.to_hex(),
+    )
+    reputation_tx_hash = web3.eth.send_raw_transaction(signed_reputation.raw_transaction)
+    reputation_receipt = web3.eth.wait_for_transaction_receipt(reputation_tx_hash)
+    reputation_registry = web3.eth.contract(
+        address=reputation_receipt["contractAddress"],
+        abi=load_reputation_bridge_abi(),
+    )
 
     contract_config = ContractConfig.from_env(
         {
@@ -191,6 +237,10 @@ def build_onchain_test_context() -> OnchainTestContext:
             "PROOF_OF_AUDIT_AUDITOR_IDENTITY_SOURCE": "project-local-custom",
             "PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS": validation_receipt["contractAddress"],
             "PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE": "project-local-custom",
+            "PROOF_OF_AUDIT_REPUTATION_REGISTRY_ADDRESS": reputation_receipt["contractAddress"],
+            "PROOF_OF_AUDIT_REPUTATION_BRIDGE_SOURCE": "project-local-custom",
+            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": validator_key.to_hex(),
+            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_ADDRESS": validator_address,
             "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:8080",
         }
     )
@@ -201,13 +251,16 @@ def build_onchain_test_context() -> OnchainTestContext:
         private_key=arbiter_key.to_hex(),
     )
     validation_bridge = ValidationRegistryBridge(contract_config, web3=web3)
+    reputation_bridge = ReputationRegistryBridge(contract_config, web3=web3)
     return OnchainTestContext(
         web3=web3,
         contract=publisher.contract,
         identity_registry=identity_registry,
         validation_registry=validation_registry,
+        reputation_registry=reputation_registry,
         contract_config=contract_config,
         publisher=publisher,
         arbiter_client=arbiter_client,
         validation_bridge=validation_bridge,
+        reputation_bridge=reputation_bridge,
     )

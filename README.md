@@ -104,8 +104,10 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `GET`  | `/auditor`                 | Discover the auditor identity         |
 | `GET`  | `/auditors`                | List registered auditor services and reputation |
 | `GET`  | `/auditors/:id`            | Read one auditor service record       |
+| `GET`  | `/auditors/:id/reputation` | Read one auditor reputation summary   |
 | `GET`  | `/auditor/registration`    | ERC-8004 registration document        |
 | `GET`  | `/auditors/:id/registration` | Read one auditor registration       |
+| `GET`  | `/auditor/reputation`      | Read the default auditor reputation   |
 | `GET`  | `/config`                  | Chain configuration and stake amounts |
 | `GET`  | `/fixtures`                | Available demo benchmark contracts    |
 | `GET`  | `/audits?contract_address=` | List claims for one target contract   |
@@ -116,6 +118,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `POST` | `/audits/:id/challenge`    | Submit evidence against the claim     |
 | `POST` | `/audits/:id/resolve`      | Resolve ambiguous disputes            |
 | `GET`  | `/audits/:id/validation/*` | ERC-8004 validation trail             |
+| `GET`  | `/audits/:id/reputation/*` | On-chain reputation trail             |
 
 Interactive API docs available at `http://127.0.0.1:8080/docs` when the server is running.
 
