@@ -1,0 +1,59 @@
+"use client";
+
+type SidebarProps = {
+  activeView: string;
+  onViewChange: (view: string) => void;
+};
+
+const NAV_ITEMS = [
+  { id: "workbench",  label: "Workbench",  icon: "📝" },
+  { id: "published",  label: "Published",  icon: "✓" },
+  { id: "disputed",   label: "Disputed",   icon: "⚖" },
+  { id: "reputation", label: "Reputation", icon: "🛡" },
+  { id: "archive",    label: "Archive",    icon: "📦" },
+] as const;
+
+export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-icon">🔐</div>
+          <div className="sidebar-logo-text">
+            <h3>Audit Lifecycle</h3>
+            <p>Precision Forensics</p>
+          </div>
+        </div>
+        <button className="sidebar-new-btn" type="button">
+          <span>+</span> New Audit Claim
+        </button>
+      </div>
+
+      <nav className="sidebar-nav">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="sidebar-nav-item"
+            data-active={activeView === item.id}
+            onClick={() => onViewChange(item.id)}
+          >
+            <span className="icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="sidebar-footer">
+        <button type="button" className="sidebar-nav-item">
+          <span className="icon">📖</span>
+          <span>Documentation</span>
+        </button>
+        <button type="button" className="sidebar-nav-item">
+          <span className="icon">💬</span>
+          <span>Support</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
