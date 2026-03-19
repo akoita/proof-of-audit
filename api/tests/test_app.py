@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from proof_of_audit_api.app import create_app
 from proof_of_audit_api.service import AuditService
+from proof_of_audit_agent.challenge_verifier import ChallengeVerificationResult, EvidenceContext
 from helpers import build_onchain_test_context
 
 def load_base_sepolia_manifest() -> dict[str, object]:
@@ -777,3 +778,150 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             challenge_payload["challenge"]["resolution_path"],
             "manual_fallback",
         )
+
+    def test_typed_executable_challenge_round_trips_through_api(self) -> None:
+        class RecordingVerifier:
+            def __init__(self) -> None:
+                self.last_context: EvidenceContext | None = None
+
+            def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
+                self.last_context = context
+                return ChallengeVerificationResult(
+                    verifier="executable-evidence-advisory-v1",
+                    status="verified",
+                    summary="advisory rejected",
+                    detail="already reported",
+                    resolution="rejected",
+                    advisory_only=True,
+                    execution_log="forge output",
+                    matched_findings=["finding-1"],
+                    unmatched_findings=[],
+                )
+
+        recording_verifier = RecordingVerifier()
+        service = AuditService(
+            Path(self.tempdir.name) / "typed-data",
+            contract_config=self.onchain.contract_config,
+            publisher=self.onchain.publisher,
+            arbiter_client=self.onchain.arbiter_client,
+            challenge_verifiers={
+                "deterministic_fixture": self.client.app.state.audit_service.challenge_verifiers["deterministic_fixture"],
+                "executable_test": recording_verifier,
+            },
+        )
+        typed_client = TestClient(create_app(audit_service=service))
+
+        created = typed_client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+        published = typed_client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = typed_client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "file:///tmp/ChallengeEvidence.t.sol",
+                "evidence_type": "executable_test",
+                "evidence_manifest": {
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": self.chain_id,
+                    "pinned_block_number": 42,
+                },
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 200)
+        payload = challenged.json()
+        self.assertEqual(payload["status"], "challenged")
+        self.assertEqual(payload["challenge"]["evidence_type"], "executable_test")
+        self.assertEqual(payload["challenge"]["execution_env"], "foundry")
+        self.assertEqual(
+            payload["challenge"]["evidence_manifest"]["entrypoint"],
+            "ChallengeEvidence.t.sol",
+        )
+        self.assertEqual(payload["challenge"]["advisory_verdict"], "rejected")
+        self.assertEqual(payload["challenge"]["execution_log"], "forge output")
+        self.assertEqual(payload["challenge"]["matched_findings"], ["finding-1"])
+
+        fetched = typed_client.get(f"/audits/{audit_id}")
+        self.assertEqual(fetched.status_code, 200)
+        fetched_payload = fetched.json()
+        self.assertEqual(fetched_payload["challenge"]["evidence_type"], "executable_test")
+        self.assertEqual(fetched_payload["challenge"]["execution_env"], "foundry")
+        self.assertEqual(
+            fetched_payload["challenge"]["evidence_manifest"]["pinned_block_number"],
+            42,
+        )
+        self.assertIsNotNone(recording_verifier.last_context)
+        self.assertEqual(recording_verifier.last_context.evidence_type, "executable_test")
+        self.assertEqual(recording_verifier.last_context.evidence_manifest["target_chain_id"], self.chain_id)
+
+    def test_deterministic_evidence_rejects_execution_env_payload(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "ipfs://wrong-proof",
+                "execution_env": "foundry",
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 422)
+        self.assertEqual(challenged.json()["error"], "validation_error")
+
+    def test_deterministic_evidence_rejects_manifest_payload(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "ipfs://wrong-proof",
+                "evidence_manifest": {
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": self.chain_id,
+                },
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 422)
+        self.assertEqual(challenged.json()["error"], "validation_error")

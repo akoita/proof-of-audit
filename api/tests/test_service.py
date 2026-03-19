@@ -1,12 +1,33 @@
+from dataclasses import replace
+import json
 import tempfile
 import unittest
 from pathlib import Path
-import json
 
+from proof_of_audit_agent.challenge_verifier import (
+    ChallengeVerificationResult,
+    EvidenceContext,
+)
 from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.publisher import OnchainConfigurationError
 from proof_of_audit_api.service import AuditService
 from helpers import build_onchain_test_context
+
+
+def service_default_deterministic_verifier():
+    from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
+
+    return DeterministicChallengeVerifier()
+
+
+class RecordingVerifier:
+    def __init__(self, result: ChallengeVerificationResult) -> None:
+        self.result = result
+        self.last_context: EvidenceContext | None = None
+
+    def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
+        self.last_context = context
+        return self.result
 
 
 class AuditServiceTest(unittest.TestCase):
@@ -534,6 +555,160 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["resolution_path"],
                 "manual_fallback",
             )
+
+    def test_executable_evidence_persists_advisory_output_and_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            executable_verifier = RecordingVerifier(
+                ChallengeVerificationResult(
+                    verifier="executable-evidence-advisory-v1",
+                    status="verified",
+                    summary="advisory upheld",
+                    detail="new issue demonstrated",
+                    resolution="upheld",
+                    advisory_only=True,
+                    execution_log="forge output",
+                    matched_findings=[],
+                    unmatched_findings=["rotateowner"],
+                )
+            )
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                challenge_verifiers={
+                    "deterministic_fixture": service_default_deterministic_verifier(),
+                    "executable_test": executable_verifier,
+                },
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "file:///tmp/ChallengeEvidence.t.sol",
+                challenger="whitehat",
+                evidence_type="executable_test",
+                execution_env="foundry",
+                evidence_manifest={
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": onchain.contract_config.chain_id,
+                    "pinned_block_number": 42,
+                },
+            )
+
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(challenged["challenge"]["status"], "opened")
+            self.assertEqual(challenged["challenge"]["evidence_type"], "executable_test")
+            self.assertEqual(challenged["challenge"]["execution_env"], "foundry")
+            self.assertEqual(
+                challenged["challenge"]["evidence_manifest"]["bundle_format"],
+                "proof-of-audit-executable-evidence/v1",
+            )
+            self.assertEqual(challenged["challenge"]["advisory_verdict"], "upheld")
+            self.assertEqual(challenged["challenge"]["execution_log"], "forge output")
+            self.assertEqual(challenged["challenge"]["unmatched_findings"], ["rotateowner"])
+            hydrated = service.get_audit(created["id"])
+            self.assertIsNotNone(hydrated)
+            self.assertEqual(hydrated["challenge"]["evidence_type"], "executable_test")
+            self.assertEqual(hydrated["challenge"]["execution_env"], "foundry")
+            self.assertEqual(
+                hydrated["challenge"]["evidence_manifest"]["pinned_block_number"],
+                42,
+            )
+            self.assertEqual(hydrated["challenge"]["advisory_verdict"], "upheld")
+            self.assertIsNotNone(executable_verifier.last_context)
+            self.assertEqual(
+                executable_verifier.last_context.target_contract,
+                created["contract_address"],
+            )
+            self.assertEqual(
+                executable_verifier.last_context.evidence_type,
+                "executable_test",
+            )
+            self.assertEqual(
+                executable_verifier.last_context.execution_env,
+                "foundry",
+            )
+            self.assertEqual(
+                executable_verifier.last_context.evidence_manifest["entrypoint"],
+                "ChallengeEvidence.t.sol",
+            )
+            self.assertEqual(
+                executable_verifier.last_context.chain_id,
+                onchain.contract_config.chain_id,
+            )
+            self.assertEqual(
+                executable_verifier.last_context.rpc_url,
+                onchain.contract_config.rpc_url,
+            )
+
+    def test_executable_evidence_requires_deployed_address_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            fixtures_file = Path(tmpdir) / "demo-fixtures.localhost.json"
+            fixtures_file.write_text(
+                json.dumps(
+                    {
+                        "fixtures": [
+                            {
+                                "id": "clean-vault",
+                                "label": "Clean Vault",
+                                "contract_name": "CleanVault",
+                                "entry_contract": "CleanVault",
+                                "benchmark_id": "clean-vault",
+                                "address": "0x4444000000000000000000000000000000000004",
+                                "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
+                                "note": "Clean benchmark with medium confidence",
+                                "source_path": "demo/contracts/CleanVault.sol",
+                            }
+                        ]
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=replace(
+                    onchain.contract_config,
+                    demo_fixtures_file=fixtures_file,
+                ),
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit_submission(
+                {
+                    "input_kind": "demo_fixture",
+                    "fixture_id": "clean-vault",
+                },
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "executable_test challenge evidence is only supported for deployed_address audits",
+            ):
+                service.challenge_audit(
+                    created["id"],
+                    "file:///tmp/ChallengeEvidence.t.sol",
+                    challenger="whitehat",
+                    evidence_type="executable_test",
+                    execution_env="foundry",
+                    evidence_manifest={
+                        "bundle_format": "proof-of-audit-executable-evidence/v1",
+                        "execution_env": "foundry",
+                        "entrypoint": "ChallengeEvidence.t.sol",
+                        "target_chain_id": onchain.contract_config.chain_id,
+                    },
+                )
 
     def test_challenge_requires_publish(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

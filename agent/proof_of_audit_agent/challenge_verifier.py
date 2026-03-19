@@ -1,8 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 VERIFIER_NAME = "deterministic-benchmark-v1"
+
+
+@dataclass(frozen=True)
+class EvidenceContext:
+    proof_uri: str
+    benchmark_id: str | None
+    target_contract: str
+    published_report: dict[str, Any]
+    evidence_type: str = "deterministic_fixture"
+    execution_env: str | None = None
+    evidence_manifest: dict[str, Any] | None = None
+    chain_id: int | None = None
+    rpc_url: str | None = None
+
+
+class ChallengeVerifierStrategy(Protocol):
+    def verify(self, context: EvidenceContext) -> "ChallengeVerificationResult":
+        ...
 
 
 @dataclass(frozen=True)
@@ -23,6 +42,10 @@ class ChallengeVerificationResult:
     detail: str
     case_id: str | None = None
     resolution: str | None = None
+    advisory_only: bool = False
+    execution_log: str | None = None
+    matched_findings: list[str] = field(default_factory=list)
+    unmatched_findings: list[str] = field(default_factory=list)
 
     @property
     def upheld(self) -> bool | None:
@@ -82,9 +105,15 @@ class DeterministicChallengeVerifier:
 
     def verify(
         self,
-        benchmark_id: str,
-        proof_uri: str,
+        context: EvidenceContext | str,
+        proof_uri: str | None = None,
     ) -> ChallengeVerificationResult:
+        if isinstance(context, EvidenceContext):
+            benchmark_id = str(context.benchmark_id or "unknown")
+            proof_uri = context.proof_uri
+        else:
+            benchmark_id = context
+            proof_uri = proof_uri or ""
         challenge_case = CHALLENGE_CASES.get(benchmark_id)
         if challenge_case is None:
             return ChallengeVerificationResult(

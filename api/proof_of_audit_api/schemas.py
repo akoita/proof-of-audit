@@ -157,6 +157,11 @@ class ChallengeModel(BaseModel):
     challenger: str
     challenger_address: str | None = None
     proof_uri: str
+    evidence_type: Literal["deterministic_fixture", "executable_test"] = (
+        "deterministic_fixture"
+    )
+    execution_env: Literal["foundry"] | None = None
+    evidence_manifest: "ExecutableEvidenceManifestModel | None" = None
     submitted_at: str
     verifier: str
     status: str
@@ -165,6 +170,10 @@ class ChallengeModel(BaseModel):
     verification_summary: str | None = None
     verification_detail: str | None = None
     verification_case_id: str | None = None
+    advisory_verdict: Literal["upheld", "rejected"] | None = None
+    execution_log: str | None = None
+    matched_findings: list[str] = Field(default_factory=list)
+    unmatched_findings: list[str] = Field(default_factory=list)
     resolution: str | None = None
     resolved_at: str | None = None
     resolved_by: str | None = None
@@ -373,9 +382,58 @@ class PublishAuditRequest(BaseModel):
     agent_identity: str | None = None
 
 
+EvidenceType = Literal["deterministic_fixture", "executable_test"]
+ExecutionEnv = Literal["foundry"]
+
+
+class ExecutableEvidenceManifestModel(BaseModel):
+    bundle_format: Literal["proof-of-audit-executable-evidence/v1"]
+    execution_env: ExecutionEnv
+    entrypoint: str
+    target_chain_id: int
+    test_contract: str | None = None
+    match_contract: str | None = None
+    pinned_block_number: int | None = None
+    expected_file_hashes: dict[str, str] = Field(default_factory=dict)
+    metadata_path: str | None = None
+
+    @model_validator(mode="after")
+    def validate_selector_fields(self) -> "ExecutableEvidenceManifestModel":
+        if self.test_contract and self.match_contract:
+            raise ValueError("test_contract and match_contract are mutually exclusive")
+        return self
+
+
 class ChallengeAuditRequest(BaseModel):
     proof_uri: str
+    evidence_type: EvidenceType = "deterministic_fixture"
+    execution_env: ExecutionEnv | None = None
+    evidence_manifest: ExecutableEvidenceManifestModel | None = None
     challenger: str = "anonymous-challenger"
+
+    @model_validator(mode="after")
+    def validate_challenge_payload(self) -> "ChallengeAuditRequest":
+        if self.evidence_manifest is not None and self.execution_env is None:
+            self.execution_env = self.evidence_manifest.execution_env
+        if self.evidence_type == "executable_test" and self.execution_env is None:
+            self.execution_env = "foundry"
+        if self.evidence_type == "deterministic_fixture" and self.execution_env is not None:
+            raise ValueError(
+                "execution_env is only supported for executable_test challenge evidence"
+            )
+        if self.evidence_type == "deterministic_fixture" and self.evidence_manifest is not None:
+            raise ValueError(
+                "evidence_manifest is only supported for executable_test challenge evidence"
+            )
+        if (
+            self.evidence_manifest is not None
+            and self.execution_env is not None
+            and self.evidence_manifest.execution_env != self.execution_env
+        ):
+            raise ValueError(
+                "evidence_manifest.execution_env must match execution_env when both are provided"
+            )
+        return self
 
 
 class ResolveAuditRequest(BaseModel):
