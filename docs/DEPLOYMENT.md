@@ -262,13 +262,17 @@ For a remote runner deployment, the API can instead switch advisory Foundry exec
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_BEARER_TOKEN`
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_AUDIENCE`
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_BUCKET`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_PREFIX`
 
 Recommended Cloud Run backend notes:
 
 - deploy the dedicated runner service from [infra/evidence-runner/cloudbuild.yaml](/home/koita/dev/hackatons/proof-of-audit/infra/evidence-runner/cloudbuild.yaml)
 - keep the runner service authenticated by default and grant the API service account `run.invoker`
 - if the API runs on GCP, prefer `..._AUDIENCE` over a static bearer token so the backend can mint per-request identity tokens from metadata
-- the backend posts the validated evidence root as a zip archive to the runner service, so request size and Cloud Run timeout limits still matter operationally
+- prefer a dedicated staging bucket so the backend can upload the evidence archive to GCS and send the runner only a `gs://` reference
+- grant the API service account object create access on the staging bucket and the runner service account object read access
+- use lifecycle rules on the staging bucket so uploaded evidence archives expire automatically
 
 ## Dry run
 

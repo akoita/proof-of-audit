@@ -230,6 +230,7 @@ Executable evidence notes:
 - the Docker backend runs with a read-only evidence mount, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, explicit `--network`, and bounded CPU / memory / PID limits
 - production-oriented deployments may also offload advisory Foundry execution to a dedicated Cloud Run runner service through the `gcp_cloud_run` backend
 - the Cloud Run backend sends the validated evidence root as an archive to a separate runner endpoint and records the resulting stdout / stderr back into the advisory verification log
+- when configured, the Cloud Run backend stages the archive through GCS first and sends the runner a `gs://` object reference instead of embedding the entire zip in the request body
 
 See [Executable evidence bundle format](./EXECUTABLE_EVIDENCE_BUNDLE.md) for the manifest shape and backward-compatibility rules.
 

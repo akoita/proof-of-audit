@@ -22,6 +22,7 @@ def build_execution_backend(
     which: object | None = None,
     urlopen: object | None = None,
     metadata_urlopen: object | None = None,
+    storage_client_factory: object | None = None,
 ) -> EvidenceExecutionBackend:
     source = dict(os.environ if env is None else env)
     backend_name = source.get(
@@ -71,6 +72,14 @@ def build_execution_backend(
                 "",
             ).strip()
             in {"1", "true", "TRUE", "yes", "YES"},
+            staging_bucket=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_BUCKET"
+            )
+            or None,
+            staging_prefix=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_PREFIX",
+                "proof-of-audit/evidence",
+            ),
             metadata_identity_url=source.get(
                 "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_METADATA_URL",
                 source.get(
@@ -80,6 +89,7 @@ def build_execution_backend(
             ),
             urlopen=urlopen,
             metadata_urlopen=metadata_urlopen,
+            storage_client_factory=storage_client_factory,
         )
     raise ValueError(f"Unsupported executable evidence backend: {backend_name!r}")
 

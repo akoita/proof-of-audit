@@ -4,6 +4,7 @@ import base64
 import io
 import json
 from pathlib import Path
+from uuid import uuid4
 from typing import Callable
 from urllib import error, parse, request
 import zipfile
@@ -15,12 +16,24 @@ from proof_of_audit_agent.backends.base import (
 
 
 Urlopen = Callable[..., object]
+StorageClientFactory = Callable[[], object]
 
 DEFAULT_REMOTE_WORKDIR = "/workspace"
 DEFAULT_METADATA_IDENTITY_URL = (
     "http://metadata.google.internal/computeMetadata/v1/instance/"
     "service-accounts/default/identity"
 )
+DEFAULT_STAGING_PREFIX = "proof-of-audit/evidence"
+
+
+def default_storage_client_factory() -> object:
+    try:
+        from google.cloud import storage
+    except ImportError as exc:  # pragma: no cover - depends on installed extras
+        raise OSError(
+            "google-cloud-storage is required for GCS-staged Cloud Run evidence execution."
+        ) from exc
+    return storage.Client()
 
 
 class GCPCloudRunBackend(EvidenceExecutionBackend):
@@ -31,17 +44,25 @@ class GCPCloudRunBackend(EvidenceExecutionBackend):
         audience: str | None = None,
         bearer_token: str | None = None,
         allow_unauthenticated: bool = False,
+        staging_bucket: str | None = None,
+        staging_prefix: str = DEFAULT_STAGING_PREFIX,
         metadata_identity_url: str = DEFAULT_METADATA_IDENTITY_URL,
         urlopen: Urlopen | None = None,
         metadata_urlopen: Urlopen | None = None,
+        storage_client_factory: StorageClientFactory | None = None,
     ) -> None:
         self.service_url = service_url.rstrip("/")
         self.audience = audience
         self.bearer_token = bearer_token
         self.allow_unauthenticated = allow_unauthenticated
+        self.staging_bucket = (staging_bucket or "").strip() or None
+        self.staging_prefix = staging_prefix.strip().strip("/")
         self.metadata_identity_url = metadata_identity_url
         self._urlopen = urlopen or request.urlopen
         self._metadata_urlopen = metadata_urlopen or self._urlopen
+        self._storage_client_factory = (
+            storage_client_factory or default_storage_client_factory
+        )
 
     @property
     def backend_name(self) -> str:
@@ -69,7 +90,7 @@ class GCPCloudRunBackend(EvidenceExecutionBackend):
     ) -> EvidenceExecutionResult:
         if not command:
             raise OSError("Executable evidence runner produced an empty command.")
-        archive_b64 = self._encode_archive(cwd.resolve())
+        archive_bytes = self._encode_archive(cwd.resolve())
         payload = {
             "command": self._translate_command(command, cwd.resolve()),
             "env": self._remote_env(env),
@@ -77,8 +98,8 @@ class GCPCloudRunBackend(EvidenceExecutionBackend):
             "memory_limit_bytes": memory_limit_bytes,
             "working_directory": DEFAULT_REMOTE_WORKDIR,
             "archive_format": "zip",
-            "archive_base64": archive_b64,
         }
+        payload.update(self._archive_payload(archive_bytes))
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "proof-of-audit-cloud-run-backend/1",
@@ -159,14 +180,37 @@ class GCPCloudRunBackend(EvidenceExecutionBackend):
             raise OSError("Cloud Run backend received an empty identity token.")
         return f"Bearer {token}"
 
-    def _encode_archive(self, cwd: Path) -> str:
+    def _encode_archive(self, cwd: Path) -> bytes:
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(cwd.rglob("*")):
                 if not path.is_file():
                     continue
                 archive.write(path, arcname=path.relative_to(cwd))
-        return base64.b64encode(buffer.getvalue()).decode("ascii")
+        return buffer.getvalue()
+
+    def _archive_payload(self, archive_bytes: bytes) -> dict[str, object]:
+        if self.staging_bucket is not None:
+            uri, generation = self._stage_archive(archive_bytes)
+            payload: dict[str, object] = {"archive_gcs_uri": uri}
+            if generation is not None:
+                payload["archive_generation"] = generation
+            return payload
+        return {
+            "archive_base64": base64.b64encode(archive_bytes).decode("ascii"),
+        }
+
+    def _stage_archive(self, archive_bytes: bytes) -> tuple[str, int | None]:
+        client = self._storage_client_factory()
+        bucket = client.bucket(self.staging_bucket)
+        object_name = f"{self.staging_prefix}/{uuid4().hex}.zip"
+        blob = bucket.blob(object_name)
+        blob.upload_from_string(archive_bytes, content_type="application/zip")
+        generation = getattr(blob, "generation", None)
+        return (
+            f"gs://{self.staging_bucket}/{object_name}",
+            int(generation) if generation is not None else None,
+        )
 
     def _remote_env(self, env: dict[str, str]) -> dict[str, str]:
         return {

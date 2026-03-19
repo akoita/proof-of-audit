@@ -411,3 +411,106 @@ def test_runner_selects_gcp_cloud_run_backend_from_configuration(
     assert result.backend == "gcp_cloud_run"
     assert result.isolation_level == "cloud"
     assert captured["url"] == "https://runner.example/execute"
+
+
+def test_runner_selects_gcp_cloud_run_backend_with_gcs_staging(
+    tmp_path: Path,
+) -> None:
+    evidence_path = tmp_path / "ChallengeEvidence.t.sol"
+    evidence_path.write_text("contract ChallengeEvidenceTest {}\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class FakeBlob:
+        def __init__(self) -> None:
+            self.generation = 12
+            self.uploaded: bytes | None = None
+
+        def upload_from_string(self, data: bytes, content_type: str) -> None:
+            del content_type
+            self.uploaded = data
+
+    class FakeBucket:
+        def __init__(self) -> None:
+            self.last_blob_name: str | None = None
+            self.last_blob = FakeBlob()
+
+        def blob(self, name: str) -> FakeBlob:
+            self.last_blob_name = name
+            return self.last_blob
+
+    class FakeStorageClient:
+        def __init__(self) -> None:
+            self.last_bucket_name: str | None = None
+            self.last_bucket = FakeBucket()
+
+        def bucket(self, name: str) -> FakeBucket:
+            self.last_bucket_name = name
+            return self.last_bucket
+
+    fake_storage_client = FakeStorageClient()
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            del exc_type, exc, tb
+
+    def urlopen(req, timeout):  # type: ignore[no-untyped-def]
+        captured["url"] = req.full_url
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse(json.dumps({"returncode": 0, "stdout": "ok", "stderr": ""}))
+
+    runner = ExecutableEvidenceRunner(
+        backend_env={
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND": "gcp_cloud_run",
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_URL": (
+                "https://runner.example/execute"
+            ),
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED": "1",
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_BUCKET": (
+                "proof-of-audit-staging"
+            ),
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_PREFIX": (
+                "evidence/pending"
+            ),
+        },
+        urlopen=urlopen,
+        storage_client_factory=lambda: fake_storage_client,
+    )
+
+    result = runner.run(
+        EvidenceContext(
+            proof_uri=evidence_path.as_uri(),
+            benchmark_id=None,
+            target_contract="0x1000000000000000000000000000000000000001",
+            published_report={},
+            evidence_type="executable_test",
+            execution_env="foundry",
+            evidence_manifest={
+                "bundle_format": "proof-of-audit-executable-evidence/v1",
+                "execution_env": "foundry",
+                "entrypoint": "ChallengeEvidence.t.sol",
+                "target_chain_id": 31337,
+                "pinned_block_number": 42,
+            },
+            chain_id=31337,
+            rpc_url="https://rpc.example",
+        )
+    )
+
+    assert result.outcome == "passed"
+    assert result.backend == "gcp_cloud_run"
+    payload = captured["payload"]
+    assert payload["archive_gcs_uri"].startswith(
+        "gs://proof-of-audit-staging/evidence/pending/"
+    )
+    assert payload["archive_generation"] == 12
+    assert "archive_base64" not in payload
