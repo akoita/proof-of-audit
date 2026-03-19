@@ -9,6 +9,7 @@ from proof_of_audit_agent.agent_forge_backend import (
     AgentForgeExecutionError,
     AgentForgeRuntimeConfig,
 )
+from proof_of_audit_agent.auditor_backend import AuditSubmission
 
 
 def _write_fake_agent_forge_script(
@@ -102,10 +103,12 @@ def test_run_submission_parses_report_and_execution_metadata(tmp_path: Path) -> 
     )
 
     result = backend.run_submission(
-        audit_id="audit-123",
-        input_kind="repository_url",
-        repository_url=str(repo_dir),
-        entry_contract="Vault",
+        AuditSubmission(
+            audit_id="audit-123",
+            input_kind="repository_url",
+            repository_url=str(repo_dir),
+            entry_contract="Vault",
+        )
     )
 
     assert result is not None
@@ -135,9 +138,11 @@ def test_run_submission_strict_mode_requires_report_file(tmp_path: Path) -> None
 
     with pytest.raises(AgentForgeExecutionError, match="agent-report.json"):
         backend.run_submission(
-            audit_id="audit-123",
-            input_kind="repository_url",
-            repository_url=str(repo_dir),
+            AuditSubmission(
+                audit_id="audit-123",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+            )
         )
 
 
@@ -157,9 +162,11 @@ def test_run_submission_hybrid_mode_returns_none_when_report_is_missing(
 
     assert (
         backend.run_submission(
-            audit_id="audit-123",
-            input_kind="repository_url",
-            repository_url=str(repo_dir),
+            AuditSubmission(
+                audit_id="audit-123",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+            )
         )
         is None
     )
@@ -178,9 +185,11 @@ def test_run_submission_handles_malformed_json_and_nonzero_exit(tmp_path: Path) 
     )
     with pytest.raises(AgentForgeExecutionError):
         strict_backend.run_submission(
-            audit_id="audit-malformed",
-            input_kind="repository_url",
-            repository_url=str(repo_dir),
+            AuditSubmission(
+                audit_id="audit-malformed",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+            )
         )
 
     failing = _write_fake_agent_forge_script(
@@ -195,9 +204,11 @@ def test_run_submission_handles_malformed_json_and_nonzero_exit(tmp_path: Path) 
     )
     assert (
         hybrid_backend.run_submission(
-            audit_id="audit-failing",
-            input_kind="repository_url",
-            repository_url=str(repo_dir),
+            AuditSubmission(
+                audit_id="audit-failing",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+            )
         )
         is None
     )
@@ -222,9 +233,11 @@ def test_run_submission_supports_empty_and_partial_findings(tmp_path: Path) -> N
         tmp_path / "runtime-empty",
     )
     empty_result = empty_backend.run_submission(
-        audit_id="audit-empty",
-        input_kind="repository_url",
-        repository_url=str(repo_dir),
+        AuditSubmission(
+            audit_id="audit-empty",
+            input_kind="repository_url",
+            repository_url=str(repo_dir),
+        )
     )
     assert empty_result is not None
     assert empty_result.report.findings == []
@@ -250,9 +263,11 @@ def test_run_submission_supports_empty_and_partial_findings(tmp_path: Path) -> N
         tmp_path / "runtime-partial",
     )
     partial_result = partial_backend.run_submission(
-        audit_id="audit-partial",
-        input_kind="repository_url",
-        repository_url=str(repo_dir),
+        AuditSubmission(
+            audit_id="audit-partial",
+            input_kind="repository_url",
+            repository_url=str(repo_dir),
+        )
     )
     assert partial_result is not None
     finding = partial_result.report.findings[0]
@@ -395,9 +410,11 @@ def test_deterministic_mode_short_circuits_and_strict_mode_rejects_unsupported_i
     )
     assert (
         deterministic_backend.run_submission(
-            audit_id="audit-123",
-            input_kind="repository_url",
-            repository_url=str(repo_dir),
+            AuditSubmission(
+                audit_id="audit-123",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+            )
         )
         is None
     )
@@ -408,6 +425,8 @@ def test_deterministic_mode_short_circuits_and_strict_mode_rejects_unsupported_i
     )
     with pytest.raises(AgentForgeExecutionError, match="does not support demo_fixture"):
         strict_backend.run_submission(
-            audit_id="audit-124",
-            input_kind="demo_fixture",
+            AuditSubmission(
+                audit_id="audit-124",
+                input_kind="demo_fixture",
+            )
         )

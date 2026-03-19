@@ -166,6 +166,42 @@ def test_repository_submission_falls_back_in_hybrid_mode() -> None:
     assert result.report.benchmark_id == "repository-url"
 
 
+def test_source_bundle_submission_falls_back_to_deterministic_benchmark() -> None:
+    worker = AuditWorker(
+        runtime=WorkerRuntimeConfig.from_values(mode="hybrid"),
+    )
+
+    result = worker.run_submission(
+        audit_id="audit-source-1",
+        input_kind="source_bundle",
+        source_bundle_uri="https://example.com/bundles/reentrancy-bank.zip",
+        entry_contract="VulnerableBank",
+    )
+
+    assert result.execution is not None
+    assert result.execution.fallback_used is True
+    assert result.execution.source == "deterministic-benchmark"
+    assert result.report.benchmark_id == "reentrancy-bank"
+
+
+def test_source_bundle_submission_uses_safe_fallback_when_no_benchmark_matches() -> None:
+    worker = AuditWorker(
+        runtime=WorkerRuntimeConfig.from_values(mode="hybrid"),
+    )
+
+    result = worker.run_submission(
+        audit_id="audit-source-2",
+        input_kind="source_bundle",
+        source_bundle_uri="https://example.com/bundles/unknown.zip",
+        entry_contract="CustomVault",
+    )
+
+    assert result.execution is not None
+    assert result.execution.fallback_used is True
+    assert result.execution.source == "safe-fallback"
+    assert result.report.benchmark_id == "source-bundle"
+
+
 def test_repository_submission_requires_local_path_in_strict_live_mode() -> None:
     worker = AuditWorker(
         runtime=WorkerRuntimeConfig.from_values(mode="agent_forge"),
