@@ -226,7 +226,7 @@ export function AuditWorkbench() {
 
       <main className="page-shell">
         {/* Dashboard title row */}
-        <div className="dashboard-header">
+        <div id="dashboard-top" className="dashboard-header">
           <h1 className="dashboard-title">Dashboard</h1>
         </div>
 
@@ -261,7 +261,7 @@ export function AuditWorkbench() {
         </section>
 
         {/* Main workspace: audit report + agent sidebar */}
-        <section className="workspace-grid">
+        <section id="audit-section" className="workspace-grid">
           <article className="panel report-panel">
             {activeAudit ? (
               <>
@@ -293,7 +293,7 @@ export function AuditWorkbench() {
             )}
           </article>
 
-          <aside className="panel recent-panel">
+          <aside id="explorer-section" className="panel recent-panel">
             <AgentSidebar
               config={contractConfig}
               auditorService={auditorService}
@@ -306,6 +306,7 @@ export function AuditWorkbench() {
               isLoaded={isComparisonLoaded}
               onSelect={syncAudit}
             />
+            <div id="claims-section" />
             <RecentClaims
               audits={recentAudits}
               activeId={activeAudit?.id ?? null}
