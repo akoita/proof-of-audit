@@ -9,8 +9,8 @@ CHAIN_ID="${ANVIL_CHAIN_ID:-31337}"
 NETWORK="${PROOF_OF_AUDIT_NETWORK:-anvil-local}"
 DEPLOYER_PRIVATE_KEY="${LOCAL_DEPLOYER_PRIVATE_KEY:-${DEPLOYER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}}"
 CATALOG_FILE="${ROOT_DIR}/demo/fixtures.catalog.json"
-MANIFEST_FILE="${ROOT_DIR}/deployments/demo-fixtures.localhost.json"
-API_ENV_FILE="${ROOT_DIR}/api/.env.local"
+MANIFEST_FILE="${LOCAL_DEMO_FIXTURES_MANIFEST_FILE:-${ROOT_DIR}/deployments/demo-fixtures.localhost.json}"
+API_ENV_FILE="${LOCAL_DEMO_FIXTURES_API_ENV_FILE:-${ROOT_DIR}/api/.env.local}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cast client --rpc-url "${RPC_URL}" >/dev/null 2>&1 || {
