@@ -7,6 +7,7 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByTestId("submit-audit").click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+  await expect(page.getByText("Detailed Analysis Findings", { exact: true })).toBeVisible();
 }
 
 async function publishActiveAudit(page: Page) {
