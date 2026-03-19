@@ -99,19 +99,36 @@ test("source bundle mode can submit without a deployed address", async ({ page }
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
 });
 
-test("filtered lifecycle views show empty states instead of stale draft audits", async ({ page }) => {
+test("filtered lifecycle views do not reuse stale draft selections", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
+  await publishActiveAudit(page);
+
+  await page.getByRole("button", { name: /Reentrancy Bank/i }).click();
+  await page.getByTestId("submit-audit").click();
+  await publishActiveAudit(page);
+  await challengeInput(page).fill("ipfs://wrong-proof");
+  await page.getByTestId("challenge-btn").click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
+
+  await page.getByRole("button", { name: /Dual Risk Vault/i }).click();
+  await page.getByTestId("submit-audit").click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+  await expect(
+    page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
+  ).toBeVisible();
+
   const sidebarNav = page.locator(".sidebar-nav");
 
   await sidebarNav.getByRole("button", { name: "Published" }).click();
-  await expect(page.getByText("No published claims found", { exact: true })).toBeVisible();
+  await expect(page.getByText("SECURITY AUDIT: PUBLISHED", { exact: true })).toBeVisible();
+  await expect(page.getByText("TOTAL COMMITMENT STAKE", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Publish an audit claim from the workbench to see it here.", { exact: true }),
-  ).toBeVisible();
+    page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
+  ).toHaveCount(0);
 
   await sidebarNav.getByRole("button", { name: "Disputed" }).click();
-  await expect(page.getByText("No disputed claims", { exact: true })).toBeVisible();
+  await expect(page.getByText("Active Challenges", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("No claims are currently under dispute.", { exact: true }),
-  ).toBeVisible();
+    page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
+  ).toHaveCount(0);
 });
