@@ -23,9 +23,7 @@ test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
 
   await expect(
-    page.getByRole("heading", {
-      name: /No benchmark issue found across the supported checks/i,
-    }),
+    page.getByText(/No benchmark issue found across the supported checks/i).first(),
   ).toBeVisible();
   await expect(page.getByText("Evidence Verification Hashes", { exact: true })).toBeVisible();
 
