@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
 import { apiFetch } from "./lib/api";
-import { suggestedProofUriForBenchmark } from "./lib/format";
+import { relativeTimeLabel, submissionModeLabel, suggestedProofUriForBenchmark } from "./lib/format";
 import type {
   AuditRecord,
   AuditorServiceRecord,
@@ -122,6 +122,23 @@ export function AuditWorkbench() {
     undefined;
   const publishStake = contractConfig?.required_stake_wei ?? 10_000_000_000_000_000;
   const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
+  const systemStatus = !isLoaded
+    ? "Loading workspace"
+    : loadError || error
+      ? "Attention needed"
+      : isPending
+        ? "Refreshing data"
+        : contractConfig?.deployment_ready === false
+          ? "Read-only config"
+          : "Connected";
+  const workspaceMeta = activeAudit
+    ? `ACTIVE AUDIT: ${relativeTimeLabel(activeAudit.created_at)}`
+    : isLoaded
+      ? `AUDITS LOADED: ${recentAudits.length}`
+      : "LOADING WORKSPACE";
+  const footerNetwork = contractConfig
+    ? `${contractConfig.network} · Chain ${contractConfig.chain_id}`
+    : "Network unavailable";
 
   /* ── view-filtered audits ────────────────────────────── */
   const filteredAudits = auditsForView(activeView, recentAudits);
@@ -309,14 +326,14 @@ export function AuditWorkbench() {
               <span>{VIEW_LABELS[activeView]?.eyebrow ?? "Workspace"}</span>
               <div className="health-badge">
                 <span className="health-dot" />
-                <span>System Healthy</span>
+                <span>{systemStatus}</span>
               </div>
             </div>
             <h1>{VIEW_LABELS[activeView]?.title ?? "Audit Workbench"}</h1>
             <p>{VIEW_LABELS[activeView]?.desc ?? "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine."}</p>
           </div>
           <div className="page-meta-badge">
-            ⏱ AUTO-SAVE: 2 MIN AGO
+            ⏱ {workspaceMeta}
           </div>
         </div>
 
@@ -358,11 +375,11 @@ export function AuditWorkbench() {
                 <div className="meta-bento">
                   <div className="meta-bento-item">
                     <div className="meta-label">Audit Type</div>
-                    <div className="meta-value">Automated Pro</div>
+                    <div className="meta-value">{submissionModeLabel(submissionMode)}</div>
                   </div>
                   <div className="meta-bento-item">
                     <div className="meta-label">Version</div>
-                    <div className="meta-value">v2.4.1-alpha</div>
+                    <div className="meta-value">{contractConfig?.auditor?.version ?? "Unavailable"}</div>
                   </div>
                 </div>
 
@@ -460,9 +477,9 @@ export function AuditWorkbench() {
 
         {/* Footer data */}
         <div className="footer-data">
-          <div className="footer-item">💻 Logs: Syncing...</div>
-          <div className="footer-item">🔗 Nodes: 12 Active</div>
-          <div className="footer-item">⛓ Block: 18,241,002</div>
+          <div className="footer-item">🗂 Audits: {recentAudits.length}</div>
+          <div className="footer-item">🧪 Fixtures: {demoFixtures.length}</div>
+          <div className="footer-item">⛓ {footerNetwork}</div>
         </div>
       </main>
     </div>

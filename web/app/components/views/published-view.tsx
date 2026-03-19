@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuditRecord } from "../../lib/types";
-import { shortenHex, titleCase, relativeTimeLabel } from "../../lib/format";
+import { shortenHex, submissionTargetLabel, titleCase, relativeTimeLabel } from "../../lib/format";
 
 type PublishedViewProps = {
   audit: AuditRecord;
@@ -9,12 +9,21 @@ type PublishedViewProps = {
   onSelect: (a: AuditRecord) => void;
 };
 
-const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
-
 export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps) {
   const relatedClaims = allAudits
     .filter((a) => a.id !== audit.id && a.contract_address === audit.contract_address)
     .slice(0, 3);
+  const reputation = audit.agent?.reputation
+    ? `${audit.agent.reputation.score}/100 ${titleCase(audit.agent.reputation.band)}`
+    : "Unavailable";
+  const resolutionPath = audit.challenge?.resolution_path
+    ? titleCase(audit.challenge.resolution_path)
+    : "Not opened yet";
+  const resolutionSummary = audit.challenge
+    ? audit.challenge.verification_summary ??
+      audit.challenge.verification_detail ??
+      `${titleCase(audit.challenge.status)} via ${audit.challenge.verifier}`
+    : "Resolution path is determined when a challenge is opened.";
 
   return (
     <div className="view-published">
@@ -31,7 +40,7 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
             {audit.report.summary || shortenHex(audit.contract_address, 10, 8)}
           </h1>
           <p className="muted" style={{ fontSize: "0.82rem", marginTop: 6, maxWidth: 560, lineHeight: 1.6 }}>
-            A comprehensive automated analysis focusing on re-entrancy protection and logic-based vulnerabilities.
+            Published {relativeTimeLabel(audit.created_at)} for {submissionTargetLabel(audit)}.
           </p>
         </div>
         {audit.onchain ? (
@@ -74,7 +83,7 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
                   <div>
                     <div className="agent-name" style={{ fontSize: "0.85rem" }}>{audit.agent?.name ?? "Auditor"}</div>
                     <div style={{ fontSize: "0.7rem", color: "var(--secondary)" }}>
-                      Reputation: {audit.agent?.reputation?.score ?? "99.4"}
+                      Reputation: {reputation}
                     </div>
                   </div>
                 </div>
@@ -84,10 +93,10 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
                 <div className="hash-label">RESOLUTION PATH</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                   <span>⚡</span>
-                  <strong style={{ fontSize: "0.82rem" }}>Deterministic Verifier L2</strong>
+                  <strong style={{ fontSize: "0.82rem" }}>{resolutionPath}</strong>
                 </div>
                 <p className="muted" style={{ fontSize: "0.7rem", marginTop: 4 }}>
-                  Fallback to Multi-Sig Panel if deterministic proof fails within 48 hours.
+                  {resolutionSummary}
                 </p>
               </div>
             </div>
@@ -113,7 +122,7 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
                     Challenge filed by {shortenHex(audit.challenge.challenger, 6, 4)}
                   </p>
                   <div className="muted" style={{ fontSize: "0.65rem", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                    <span>🔥</span> {audit.challenge.submitted_at ? relativeTimeLabel(audit.challenge.submitted_at) : "14H REMAINING"}
+                    <span>🔥</span> {audit.challenge.submitted_at ? relativeTimeLabel(audit.challenge.submitted_at) : "Submission time unavailable"}
                   </div>
                 </div>
               </div>
@@ -182,10 +191,9 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
                   <h3 className="section-label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span>🔗</span> RELATED CLAIMS
                   </h3>
-                  <div className="health-badge">
-                    <span className="health-dot" />
-                    <span style={{ fontSize: "0.65rem" }}>FORENSIC SYNC: 100%</span>
-                  </div>
+                  <span className="muted" style={{ fontSize: "0.65rem" }}>
+                    {relatedClaims.length} on the same target
+                  </span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
                   {relatedClaims.map((rc) => (

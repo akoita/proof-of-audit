@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuditRecord } from "../../lib/types";
-import { shortenHex, titleCase, relativeTimeLabel, formatEth } from "../../lib/format";
+import { challengePathSummary, shortenHex, titleCase, relativeTimeLabel, formatEth } from "../../lib/format";
 
 type DisputedViewProps = {
   audit: AuditRecord;
@@ -11,8 +11,15 @@ type DisputedViewProps = {
 
 export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) {
   const relatedClaims = allAudits
-    .filter((a) => a.id !== audit.id)
+    .filter((a) => a.id !== audit.id && a.contract_address === audit.contract_address)
     .slice(0, 3);
+  const confidenceLabel = audit.report.confidence ? titleCase(audit.report.confidence) : "Unavailable";
+  const resolutionPath = audit.challenge?.resolution_path
+    ? titleCase(audit.challenge.resolution_path)
+    : "Unavailable";
+  const resolutionMeta = audit.challenge?.verification_status
+    ? titleCase(audit.challenge.verification_status)
+    : audit.challenge?.verifier ?? "Verifier unavailable";
 
   return (
     <div className="view-disputed">
@@ -32,7 +39,7 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
             <span className="muted" style={{ fontSize: "0.78rem" }}>
-              Verified smart contract audit for <code className="mono" style={{ fontSize: "0.72rem" }}>{shortenHex(audit.contract_address, 12, 8)}</code>
+              Published smart contract audit claim for <code className="mono" style={{ fontSize: "0.72rem" }}>{shortenHex(audit.contract_address, 12, 8)}</code>
             </span>
             <span className="badge badge-challenged">{audit.status.toUpperCase()}</span>
           </div>
@@ -54,7 +61,9 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
         <div className="stat-card">
           <div className="stat-big-label">TOTAL STAKE</div>
           <div className="stat-big-value">{audit.onchain ? formatEth(audit.onchain.stake_wei) : "—"}</div>
-          <div style={{ fontSize: "0.6rem", color: "var(--secondary)", marginTop: 4 }}>↗ +0.5%</div>
+          <div className="muted" style={{ fontSize: "0.6rem", marginTop: 4 }}>
+            {audit.onchain?.network ?? "On-chain details unavailable"}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-big-label">DISPUTES</div>
@@ -65,13 +74,15 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
         </div>
         <div className="stat-card">
           <div className="stat-big-label">CONFIDENCE SCORE</div>
-          <div className="stat-big-value mono">{audit.report.confidence === "high" ? "88.4%" : audit.report.confidence === "medium" ? "72.1%" : "45%"}</div>
-          <div style={{ fontSize: "0.6rem", color: "var(--error)", marginTop: 4 }}>↘ -2.1%</div>
+          <div className="stat-big-value mono">{confidenceLabel}</div>
+          <div className="muted" style={{ fontSize: "0.6rem", marginTop: 4 }}>
+            {audit.report.finding_count} findings in the published report
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-big-label">RESOLUTION PATH</div>
-          <div className="stat-big-value" style={{ fontSize: "1rem" }}>Deterministic</div>
-          <div className="muted" style={{ fontSize: "0.6rem", marginTop: 4 }}>ZKP Verifier Active</div>
+          <div className="stat-big-value" style={{ fontSize: "1rem" }}>{resolutionPath}</div>
+          <div className="muted" style={{ fontSize: "0.6rem", marginTop: 4 }}>{resolutionMeta}</div>
         </div>
       </div>
 
@@ -139,12 +150,12 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
                     <span className="mono" style={{ fontSize: "0.72rem" }}>
                       {shortenHex(audit.challenge.challenger, 6, 4)}
                     </span>
-                    <span>{audit.challenge.challenge_bond_wei ? formatEth(audit.challenge.challenge_bond_wei) : "5,000 USDT"}</span>
+                    <span>{audit.challenge.challenge_bond_wei ? formatEth(audit.challenge.challenge_bond_wei) : "—"}</span>
                     <span style={{ color: audit.challenge.status === "resolved" ? "var(--secondary)" : "var(--tertiary)" }}>
                       ● {titleCase(audit.challenge.status ?? "pending")}
                     </span>
                     <a href={audit.challenge.proof_uri} className="evidence-link" target="_blank" rel="noopener noreferrer">
-                      View IPFS
+                      View evidence
                     </a>
                   </div>
                 </div>
@@ -170,16 +181,16 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               </div>
 
               <div style={{ marginTop: 16 }}>
-                <div className="hash-label">BLOCK CONFIRMATION</div>
+                <div className="hash-label">CHAIN ID</div>
                 <div className="mono" style={{ fontSize: "0.88rem", fontWeight: 600, marginTop: 4 }}>
-                  {audit.onchain?.chain_id ? `19,284,102` : "—"}
+                  {audit.onchain?.chain_id ?? "—"}
                 </div>
               </div>
 
               <div style={{ marginTop: 16 }}>
                 <div className="hash-label">CONTRACT ORIGIN</div>
                 <div className="mono" style={{ fontSize: "0.78rem", marginTop: 4 }}>
-                  {audit.onchain?.network ?? "Mainnet Ethereum"}
+                  {audit.onchain?.network ?? "Unavailable"}
                 </div>
               </div>
 
@@ -197,9 +208,7 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
                 <span style={{ fontSize: "1.2rem" }}>⚡</span>
                 <div>
                   <p style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
-                    This claim uses a <strong>Deterministic Verifier</strong>. Disputes are
-                    automatically resolved via ZK-proof verification of the audited bytecode.
-                    If logic is ambiguous, a manual DAO fallback is triggered within 72 hours.
+                    {challengePathSummary(audit)}
                   </p>
                 </div>
               </div>
