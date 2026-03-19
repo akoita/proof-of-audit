@@ -172,3 +172,40 @@ test("archive view excludes live published claims", async ({ page }) => {
     page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
   ).toHaveCount(0);
 });
+
+test("redesigned dashboards only show real state or explicit unavailable labels", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("System Healthy", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/AUTO-SAVE:/i)).toHaveCount(0);
+  await expect(page.getByText(/Nodes: 12 Active/i)).toHaveCount(0);
+  await expect(page.getByText(/Block: 18,241,002/i)).toHaveCount(0);
+  await expect(page.getByText(/Audits:/i)).toBeVisible();
+  await expect(page.getByText(/Fixtures:/i)).toBeVisible();
+
+  await createAuditFromFixture(page, /Clean Vault/i);
+  await publishActiveAudit(page);
+
+  const sidebarNav = page.locator(".sidebar-nav");
+  await sidebarNav.getByRole("button", { name: "Published" }).click();
+  await expect(page.getByText("Not opened yet", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Deterministic Verifier L2/i)).toHaveCount(0);
+  await expect(page.getByText(/FORENSIC SYNC: 100%/i)).toHaveCount(0);
+
+  await sidebarNav.getByRole("button", { name: "Workbench" }).click();
+  await challengeInput(page).fill("ipfs://wrong-proof");
+  await page.getByTestId("challenge-btn").click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
+
+  await sidebarNav.getByRole("button", { name: "Disputed" }).click();
+  await expect(page.getByText("Manual Fallback", { exact: true })).toBeVisible();
+  await expect(page.getByText(/ZKP Verifier Active/i)).toHaveCount(0);
+  await expect(page.getByText(/Mainnet Ethereum/i)).toHaveCount(0);
+
+  await sidebarNav.getByRole("button", { name: "Reputation" }).click();
+  await expect(page.getByText(/Identity:/i)).toBeVisible();
+  await expect(page.getByText(/Validation:/i)).toBeVisible();
+  await expect(page.getByText(/WorldID Identity/i)).toHaveCount(0);
+  await expect(page.getByText(/GitHub Activity/i)).toHaveCount(0);
+  await expect(page.getByText(/Top 0.1% Globally/i)).toHaveCount(0);
+  await expect(page.getByText(/NETWORK PULSE: Healthy & Synced/i)).toHaveCount(0);
+});
