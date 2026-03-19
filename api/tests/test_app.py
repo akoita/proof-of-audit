@@ -820,6 +820,11 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         )
         self.assertEqual(created.status_code, 201)
         audit_id = created.json()["id"]
+        evidence_path = Path(self.tempdir.name) / "ChallengeEvidence.t.sol"
+        evidence_path.write_text(
+            "contract ChallengeEvidenceTest {}\n",
+            encoding="utf-8",
+        )
         published = typed_client.post(
             f"/audits/{audit_id}/publish",
             json={"stake_wei": 10**16},
@@ -829,7 +834,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         challenged = typed_client.post(
             f"/audits/{audit_id}/challenge",
             json={
-                "proof_uri": "file:///tmp/ChallengeEvidence.t.sol",
+                "proof_uri": evidence_path.as_uri(),
                 "evidence_type": "executable_test",
                 "evidence_manifest": {
                     "bundle_format": "proof-of-audit-executable-evidence/v1",
@@ -850,6 +855,11 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             payload["challenge"]["evidence_manifest"]["entrypoint"],
             "ChallengeEvidence.t.sol",
         )
+        self.assertTrue(payload["challenge"]["evidence_hash"].startswith("0x"))
+        self.assertEqual(
+            payload["challenge"]["challenge_hash"],
+            payload["challenge"]["evidence_hash"],
+        )
         self.assertEqual(payload["challenge"]["advisory_verdict"], "rejected")
         self.assertEqual(payload["challenge"]["execution_log"], "forge output")
         self.assertEqual(payload["challenge"]["matched_findings"], ["finding-1"])
@@ -866,6 +876,10 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertIsNotNone(recording_verifier.last_context)
         self.assertEqual(recording_verifier.last_context.evidence_type, "executable_test")
         self.assertEqual(recording_verifier.last_context.evidence_manifest["target_chain_id"], self.chain_id)
+        self.assertEqual(
+            recording_verifier.last_context.committed_evidence_hash,
+            payload["challenge"]["evidence_hash"],
+        )
 
     def test_deterministic_evidence_rejects_execution_env_payload(self) -> None:
         created = self.client.post(

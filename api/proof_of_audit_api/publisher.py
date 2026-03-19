@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -57,7 +56,7 @@ class ChallengeResult:
     audit_id: int
     tx_hash: str
     chain_id: int
-    challenge_hash: str
+    evidence_hash: str
     challenger_address: str
     challenge_bond_wei: int
 
@@ -171,14 +170,13 @@ class ProofOfAuditPublisher:
         self,
         *,
         audit_id: int,
-        proof_uri: str,
+        evidence_hash: str,
         challenge_bond_wei: int,
     ) -> ChallengeResult:
         runtime_chain_id = int(self.web3.eth.chain_id)
-        challenge_hash = self._build_challenge_hash(proof_uri)
         challenge_call = self.contract.functions.challengeAudit(
             audit_id,
-            HexBytes(challenge_hash),
+            HexBytes(evidence_hash),
         )
 
         try:
@@ -207,11 +205,11 @@ class ProofOfAuditPublisher:
                 "Challenge transaction emitted an unexpected audit id."
             )
         event_challenger = Web3.to_checksum_address(event["challenger"])
-        event_challenge_hash = Web3.to_hex(event["challengeHash"])
+        event_evidence_hash = Web3.to_hex(event["evidenceHash"])
         event_bond = int(event["challengeBond"])
-        if event_challenge_hash != challenge_hash:
+        if event_evidence_hash != evidence_hash:
             raise OnchainChallengeError(
-                "Challenge transaction emitted an unexpected challenge hash."
+                "Challenge transaction emitted an unexpected evidence hash."
             )
         if event_bond != challenge_bond_wei:
             raise OnchainChallengeError(
@@ -221,14 +219,14 @@ class ProofOfAuditPublisher:
         self._verify_onchain_challenge(
             audit_id=audit_id,
             challenger_address=event_challenger,
-            challenge_hash=challenge_hash,
+            evidence_hash=evidence_hash,
             challenge_bond_wei=challenge_bond_wei,
         )
         return ChallengeResult(
             audit_id=audit_id,
             tx_hash=Web3.to_hex(receipt["transactionHash"]),
             chain_id=runtime_chain_id,
-            challenge_hash=challenge_hash,
+            evidence_hash=evidence_hash,
             challenger_address=event_challenger,
             challenge_bond_wei=challenge_bond_wei,
         )
@@ -307,7 +305,7 @@ class ProofOfAuditPublisher:
         *,
         audit_id: int,
         challenger_address: str,
-        challenge_hash: str,
+        evidence_hash: str,
         challenge_bond_wei: int,
     ) -> None:
         record = self.contract.functions.getAudit(audit_id).call()
@@ -321,9 +319,9 @@ class ProofOfAuditPublisher:
             raise OnchainChallengeError(
                 "On-chain challenger address did not match challenge input."
             )
-        if Web3.to_hex(record[13]) != challenge_hash:
+        if Web3.to_hex(record[13]) != evidence_hash:
             raise OnchainChallengeError(
-                "On-chain challenge hash did not match challenge input."
+                "On-chain evidence hash did not match challenge input."
             )
 
     def _verify_onchain_resolution(
@@ -446,9 +444,6 @@ class ProofOfAuditPublisher:
     def _ensure_hex(self, value: str) -> str:
         normalized = value.lower()
         return normalized if normalized.startswith("0x") else f"0x{normalized}"
-
-    def _build_challenge_hash(self, proof_uri: str) -> str:
-        return "0x" + sha256(proof_uri.encode("utf-8")).hexdigest()
 
     def _resolution_label(self, resolution: int) -> str:
         if resolution == 1:

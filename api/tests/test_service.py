@@ -351,7 +351,11 @@ class AuditServiceTest(unittest.TestCase):
             )
             self.assertEqual(
                 onchain.web3.to_hex(audit_record[13]),
+                challenged["challenge"]["evidence_hash"],
+            )
+            self.assertEqual(
                 challenged["challenge"]["challenge_hash"],
+                challenged["challenge"]["evidence_hash"],
             )
 
             resolved = service.resolve_audit(
@@ -559,6 +563,11 @@ class AuditServiceTest(unittest.TestCase):
     def test_executable_evidence_persists_advisory_output_and_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
+            evidence_path = Path(tmpdir) / "ChallengeEvidence.t.sol"
+            evidence_path.write_text(
+                "contract ChallengeEvidenceTest {}\n",
+                encoding="utf-8",
+            )
             executable_verifier = RecordingVerifier(
                 ChallengeVerificationResult(
                     verifier="executable-evidence-advisory-v1",
@@ -590,7 +599,7 @@ class AuditServiceTest(unittest.TestCase):
 
             challenged = service.challenge_audit(
                 created["id"],
-                "file:///tmp/ChallengeEvidence.t.sol",
+                evidence_path.as_uri(),
                 challenger="whitehat",
                 evidence_type="executable_test",
                 execution_env="foundry",
@@ -611,6 +620,11 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["evidence_manifest"]["bundle_format"],
                 "proof-of-audit-executable-evidence/v1",
             )
+            self.assertTrue(challenged["challenge"]["evidence_hash"].startswith("0x"))
+            self.assertEqual(
+                challenged["challenge"]["challenge_hash"],
+                challenged["challenge"]["evidence_hash"],
+            )
             self.assertEqual(challenged["challenge"]["advisory_verdict"], "upheld")
             self.assertEqual(challenged["challenge"]["execution_log"], "forge output")
             self.assertEqual(challenged["challenge"]["unmatched_findings"], ["rotateowner"])
@@ -621,6 +635,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 hydrated["challenge"]["evidence_manifest"]["pinned_block_number"],
                 42,
+            )
+            self.assertEqual(
+                hydrated["challenge"]["evidence_hash"],
+                challenged["challenge"]["evidence_hash"],
             )
             self.assertEqual(hydrated["challenge"]["advisory_verdict"], "upheld")
             self.assertIsNotNone(executable_verifier.last_context)
@@ -647,6 +665,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 executable_verifier.last_context.rpc_url,
                 onchain.contract_config.rpc_url,
+            )
+            self.assertEqual(
+                executable_verifier.last_context.committed_evidence_hash,
+                challenged["challenge"]["evidence_hash"],
             )
 
     def test_executable_evidence_requires_deployed_address_audit(self) -> None:

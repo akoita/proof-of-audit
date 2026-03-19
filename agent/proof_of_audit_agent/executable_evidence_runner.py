@@ -90,6 +90,17 @@ class ExecutableEvidenceRunner:
             manifest = resolved.manifest
             source_path = resolved.source_path
             source_text = resolved.source_text
+            if (
+                context.committed_evidence_hash is not None
+                and resolved.canonical_hash != context.committed_evidence_hash
+            ):
+                return ExecutableEvidenceRunResult(
+                    outcome="invalid_evidence",
+                    summary="Fetched executable evidence did not match the committed on-chain hash.",
+                    detail="The materialized evidence bundle hash does not match the hash committed at challenge submission time.",
+                    source_path=str(source_path),
+                    source_text=source_text,
+                )
             if shutil.which(self.forge_bin) is None:
                 return ExecutableEvidenceRunResult(
                     outcome="runner_error",

@@ -147,6 +147,72 @@ def test_runner_fetches_ipfs_evidence_before_execution() -> None:
     assert "--match-path" in command
 
 
+def test_runner_rejects_evidence_hash_mismatch_before_execution() -> None:
+    captured = {"called": False}
+    payload = b"contract ChallengeEvidenceTest {}\n"
+
+    class FakeResponse:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+            self.offset = 0
+
+        def read(self, size: int = -1) -> bytes:
+            if size < 0:
+                size = len(self.data) - self.offset
+            chunk = self.data[self.offset : self.offset + size]
+            self.offset += len(chunk)
+            return chunk
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            del exc_type, exc, tb
+
+    def urlopen(req, timeout):  # type: ignore[no-untyped-def]
+        del timeout
+        assert req.full_url == "https://gateway.example/ipfs/QmRemote/ChallengeEvidence.t.sol"
+        return FakeResponse(payload)
+
+    def executor(command, **kwargs):  # type: ignore[no-untyped-def]
+        del command, kwargs
+        captured["called"] = True
+        return subprocess.CompletedProcess([], 0, "ok", "")
+
+    runner = ExecutableEvidenceRunner(
+        executor=executor,
+        resolver=ExecutableEvidenceResolver(
+            ipfs_gateway="https://gateway.example/ipfs",
+            urlopen=urlopen,
+        ),
+    )
+
+    result = runner.run(
+        EvidenceContext(
+            proof_uri="ipfs://QmRemote/ChallengeEvidence.t.sol",
+            benchmark_id=None,
+            target_contract="0x1000000000000000000000000000000000000001",
+            published_report={},
+            evidence_type="executable_test",
+            execution_env="foundry",
+            evidence_manifest={
+                "bundle_format": "proof-of-audit-executable-evidence/v1",
+                "execution_env": "foundry",
+                "entrypoint": "ChallengeEvidence.t.sol",
+                "target_chain_id": 31337,
+                "pinned_block_number": 42,
+            },
+            chain_id=31337,
+            rpc_url="http://127.0.0.1:8545",
+            committed_evidence_hash="0x" + "11" * 32,
+        )
+    )
+
+    assert result.outcome == "invalid_evidence"
+    assert "committed on-chain hash" in result.summary.lower()
+    assert captured["called"] is False
+
+
 def test_runner_executes_wrapped_bundle_with_helper_contracts() -> None:
     captured: dict[str, object] = {}
     archive = io.BytesIO()
