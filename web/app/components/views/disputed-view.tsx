@@ -2,6 +2,7 @@
 
 import type { AuditRecord } from "../../lib/types";
 import { challengePathSummary, shortenHex, titleCase, relativeTimeLabel, formatEth } from "../../lib/format";
+import { CopyButton } from "../copy-button";
 
 type DisputedViewProps = {
   audit: AuditRecord;
@@ -50,9 +51,17 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               ↗ View on Etherscan
             </a>
           ) : null}
-          <button type="button" className="cta-gradient" style={{ padding: "10px 20px", fontSize: "0.78rem" }}>
-            🔐 Submit Evidence
-          </button>
+          {audit.challenge?.proof_uri ? (
+            <a
+              href={audit.challenge.proof_uri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-gradient"
+              style={{ padding: "10px 20px", fontSize: "0.78rem", textDecoration: "none" }}
+            >
+              🔐 View Evidence
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -94,9 +103,9 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
             <div className="card-body">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Audit Report Findings</h2>
-                <button type="button" className="btn-outline" style={{ fontSize: "0.7rem", padding: "6px 12px" }}>
-                  ⬇ PDF Report
-                </button>
+                <span className="mono" style={{ fontSize: "0.68rem", color: "var(--on-surface-variant)" }}>
+                  Report {shortenHex(audit.report.report_hash, 8, 6)}
+                </span>
               </div>
 
               {audit.report.findings.slice(0, 4).map((f, i) => {
@@ -176,7 +185,9 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
                   <code className="mono" style={{ fontSize: "0.7rem" }}>
                     {audit.onchain?.publish_tx_hash ? shortenHex(audit.onchain.publish_tx_hash, 10, 6) : "Pending..."}
                   </code>
-                  <span style={{ cursor: "pointer", opacity: 0.6 }}>📋</span>
+                  {audit.onchain?.publish_tx_hash ? (
+                    <CopyButton text={audit.onchain.publish_tx_hash} label="Copy disputed transaction hash" />
+                  ) : null}
                 </div>
               </div>
 

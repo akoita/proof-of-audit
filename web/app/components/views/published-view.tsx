@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { AuditRecord } from "../../lib/types";
 import { shortenHex, submissionTargetLabel, titleCase, relativeTimeLabel } from "../../lib/format";
+import { CopyButton } from "../copy-button";
 
 type PublishedViewProps = {
   audit: AuditRecord;
@@ -10,6 +12,7 @@ type PublishedViewProps = {
 };
 
 export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps) {
+  const [activeTab, setActiveTab] = useState<"summary" | "vulnerabilities" | "code-audit">("summary");
   const relatedClaims = allAudits
     .filter((a) => a.id !== audit.id && a.contract_address === audit.contract_address)
     .slice(0, 3);
@@ -70,7 +73,9 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
                       ? shortenHex(audit.onchain.publish_tx_hash, 12, 8)
                       : "Pending..."}
                   </code>
-                  <span style={{ cursor: "pointer", opacity: 0.6 }}>📋</span>
+                  {audit.onchain?.publish_tx_hash ? (
+                    <CopyButton text={audit.onchain.publish_tx_hash} label="Copy published transaction hash" />
+                  ) : null}
                 </div>
               </div>
 
@@ -136,50 +141,106 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
           <div className="card">
             <div className="card-body">
               <div className="view-tabs">
-                <button type="button" className="view-tab active">Summary</button>
-                <button type="button" className="view-tab">Vulnerabilities</button>
-                <button type="button" className="view-tab">Code Audit</button>
+                <button
+                  type="button"
+                  className={`view-tab ${activeTab === "summary" ? "active" : ""}`.trim()}
+                  onClick={() => setActiveTab("summary")}
+                >
+                  Summary
+                </button>
+                <button
+                  type="button"
+                  className={`view-tab ${activeTab === "vulnerabilities" ? "active" : ""}`.trim()}
+                  onClick={() => setActiveTab("vulnerabilities")}
+                >
+                  Vulnerabilities
+                </button>
+                <button
+                  type="button"
+                  className={`view-tab ${activeTab === "code-audit" ? "active" : ""}`.trim()}
+                  onClick={() => setActiveTab("code-audit")}
+                >
+                  Code Audit
+                </button>
               </div>
 
-              <h3 style={{ fontSize: "1.05rem", fontWeight: 700, marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 3, height: 20, background: "var(--primary)", borderRadius: 2, display: "inline-block" }} />
-                Executive Summary
-              </h3>
-              <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18, marginTop: 12 }}>
-                <p style={{ fontSize: "0.82rem", lineHeight: 1.7, color: "var(--on-surface)" }}>
-                  The audit was performed on {relativeTimeLabel(audit.created_at)}. Our analysis
-                  identified <strong>{audit.report.severity_breakdown.medium ?? 0} Medium</strong> and{" "}
-                  <strong>{audit.report.severity_breakdown.low ?? 0} Low</strong> severity issues.
-                  {audit.report.severity_breakdown.critical === 0 && audit.report.severity_breakdown.high === 0
-                    ? " No critical vulnerabilities remain open at the time of publication."
-                    : ` ${audit.report.severity_breakdown.critical ?? 0} Critical and ${audit.report.severity_breakdown.high ?? 0} High severity issues were identified.`}
-                </p>
-              </div>
+              {activeTab === "summary" ? (
+                <>
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 700, marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 3, height: 20, background: "var(--primary)", borderRadius: 2, display: "inline-block" }} />
+                    Executive Summary
+                  </h3>
+                  <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18, marginTop: 12 }}>
+                    <p style={{ fontSize: "0.82rem", lineHeight: 1.7, color: "var(--on-surface)" }}>
+                      The audit was performed on {relativeTimeLabel(audit.created_at)}. Our analysis
+                      identified <strong>{audit.report.severity_breakdown.medium ?? 0} Medium</strong> and{" "}
+                      <strong>{audit.report.severity_breakdown.low ?? 0} Low</strong> severity issues.
+                      {audit.report.severity_breakdown.critical === 0 && audit.report.severity_breakdown.high === 0
+                        ? " No critical vulnerabilities remain open at the time of publication."
+                        : ` ${audit.report.severity_breakdown.critical ?? 0} Critical and ${audit.report.severity_breakdown.high ?? 0} High severity issues were identified.`}
+                    </p>
+                  </div>
+                </>
+              ) : null}
 
-              {/* Core Findings */}
-              <h3 style={{ fontSize: "1.05rem", fontWeight: 700, marginTop: 28, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 3, height: 20, background: "var(--primary)", borderRadius: 2, display: "inline-block" }} />
-                Core Findings
-              </h3>
-              {audit.report.findings.length > 0 ? (
-                audit.report.findings.slice(0, 5).map((f, i) => {
-                  const sev = (f.severity || "info").toLowerCase();
-                  const badgeClass = sev === "critical" ? "badge-challenged" : sev === "high" ? "badge-draft" : sev === "medium" ? "badge-resolved" : "badge-published";
-                  return (
-                    <div key={i} className="finding-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid rgba(67,70,85,0.15)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span className={`badge ${badgeClass}`} style={{ fontSize: "0.6rem", minWidth: 65, textAlign: "center" }}>
-                          {titleCase(sev)}
-                        </span>
-                        <span style={{ fontSize: "0.82rem", fontWeight: 500 }}>{f.title}</span>
-                      </div>
-                      <span style={{ color: "var(--on-surface-variant)", fontSize: "0.9rem" }}>›</span>
+              {activeTab === "vulnerabilities" ? (
+                <>
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 700, marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 3, height: 20, background: "var(--primary)", borderRadius: 2, display: "inline-block" }} />
+                    Core Findings
+                  </h3>
+                  {audit.report.findings.length > 0 ? (
+                    audit.report.findings.slice(0, 5).map((f, i) => {
+                      const sev = (f.severity || "info").toLowerCase();
+                      const badgeClass = sev === "critical" ? "badge-challenged" : sev === "high" ? "badge-draft" : sev === "medium" ? "badge-resolved" : "badge-published";
+                      return (
+                        <div key={i} className="finding-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid rgba(67,70,85,0.15)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <span className={`badge ${badgeClass}`} style={{ fontSize: "0.6rem", minWidth: 65, textAlign: "center" }}>
+                              {titleCase(sev)}
+                            </span>
+                            <span style={{ fontSize: "0.82rem", fontWeight: 500 }}>{f.title}</span>
+                          </div>
+                          <span style={{ color: "var(--on-surface-variant)", fontSize: "0.9rem" }}>›</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="muted" style={{ fontSize: "0.78rem", marginTop: 10 }}>No findings to display.</p>
+                  )}
+                </>
+              ) : null}
+
+              {activeTab === "code-audit" ? (
+                <div style={{ display: "grid", gap: 14, marginTop: 20 }}>
+                  <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18 }}>
+                    <div className="hash-label">BENCHMARK</div>
+                    <div className="mono" style={{ fontSize: "0.8rem", marginTop: 4 }}>{audit.report.benchmark_id}</div>
+                  </div>
+                  <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18 }}>
+                    <div className="hash-label">REPORT HASH</div>
+                    <div className="mono" style={{ fontSize: "0.76rem", marginTop: 4, wordBreak: "break-all" }}>{audit.report.report_hash}</div>
+                  </div>
+                  <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18 }}>
+                    <div className="hash-label">METADATA HASH</div>
+                    <div className="mono" style={{ fontSize: "0.76rem", marginTop: 4, wordBreak: "break-all" }}>{audit.report.metadata_hash}</div>
+                  </div>
+                  <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 18 }}>
+                    <div className="hash-label">SUPPORTED CHECKS</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {audit.report.supported_checks.length > 0 ? (
+                        audit.report.supported_checks.map((check) => (
+                          <span key={check} className="pill" style={{ fontSize: "0.65rem" }}>
+                            {check}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="muted" style={{ fontSize: "0.78rem" }}>No supported checks recorded.</span>
+                      )}
                     </div>
-                  );
-                })
-              ) : (
-                <p className="muted" style={{ fontSize: "0.78rem", marginTop: 10 }}>No findings to display.</p>
-              )}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

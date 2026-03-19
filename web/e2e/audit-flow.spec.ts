@@ -209,3 +209,43 @@ test("redesigned dashboards only show real state or explicit unavailable labels"
   await expect(page.getByText(/Top 0.1% Globally/i)).toHaveCount(0);
   await expect(page.getByText(/NETWORK PULSE: Healthy & Synced/i)).toHaveCount(0);
 });
+
+test("redesigned controls are wired to real links and stateful actions", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("link", { name: /Documentation/i })).toHaveAttribute(
+    "href",
+    "https://github.com/akoita/proof-of-audit/blob/main/README.md",
+  );
+  await expect(page.getByRole("link", { name: /Support/i })).toHaveAttribute(
+    "href",
+    "https://github.com/akoita/proof-of-audit/issues",
+  );
+
+  await createAuditFromFixture(page, /Dual Risk Vault/i);
+  await publishActiveAudit(page);
+
+  const sidebarNav = page.locator(".sidebar-nav");
+  await sidebarNav.getByRole("button", { name: "Published" }).click();
+
+  await page.getByRole("button", { name: "Code Audit" }).click();
+  await expect(page.getByText("REPORT HASH", { exact: true })).toBeVisible();
+  await expect(page.getByText("SUPPORTED CHECKS", { exact: true })).toBeVisible();
+
+  const publishedCopy = page.getByRole("button", { name: "Copy published transaction hash" });
+  await publishedCopy.click();
+  await expect(publishedCopy).toHaveText("Copied");
+
+  await sidebarNav.getByRole("button", { name: "Workbench" }).click();
+  await challengeInput(page).fill("ipfs://wrong-proof");
+  await page.getByTestId("challenge-btn").click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
+
+  await sidebarNav.getByRole("button", { name: "Disputed" }).click();
+  await expect(page.getByRole("link", { name: /View Evidence/i })).toHaveAttribute("href", "ipfs://wrong-proof");
+  await expect(page.getByText(/^Report /)).toBeVisible();
+
+  const disputedCopy = page.getByRole("button", { name: "Copy disputed transaction hash" });
+  await disputedCopy.click();
+  await expect(disputedCopy).toHaveText("Copied");
+});

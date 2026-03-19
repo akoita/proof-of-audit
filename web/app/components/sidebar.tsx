@@ -46,14 +46,24 @@ export function Sidebar({ activeView, onViewChange, onNewClaim }: SidebarProps) 
       </nav>
 
       <div className="sidebar-footer">
-        <button type="button" className="sidebar-nav-item">
+        <a
+          className="sidebar-nav-item"
+          href="https://github.com/akoita/proof-of-audit/blob/main/README.md"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <span className="icon">📖</span>
           <span>Documentation</span>
-        </button>
-        <button type="button" className="sidebar-nav-item">
+        </a>
+        <a
+          className="sidebar-nav-item"
+          href="https://github.com/akoita/proof-of-audit/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <span className="icon">💬</span>
           <span>Support</span>
-        </button>
+        </a>
       </div>
     </aside>
   );
