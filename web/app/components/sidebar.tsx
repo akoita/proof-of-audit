@@ -3,6 +3,7 @@
 type SidebarProps = {
   activeView: string;
   onViewChange: (view: string) => void;
+  onNewClaim: () => void;
 };
 
 const NAV_ITEMS = [
@@ -13,7 +14,7 @@ const NAV_ITEMS = [
   { id: "archive",    label: "Archive",    icon: "📦" },
 ] as const;
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, onNewClaim }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -24,7 +25,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             <p>Precision Forensics</p>
           </div>
         </div>
-        <button className="sidebar-new-btn" type="button">
+        <button className="sidebar-new-btn" type="button" onClick={onNewClaim}>
           <span>+</span> New Audit Claim
         </button>
       </div>
