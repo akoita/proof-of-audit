@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import json
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -18,6 +19,44 @@ def load_base_sepolia_manifest() -> dict[str, object]:
             / "base-sepolia.json"
         ).read_text(encoding="utf-8")
     )
+
+
+def write_fake_agent_forge_script(
+    path: Path,
+    *,
+    report_payload: dict[str, object] | None = None,
+    exit_code: int = 0,
+    stderr_text: str = "",
+    run_id: str = "run-123",
+) -> Path:
+    report_text = json.dumps(report_payload, indent=2) if report_payload is not None else None
+    script = f"""#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+repo = Path(args[args.index("--repo") + 1])
+report_path = repo / ".proof-of-audit" / "agent-report.json"
+report_path.parent.mkdir(parents=True, exist_ok=True)
+report_text = {report_text!r}
+if report_text is not None:
+    report_path.write_text(report_text, encoding="utf-8")
+run_dir = Path(os.environ["HOME"]) / ".agent-forge" / "runs" / {run_id!r}
+run_dir.mkdir(parents=True, exist_ok=True)
+(run_dir / "run.json").write_text(json.dumps({{
+    "id": {run_id!r},
+    "repo_path": str(repo),
+    "state": "completed"
+}}), encoding="utf-8")
+if {stderr_text!r}:
+    sys.stderr.write({stderr_text!r})
+sys.exit({exit_code})
+"""
+    path.write_text(script, encoding="utf-8")
+    path.chmod(0o755)
+    return path
 
 
 class AuditApiAppTest(unittest.TestCase):
@@ -667,6 +706,156 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(comparison_payload["summary"]["published_count"], 0)
         self.assertEqual(comparison_payload["summary"]["challenged_count"], 0)
         self.assertEqual(comparison_payload["summary"]["resolved_count"], 0)
+
+
+class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tempdir.name)
+        self.data_root = self.root / "data"
+        self.data_root.mkdir()
+        self.fixtures_file = self.root / "demo-fixtures.localhost.json"
+        self.fixtures_file.write_text(json.dumps({"fixtures": []}) + "\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self.tempdir.cleanup()
+
+    def _create_client(self, *, mode: str, command: Path, runs_home: Path) -> TestClient:
+        env_file = self.root / f".env.{mode}.{command.name}"
+        env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={self.fixtures_file}",
+                    f"PROOF_OF_AUDIT_WORKER_RUNTIME_MODE={mode}",
+                    f"PROOF_OF_AUDIT_AGENT_FORGE_COMMAND={command}",
+                    f"PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME={runs_home}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return TestClient(create_app(self.data_root, env_file=env_file))
+
+    def test_repository_submission_hybrid_persists_live_execution_metadata(self) -> None:
+        repo_dir = self.root / "repo"
+        repo_dir.mkdir()
+        (repo_dir / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+        runs_home = self.root / "home-success"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-success",
+            report_payload={
+                "benchmark_id": "agent-forge-live",
+                "summary": "Live repository audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Reentrancy in withdraw()",
+                        "severity": "high",
+                        "category": "reentrancy",
+                        "description": "External call happens before state update.",
+                        "impact": "Funds can be drained recursively.",
+                        "recommendation": "Apply checks-effects-interactions.",
+                        "confidence": "medium",
+                        "source_path": "Vault.sol",
+                        "detector": "agent_forge.live",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        response = client.post(
+            "/audits",
+            json={
+                "input_kind": "repository_url",
+                "repository_url": str(repo_dir),
+                "entry_contract": "Vault",
+                "submitted_by": "repo-test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["submission"]["input_kind"], "repository_url")
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(payload["execution"]["run_id"], "run-123")
+        self.assertFalse(payload["execution"]["fallback_used"])
+        self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-live")
+        self.assertEqual(payload["report"]["finding_count"], 1)
+
+    def test_repository_submission_hybrid_falls_back_when_agent_forge_fails(self) -> None:
+        repo_dir = self.root / "repo-fallback"
+        repo_dir.mkdir()
+        (repo_dir / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+        runs_home = self.root / "home-fallback"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-fail",
+            report_payload=None,
+            exit_code=2,
+            stderr_text="boom",
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        response = client.post(
+            "/audits",
+            json={
+                "input_kind": "repository_url",
+                "repository_url": str(repo_dir),
+                "entry_contract": "Vault",
+                "submitted_by": "repo-test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["execution"]["status"], "fallback")
+        self.assertTrue(payload["execution"]["fallback_used"])
+        self.assertEqual(payload["report"]["benchmark_id"], "repository-url")
+
+    def test_source_bundle_submission_hybrid_extracts_zip_and_runs_live_backend(self) -> None:
+        bundle_path = self.root / "source-bundle.zip"
+        with zipfile.ZipFile(bundle_path, "w") as archive:
+            archive.writestr("wrapped/src/Vault.sol", "contract Vault {}\n")
+        runs_home = self.root / "home-bundle"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-bundle",
+            report_payload={
+                "benchmark_id": "agent-forge-live",
+                "summary": "Live bundle audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "src/Vault.sol",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        response = client.post(
+            "/audits",
+            json={
+                "input_kind": "source_bundle",
+                "source_bundle_uri": str(bundle_path),
+                "entry_contract": "Vault",
+                "submitted_by": "bundle-test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["submission"]["input_kind"], "source_bundle")
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-live")
+        self.assertEqual(payload["report"]["findings"][0]["source_path"], "src/Vault.sol")
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):
