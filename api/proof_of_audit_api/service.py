@@ -108,20 +108,27 @@ class AuditService:
         self, submission: dict[str, Any], submitted_by: str = "anonymous"
     ) -> dict[str, Any]:
         normalized_submission = self._normalize_submission(submission)
+        auditor_service = self._require_submission_service(
+            normalized_submission.get("service_id"),
+            normalized_submission["input_kind"],
+        )
+        auditor_profile = self._auditor_profile_payload_for_service(
+            auditor_service.service_id
+        )
         audit_id = str(uuid4())
         execution_result = self.worker.run_submission(
             audit_id=audit_id,
-            **normalized_submission,
+            **self._worker_submission_payload(normalized_submission),
         )
-        auditor = self.contract_config.auditor.to_dict()
         target_key = self._normalize_target_key(normalized_submission["contract_address"])
         record = {
             "id": audit_id,
-            "agent": auditor,
+            "agent": auditor_profile,
+            "auditor_service": auditor_service.to_dict(),
             "contract_address": normalized_submission["contract_address"],
             "target_key": target_key,
             "target_auditor_key": self._target_auditor_key(
-                target_key, str(auditor["id"])
+                target_key, auditor_service.service_id
             ),
             "submission": normalized_submission,
             "submitted_by": submitted_by,
@@ -139,7 +146,7 @@ class AuditService:
             "reputation_trail": None,
         }
         self.store.write(audit_id, record)
-        return record
+        return self.get_audit(audit_id) or record
 
     def get_audit(self, audit_id: str) -> dict[str, Any] | None:
         records = self._all_normalized_records()
@@ -218,7 +225,8 @@ class AuditService:
             raise OnchainConfigurationError(
                 "On-chain publishing is not configured for this API instance."
             )
-        agent_identity = agent_identity or self.contract_config.auditor.id
+        agent = self._record_agent_profile(record)
+        agent_identity = agent_identity or str(agent.get("id") or self.contract_config.auditor.id)
         report = record["report"]
         publish_result = self.publisher.publish_audit(
             target_address=record["contract_address"],
@@ -236,8 +244,10 @@ class AuditService:
             "contract_address": self.contract_config.contract_address,
             "explorer_base_url": self.contract_config.explorer_base_url,
             "agent_identity": agent_identity,
-            "agent_name": self.contract_config.auditor.name,
-            "agent_version": self.contract_config.auditor.version,
+            "agent_name": str(agent.get("name") or self.contract_config.auditor.name),
+            "agent_version": str(
+                agent.get("version") or self.contract_config.auditor.version
+            ),
             "stake_wei": stake_wei,
             "report_hash": report["report_hash"],
             "metadata_hash": report["metadata_hash"],
@@ -500,7 +510,26 @@ class AuditService:
             submission_payload["chain_id"] = chain_id
         if "input_kind" not in submission_payload:
             submission_payload["input_kind"] = "deployed_address"
-        normalized["agent"] = self._normalize_agent(normalized.get("agent"))
+        if not submission_payload.get("service_id"):
+            stored_service = normalized.get("auditor_service")
+            if isinstance(stored_service, dict) and stored_service.get("service_id"):
+                submission_payload["service_id"] = stored_service.get("service_id")
+            elif isinstance(normalized.get("agent"), dict) and normalized["agent"].get("id"):
+                submission_payload["service_id"] = normalized["agent"].get("id")
+            else:
+                submission_payload["service_id"] = self.contract_config.auditor_service.service_id
+        normalized["submission"] = self._normalize_submission(submission_payload)
+        normalized_service = self._normalize_auditor_service(
+            normalized.get("auditor_service"),
+            service_id=str(normalized["submission"]["service_id"]),
+        )
+        normalized["auditor_service"] = normalized_service
+        normalized["agent"] = self._normalize_agent(
+            normalized.get("agent"),
+            default_agent=self._auditor_profile_payload_for_service(
+                str(normalized_service["service_id"])
+            ),
+        )
         if isinstance(onchain, dict):
             onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
             onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
@@ -517,12 +546,11 @@ class AuditService:
         execution = normalized.get("execution")
         if isinstance(execution, dict):
             normalized["execution"] = execution
-        normalized["submission"] = self._normalize_submission(submission_payload)
         normalized["contract_address"] = normalized["submission"]["contract_address"]
         normalized["target_key"] = self._normalize_target_key(normalized["contract_address"])
         normalized["target_auditor_key"] = self._target_auditor_key(
             normalized["target_key"],
-            str(normalized["agent"]["id"]),
+            str(normalized["auditor_service"]["service_id"]),
         )
 
         normalized["report"] = self._normalize_report(
@@ -663,6 +691,18 @@ class AuditService:
             reputation_index.get(auditor_id, self._default_reputation())
         )
         enriched["agent"] = agent
+        auditor_service = deepcopy(enriched.get("auditor_service", {}))
+        service_id = str(
+            auditor_service.get("service_id")
+            or enriched.get("submission", {}).get("service_id")
+            or self.contract_config.auditor_service.service_id
+        )
+        if service_id:
+            service_reputation_id = self._auditor_id_for_service(service_id)
+            auditor_service["reputation"] = deepcopy(
+                reputation_index.get(service_reputation_id, self._default_reputation())
+            )
+            enriched["auditor_service"] = auditor_service
         return enriched
 
     def _build_service_payload(
@@ -847,9 +887,10 @@ class AuditService:
         return validation
 
     def _build_reputation_seed(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        agent_id = self._record_agent_id(record)
         if (
-            not self.contract_config.reputation_registry_address
-            or self.contract_config.auditor_agent_id is None
+            not self._record_reputation_registry_address(record)
+            or agent_id is None
         ):
             return None
         onchain = record.get("onchain")
@@ -858,9 +899,9 @@ class AuditService:
         claim_document = self._build_reputation_claim_document(record)
         return {
             "status": "pending_claim",
-            "registry_address": self.contract_config.reputation_registry_address,
-            "source": self.contract_config.reputation_bridge_source or "configured",
-            "agent_id": self.contract_config.auditor_agent_id,
+            "registry_address": self._record_reputation_registry_address(record),
+            "source": self._record_reputation_source(record) or "configured",
+            "agent_id": agent_id,
             "claim_uri": self._reputation_claim_uri(record["id"]),
             "claim_hash": self._hash_payload(claim_document),
             "stake_wei": int(onchain.get("stake_wei") or 0),
@@ -888,12 +929,13 @@ class AuditService:
     ) -> dict[str, Any]:
         onchain = record.get("onchain") or {}
         report = record["report"]
+        service = self._record_auditor_service(record)
         return {
             "type": "https://github.com/akoita/proof-of-audit#reputation-claim-v1",
             "auditRecordId": record["id"],
-            "agentId": self.contract_config.auditor_agent_id,
-            "agentRegistry": self.contract_config.auditor_agent_registry,
-            "reputationRegistry": self.contract_config.reputation_registry_address,
+            "agentId": self._record_agent_id(record),
+            "agentRegistry": self._record_agent_registry(record),
+            "reputationRegistry": self._record_reputation_registry_address(record),
             "claim": {
                 "targetContract": record["contract_address"],
                 "reportHash": report["report_hash"],
@@ -903,9 +945,10 @@ class AuditService:
                 "stakeWei": onchain.get("stake_wei"),
             },
             "service": {
-                "registrationUri": self.contract_config.auditor_registration_uri,
+                "registrationUri": service.get("registration_uri"),
                 "registrationEndpoint": (
-                    f"{self.contract_config.runtime_api_base_url}/auditor/registration"
+                    f"{self.contract_config.runtime_api_base_url}"
+                    f"{service.get('registration_endpoint') or '/auditor/registration'}"
                 ),
             },
         }
@@ -918,9 +961,9 @@ class AuditService:
         return {
             "type": "https://github.com/akoita/proof-of-audit#reputation-resolution-v1",
             "auditRecordId": record["id"],
-            "agentId": self.contract_config.auditor_agent_id,
-            "agentRegistry": self.contract_config.auditor_agent_registry,
-            "reputationRegistry": self.contract_config.reputation_registry_address,
+            "agentId": self._record_agent_id(record),
+            "agentRegistry": self._record_agent_registry(record),
+            "reputationRegistry": self._record_reputation_registry_address(record),
             "claimHash": reputation_trail.get("claim_hash"),
             "claimConfirmed": self._claim_confirmed(record),
             "outcome": {
@@ -950,18 +993,19 @@ class AuditService:
         return None
 
     def _build_validation_seed(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        agent_id = self._record_agent_id(record)
         if (
-            not self.contract_config.validation_registry_address
-            or self.contract_config.auditor_agent_id is None
+            not self._record_validation_registry_address(record)
+            or agent_id is None
             or not self.contract_config.validator_address
         ):
             return None
         request_document = self._build_validation_request_document(record)
         return {
             "status": "pending_request",
-            "registry_address": self.contract_config.validation_registry_address,
-            "source": self.contract_config.validation_bridge_source or "configured",
-            "agent_id": self.contract_config.auditor_agent_id,
+            "registry_address": self._record_validation_registry_address(record),
+            "source": self._record_validation_source(record) or "configured",
+            "agent_id": agent_id,
             "request_uri": self._validation_request_uri(record["id"]),
             "request_hash": self._hash_payload(request_document),
             "validator_address": self.contract_config.validator_address,
@@ -1025,13 +1069,14 @@ class AuditService:
     ) -> dict[str, Any]:
         onchain = record.get("onchain") or {}
         report = record["report"]
+        service = self._record_auditor_service(record)
         return {
             "type": "https://eips.ethereum.org/EIPS/eip-8004#validation-request-v1",
             "requestType": "proof-of-audit.audit-claim",
             "auditRecordId": record["id"],
-            "agentId": self.contract_config.auditor_agent_id,
-            "agentRegistry": self.contract_config.auditor_agent_registry,
-            "validationRegistry": self.contract_config.validation_registry_address,
+            "agentId": self._record_agent_id(record),
+            "agentRegistry": self._record_agent_registry(record),
+            "validationRegistry": self._record_validation_registry_address(record),
             "validatorAddress": self.contract_config.validator_address,
             "claim": {
                 "targetContract": record["contract_address"],
@@ -1051,9 +1096,10 @@ class AuditService:
                 "stakeWei": onchain.get("stake_wei"),
             },
             "service": {
-                "registrationUri": self.contract_config.auditor_registration_uri,
+                "registrationUri": service.get("registration_uri"),
                 "registrationEndpoint": (
-                    f"{self.contract_config.runtime_api_base_url}/auditor/registration"
+                    f"{self.contract_config.runtime_api_base_url}"
+                    f"{service.get('registration_endpoint') or '/auditor/registration'}"
                 ),
             },
         }
@@ -1069,9 +1115,9 @@ class AuditService:
         return {
             "type": "https://eips.ethereum.org/EIPS/eip-8004#validation-response-v1",
             "auditRecordId": record["id"],
-            "agentId": self.contract_config.auditor_agent_id,
+            "agentId": self._record_agent_id(record),
             "requestHash": validation["request_hash"],
-            "validationRegistry": self.contract_config.validation_registry_address,
+            "validationRegistry": self._record_validation_registry_address(record),
             "validatorAddress": validation["validator_address"],
             "response": response,
             "tag": tag,
@@ -1159,9 +1205,11 @@ class AuditService:
             payload["resolution_path"] = "manual_fallback"
         return payload
 
-    def _normalize_agent(self, agent: Any) -> dict[str, object]:
+    def _normalize_agent(
+        self, agent: Any, *, default_agent: dict[str, object] | None = None
+    ) -> dict[str, object]:
         payload = agent if isinstance(agent, dict) else {}
-        defaults = self.contract_config.auditor.to_dict()
+        defaults = default_agent or self.contract_config.auditor.to_dict()
         normalized = dict(defaults)
         for key, value in payload.items():
             if key == "capabilities" and isinstance(value, list):
@@ -1169,6 +1217,136 @@ class AuditService:
             elif value is not None:
                 normalized[key] = value
         return normalized
+
+    def _normalize_auditor_service(
+        self, payload: Any, *, service_id: str | None = None
+    ) -> dict[str, object]:
+        stored = deepcopy(payload) if isinstance(payload, dict) else {}
+        selected_service_id = str(
+            service_id
+            or stored.get("service_id")
+            or self.contract_config.auditor_service.service_id
+        ).strip()
+        configured = self.contract_config.auditor_service_by_id(selected_service_id)
+        defaults = (
+            configured.to_dict()
+            if configured is not None
+            else self.contract_config.auditor_service.to_dict()
+        )
+        normalized = dict(defaults)
+        for key, value in stored.items():
+            if key in {"submission_modes", "resolution_modes", "supported_trust"} and isinstance(
+                value, list
+            ):
+                normalized[key] = [str(item) for item in value]
+            elif value is not None:
+                normalized[key] = value
+        normalized["service_id"] = selected_service_id or defaults["service_id"]
+        return normalized
+
+    def _worker_submission_payload(self, submission: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in submission.items()
+            if key
+            in {
+                "input_kind",
+                "chain_id",
+                "contract_address",
+                "fixture_id",
+                "entry_contract",
+                "source_bundle_uri",
+                "source_bundle_label",
+                "repository_url",
+            }
+        }
+
+    def _require_submission_service(self, service_id: str | None, input_kind: str) -> Any:
+        selected_service_id = str(
+            service_id or self.contract_config.auditor_service.service_id
+        ).strip()
+        service = self.contract_config.auditor_service_by_id(selected_service_id)
+        if service is None:
+            raise ValueError(f"unknown auditor service: {selected_service_id}")
+        if not service.active:
+            raise ValueError(f"auditor service is inactive: {selected_service_id}")
+        if input_kind not in service.submission_modes:
+            raise ValueError(
+                f"auditor service {selected_service_id} does not support submission mode {input_kind}"
+            )
+        if service.execution_mode != "local_worker":
+            raise ValueError(
+                f"auditor service {selected_service_id} uses unsupported execution mode {service.execution_mode}"
+            )
+        return service
+
+    def _auditor_profile_payload_for_service(self, service_id: str) -> dict[str, object]:
+        profile = self.contract_config.auditor_profile_by_service_id(service_id)
+        if profile is None:
+            raise ValueError(f"unknown auditor service: {service_id}")
+        return profile.to_dict()
+
+    def _record_agent_profile(self, record: dict[str, Any]) -> dict[str, Any]:
+        agent = record.get("agent")
+        if isinstance(agent, dict):
+            return agent
+        service = self._record_auditor_service(record)
+        return self._auditor_profile_payload_for_service(
+            str(service.get("service_id") or self.contract_config.auditor_service.service_id)
+        )
+
+    def _record_auditor_service(self, record: dict[str, Any]) -> dict[str, Any]:
+        service = record.get("auditor_service")
+        if isinstance(service, dict):
+            return service
+        submission = record.get("submission") if isinstance(record.get("submission"), dict) else {}
+        return self._normalize_auditor_service(
+            {},
+            service_id=str(
+                submission.get("service_id")
+                or self.contract_config.auditor_service.service_id
+            ),
+        )
+
+    def _record_agent_id(self, record: dict[str, Any]) -> int | None:
+        service = self._record_auditor_service(record)
+        agent_id = service.get("agent_id")
+        return int(agent_id) if isinstance(agent_id, int) else self.contract_config.auditor_agent_id
+
+    def _record_agent_registry(self, record: dict[str, Any]) -> str | None:
+        service = self._record_auditor_service(record)
+        agent_registry = service.get("agent_registry")
+        if isinstance(agent_registry, str) and agent_registry.strip():
+            return agent_registry
+        return self.contract_config.auditor_agent_registry
+
+    def _record_validation_registry_address(self, record: dict[str, Any]) -> str | None:
+        service = self._record_auditor_service(record)
+        value = service.get("validation_registry_address")
+        if isinstance(value, str) and value.strip():
+            return value
+        return self.contract_config.validation_registry_address
+
+    def _record_validation_source(self, record: dict[str, Any]) -> str | None:
+        service = self._record_auditor_service(record)
+        value = service.get("validation_source")
+        if isinstance(value, str) and value.strip():
+            return value
+        return self.contract_config.validation_bridge_source
+
+    def _record_reputation_registry_address(self, record: dict[str, Any]) -> str | None:
+        service = self._record_auditor_service(record)
+        value = service.get("reputation_registry_address")
+        if isinstance(value, str) and value.strip():
+            return value
+        return self.contract_config.reputation_registry_address
+
+    def _record_reputation_source(self, record: dict[str, Any]) -> str | None:
+        service = self._record_auditor_service(record)
+        value = service.get("reputation_source")
+        if isinstance(value, str) and value.strip():
+            return value
+        return self.contract_config.reputation_bridge_source
 
     def _normalize_report(
         self, report: Any, *, contract_address: str
@@ -1294,6 +1472,9 @@ class AuditService:
 
     def _normalize_submission(self, submission: dict[str, Any]) -> dict[str, Any]:
         input_kind = submission.get("input_kind", "deployed_address")
+        service_id = str(
+            submission.get("service_id") or self.contract_config.auditor_service.service_id
+        ).strip()
         chain_id = submission.get("chain_id")
         entry_contract = submission.get("entry_contract")
         source_bundle_uri = submission.get("source_bundle_uri")
@@ -1305,6 +1486,7 @@ class AuditService:
             fixture = self.worker.require_fixture(fixture_id)
             return {
                 "input_kind": "demo_fixture",
+                "service_id": service_id,
                 "chain_id": chain_id or self.contract_config.chain_id,
                 "contract_address": fixture.address,
                 "fixture_id": fixture.fixture_id,
@@ -1319,6 +1501,7 @@ class AuditService:
                 raise ValueError("source_bundle_uri is required for source_bundle submissions")
             return {
                 "input_kind": "source_bundle",
+                "service_id": service_id,
                 "chain_id": chain_id,
                 "contract_address": self.worker.synthetic_contract_address(
                     source_bundle_uri,
@@ -1336,6 +1519,7 @@ class AuditService:
                 raise ValueError("repository_url is required for repository_url submissions")
             return {
                 "input_kind": "repository_url",
+                "service_id": service_id,
                 "chain_id": chain_id,
                 "contract_address": f"0x{sha256(repository_url.encode('utf-8')).hexdigest()[:40]}",
                 "fixture_id": fixture_id,
@@ -1350,6 +1534,7 @@ class AuditService:
             raise ValueError("contract_address is required for deployed_address submissions")
         return {
             "input_kind": "deployed_address",
+            "service_id": service_id,
             "chain_id": chain_id or self.contract_config.chain_id,
             "contract_address": contract_address.lower(),
             "fixture_id": fixture_id,

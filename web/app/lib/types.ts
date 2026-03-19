@@ -47,6 +47,8 @@ export type AuditorServiceRecord = {
   manifest_schema: string;
   manifest_hash: string;
   registration_kind: string;
+  registration_type: string;
+  registration_endpoint: string;
   registration_uri: string;
   agent_id?: number | null;
   agent_registry?: string | null;
@@ -54,14 +56,27 @@ export type AuditorServiceRecord = {
   capability: string;
   discovery_path: string;
   submit_path: string;
+  execution_mode: string;
+  execution_endpoint?: string | null;
   publish_path_template: string;
   challenge_path_template: string;
   network: string;
+  active: boolean;
+  supported_trust: string[];
+  settlement_mode: string;
+  publication_mode: string;
+  staking_adapter_kind: string;
+  staking_adapter_address?: string | null;
+  staking_adapter_method?: string | null;
+  publication_scope: string;
   registry_contract_address?: string | null;
   validation_registry_address?: string | null;
   validation_source?: string | null;
   validation_request_path_template: string;
   validation_response_path_template: string;
+  reputation_registry_address?: string | null;
+  reputation_source?: string | null;
+  reputation_path_template: string;
   submission_modes: string[];
   resolution_modes: string[];
   deterministic_resolution_supported: boolean;
@@ -91,6 +106,7 @@ export type InputKind =
 
 export type Submission = {
   input_kind: InputKind;
+  service_id?: string | null;
   chain_id?: number | null;
   contract_address?: string | null;
   fixture_id?: string | null;
@@ -106,6 +122,7 @@ export type AuditRecord = {
   target_key: string;
   target_auditor_key: string;
   agent: AuditorProfile;
+  auditor_service: AuditorServiceRecord;
   submission: Submission;
   submitted_by: string;
   status: string;

@@ -261,6 +261,7 @@ class AuditRecordModel(BaseModel):
     target_key: str
     target_auditor_key: str
     agent: AuditorProfileModel
+    auditor_service: AuditorServiceRecordModel
     submission: "AuditSubmissionModel"
     submitted_by: str
     status: str
@@ -360,6 +361,7 @@ InputKind = Literal["deployed_address", "demo_fixture", "source_bundle", "reposi
 
 class AuditSubmissionModel(BaseModel):
     input_kind: InputKind
+    service_id: str | None = None
     chain_id: int | None = None
     contract_address: str | None = None
     fixture_id: str | None = None

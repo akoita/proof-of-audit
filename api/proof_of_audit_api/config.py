@@ -184,10 +184,9 @@ class AuditorProfile:
         )
 
     @classmethod
-    def from_manifest_file(cls, path: Path | None) -> "AuditorProfile":
-        if path is None or not path.exists():
+    def from_payload(cls, payload: object) -> "AuditorProfile":
+        if not isinstance(payload, dict):
             return cls.default()
-        payload = json.loads(path.read_text(encoding="utf-8"))
         defaults = cls.default()
         extensions = payload.get("x-proof-of-audit")
         if not isinstance(extensions, dict):
@@ -264,6 +263,13 @@ class AuditorProfile:
                 or defaults.resolution_policy
             ),
         )
+
+    @classmethod
+    def from_manifest_file(cls, path: Path | None) -> "AuditorProfile":
+        if path is None or not path.exists():
+            return cls.default()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return cls.from_payload(payload)
 
     def to_registration_dict(self) -> dict[str, object]:
         return {
@@ -1050,3 +1056,75 @@ class ContractConfig:
             if entry.service.service_id == normalized_service_id:
                 return entry.registration_document
         return None
+
+    def auditor_profile_by_service_id(self, service_id: str) -> AuditorProfile | None:
+        normalized_service_id = service_id.strip()
+        if not normalized_service_id:
+            return self.auditor
+
+        service = self.auditor_service_by_id(normalized_service_id)
+        if service is None:
+            return None
+        if service.service_id == self.auditor_service.service_id:
+            return self.auditor
+
+        registration_document = self.auditor_registration_document_by_service_id(
+            normalized_service_id
+        )
+        if isinstance(registration_document, dict):
+            profile = AuditorProfile.from_payload(registration_document)
+            defaults = AuditorProfile.default()
+            return AuditorProfile(
+                registration_type=(
+                    profile.registration_type
+                    if profile.registration_type != defaults.registration_type
+                    else service.registration_type
+                ),
+                id=(
+                    profile.id
+                    if profile.id != defaults.id or profile.name != defaults.name
+                    else service.service_id
+                ),
+                name=(
+                    profile.name
+                    if profile.name != defaults.name or profile.id != defaults.id
+                    else service.name
+                ),
+                version=profile.version,
+                manifest_schema=(
+                    profile.manifest_schema
+                    if profile.manifest_schema != defaults.manifest_schema
+                    else service.manifest_schema
+                ),
+                service_type=profile.service_type,
+                description=profile.description,
+                image=profile.image,
+                services=profile.services,
+                x402_support=profile.x402_support,
+                active=service.active and profile.active,
+                registrations=profile.registrations,
+                supported_trust=profile.supported_trust or service.supported_trust,
+                capabilities=profile.capabilities or (service.capability,),
+                operator=profile.operator,
+                resolution_policy=profile.resolution_policy,
+            )
+
+        defaults = AuditorProfile.default()
+        return AuditorProfile(
+            registration_type=service.registration_type,
+            id=service.service_id,
+            name=service.name,
+            version=defaults.version,
+            manifest_schema=service.manifest_schema,
+            service_type=service.capability,
+            description=defaults.description,
+            image=defaults.image,
+            services=defaults.services,
+            x402_support=defaults.x402_support,
+            active=service.active,
+            registrations=defaults.registrations,
+            supported_trust=service.supported_trust or defaults.supported_trust,
+            capabilities=(service.capability,),
+            operator=defaults.operator,
+            resolution_policy=defaults.resolution_policy,
+        )
