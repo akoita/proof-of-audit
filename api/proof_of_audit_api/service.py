@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, UTC
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -239,6 +239,7 @@ class AuditService:
         record["status"] = "published"
         record["onchain"] = {
             "audit_id": publish_result.audit_id,
+            "published_at": datetime.now(UTC).isoformat(),
             "network": self.contract_config.network,
             "chain_id": publish_result.chain_id,
             "contract_address": self.contract_config.contract_address,
@@ -485,6 +486,13 @@ class AuditService:
             "reputation": deepcopy(reputation),
         }
 
+    def list_challenger_events(self, limit: int = 50) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for record in self._all_normalized_records():
+            items.extend(self._challenger_events_for_record(record))
+        items.sort(key=lambda item: str(item["event_timestamp"]), reverse=True)
+        return items[:limit]
+
     def _require_audit(self, audit_id: str) -> dict[str, Any]:
         record = self.store.read(audit_id)
         if record is None:
@@ -531,6 +539,7 @@ class AuditService:
             ),
         )
         if isinstance(onchain, dict):
+            onchain.setdefault("published_at", normalized.get("created_at"))
             onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
             onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
             normalized["onchain"] = onchain
@@ -714,6 +723,104 @@ class AuditService:
             reputation_index.get(auditor_id, self._default_reputation())
         )
         return payload
+
+    def _challenger_events_for_record(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+        onchain = record.get("onchain")
+        if not isinstance(onchain, dict) or not onchain.get("audit_id"):
+            return []
+
+        events: list[dict[str, Any]] = []
+        published_at = str(onchain.get("published_at") or record.get("created_at") or "")
+        if published_at:
+            events.append(
+                self._build_challenger_event(
+                    record,
+                    event_kind="audit_published",
+                    event_suffix="published",
+                    event_timestamp=published_at,
+                )
+            )
+
+        challenge = record.get("challenge")
+        if isinstance(challenge, dict):
+            submitted_at = str(challenge.get("submitted_at") or "")
+            if submitted_at:
+                events.append(
+                    self._build_challenger_event(
+                        record,
+                        event_kind="challenge_opened",
+                        event_suffix="challenge-opened",
+                        event_timestamp=submitted_at,
+                    )
+                )
+            resolved_at = str(challenge.get("resolved_at") or "")
+            if resolved_at:
+                events.append(
+                    self._build_challenger_event(
+                        record,
+                        event_kind="challenge_resolved",
+                        event_suffix="challenge-resolved",
+                        event_timestamp=resolved_at,
+                    )
+                )
+        return events
+
+    def _build_challenger_event(
+        self,
+        record: dict[str, Any],
+        *,
+        event_kind: str,
+        event_suffix: str,
+        event_timestamp: str,
+    ) -> dict[str, Any]:
+        onchain = record.get("onchain") or {}
+        challenge = record.get("challenge") or {}
+        report = record["report"]
+        agent = self._record_agent_profile(record)
+        service = self._record_auditor_service(record)
+        publish_timestamp = str(onchain.get("published_at") or record.get("created_at") or "")
+        return {
+            "event_id": f"{record['id']}::{event_suffix}",
+            "event_kind": event_kind,
+            "event_timestamp": event_timestamp,
+            "audit_id": record["id"],
+            "published_audit_id": onchain.get("audit_id"),
+            "service_id": str(
+                service.get("service_id")
+                or record.get("submission", {}).get("service_id")
+                or self.contract_config.auditor_service.service_id
+            ),
+            "auditor_id": str(agent.get("id") or self.contract_config.auditor.id),
+            "auditor_name": str(agent.get("name") or self.contract_config.auditor.name),
+            "target_contract": record["contract_address"],
+            "target_key": record["target_key"],
+            "publish_timestamp": publish_timestamp or None,
+            "challenge_window_end": self._challenge_window_end(publish_timestamp),
+            "current_state": str(record.get("status") or "draft"),
+            "report_hash": str(report.get("report_hash") or ""),
+            "metadata_hash": str(report.get("metadata_hash") or ""),
+            "summary": str(report.get("summary") or ""),
+            "max_severity": int(report.get("max_severity") or 0),
+            "finding_count": int(report.get("finding_count") or len(report.get("findings") or [])),
+            "publish_tx_hash": onchain.get("publish_tx_hash"),
+            "publish_tx_url": onchain.get("publish_tx_url"),
+            "challenge_tx_hash": challenge.get("challenge_tx_hash"),
+            "challenge_tx_url": challenge.get("challenge_tx_url"),
+            "resolve_tx_hash": challenge.get("resolve_tx_hash"),
+            "resolve_tx_url": challenge.get("resolve_tx_url"),
+            "resolution": challenge.get("resolution"),
+        }
+
+    def _challenge_window_end(self, publish_timestamp: str) -> str | None:
+        if not publish_timestamp:
+            return None
+        try:
+            published_at = datetime.fromisoformat(publish_timestamp)
+        except ValueError:
+            return None
+        return (
+            published_at + timedelta(seconds=self.contract_config.challenge_window_seconds)
+        ).isoformat()
 
     def _auditor_id_for_service(self, service_id: str) -> str:
         if service_id == self.contract_config.auditor_service.service_id:

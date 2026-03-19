@@ -25,6 +25,7 @@ from proof_of_audit_api.schemas import (
     AuditorServiceListResponse,
     AuditorServiceRecordModel,
     ChallengeAuditRequest,
+    ChallengerFeedResponse,
     CreateAuditRequest,
     DemoFixtureListResponse,
     ErrorResponse,
@@ -254,6 +255,18 @@ def create_app(
         return TargetComparisonResponse.model_validate(
             service.build_target_comparison(contract_address)
         )
+
+    @app.get(
+        "/challenger-feed",
+        response_model=ChallengerFeedResponse,
+        responses={status.HTTP_200_OK: {"model": ChallengerFeedResponse}},
+    )
+    def challenger_feed(
+        request: Request,
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> ChallengerFeedResponse:
+        service = _service(request)
+        return ChallengerFeedResponse(items=service.list_challenger_events(limit=limit))
 
     @app.get(
         "/fixtures",

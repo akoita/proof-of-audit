@@ -406,6 +406,59 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(int(onchain_reputation[3]), 1)
             self.assertEqual(int(onchain_reputation[6]), 0)
 
+    def test_challenger_feed_tracks_published_opened_and_resolved_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+                reputation_bridge=onchain.reputation_bridge,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+            published = service.publish_audit(created["id"], 10**16, None)
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://demo-poc",
+                challenger="whitehat",
+            )
+            resolved = service.resolve_audit(
+                created["id"],
+                upheld=False,
+                resolved_by="arbiter-operator",
+            )
+
+            events = service.list_challenger_events()
+
+            self.assertEqual(
+                [item["event_kind"] for item in events[:3]],
+                ["challenge_resolved", "challenge_opened", "audit_published"],
+            )
+            latest = events[0]
+            self.assertEqual(latest["audit_id"], created["id"])
+            self.assertEqual(latest["service_id"], "proof-of-audit-auditor")
+            self.assertEqual(latest["auditor_id"], "proof-of-audit-auditor")
+            self.assertEqual(
+                latest["published_audit_id"],
+                published["onchain"]["audit_id"],
+            )
+            self.assertEqual(
+                latest["challenge_tx_hash"],
+                challenged["challenge"]["challenge_tx_hash"],
+            )
+            self.assertEqual(
+                latest["resolve_tx_hash"],
+                resolved["challenge"]["resolve_tx_hash"],
+            )
+            self.assertEqual(latest["current_state"], "resolved")
+            self.assertEqual(latest["resolution"], "rejected")
+            self.assertIsNotNone(latest["challenge_window_end"])
+
     def test_verified_clean_fixture_challenge_auto_resolves_upheld(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
