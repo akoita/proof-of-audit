@@ -33,6 +33,7 @@ class ResolvedExecutableEvidence:
     source_text: str
     manifest: dict[str, Any]
     bundle_mode: bool
+    canonical_hash: str
     materialized_root: Path | None = None
     _tempdir: tempfile.TemporaryDirectory[str] | None = field(
         default=None, repr=False
@@ -97,12 +98,19 @@ class ExecutableEvidenceResolver:
                 request_manifest=context.evidence_manifest,
             )
             self._validate_hashes(source_path.parent, manifest)
+            canonical_hash = self._build_canonical_hash(
+                source_root=source_path.parent,
+                source_path=source_path,
+                manifest=manifest,
+                bundle_mode=False,
+            )
             return ResolvedExecutableEvidence(
                 source_path=source_path,
                 source_root=source_path.parent,
                 source_text=source_text,
                 manifest=manifest,
                 bundle_mode=False,
+                canonical_hash=canonical_hash,
             )
 
         if parsed.scheme not in {"ipfs", "https", "http"}:
@@ -129,12 +137,19 @@ class ExecutableEvidenceResolver:
                 )
                 entrypoint = self._resolve_entrypoint(bundle_root, manifest)
                 self._validate_hashes(bundle_root, manifest)
+                canonical_hash = self._build_canonical_hash(
+                    source_root=bundle_root,
+                    source_path=entrypoint,
+                    manifest=manifest,
+                    bundle_mode=True,
+                )
                 return ResolvedExecutableEvidence(
                     source_path=entrypoint,
                     source_root=bundle_root,
                     source_text=self._read_text(entrypoint),
                     manifest=manifest,
                     bundle_mode=True,
+                    canonical_hash=canonical_hash,
                     materialized_root=materialized_root,
                     _tempdir=tempdir,
                 )
@@ -147,12 +162,19 @@ class ExecutableEvidenceResolver:
                 request_manifest=context.evidence_manifest,
             )
             self._validate_hashes(downloaded_path.parent, manifest)
+            canonical_hash = self._build_canonical_hash(
+                source_root=downloaded_path.parent,
+                source_path=downloaded_path,
+                manifest=manifest,
+                bundle_mode=False,
+            )
             return ResolvedExecutableEvidence(
                 source_path=downloaded_path,
                 source_root=downloaded_path.parent,
                 source_text=source_text,
                 manifest=manifest,
                 bundle_mode=False,
+                canonical_hash=canonical_hash,
                 materialized_root=materialized_root,
                 _tempdir=tempdir,
             )
@@ -290,6 +312,48 @@ class ExecutableEvidenceResolver:
                 raise EvidenceResolutionError(
                     f"Executable evidence hash mismatch for {relative_path}."
                 )
+
+    def _build_canonical_hash(
+        self,
+        *,
+        source_root: Path,
+        source_path: Path,
+        manifest: dict[str, Any],
+        bundle_mode: bool,
+    ) -> str:
+        files = self._canonical_file_hashes(
+            source_root=source_root,
+            source_path=source_path,
+            bundle_mode=bundle_mode,
+        )
+        relative_entrypoint = source_path.relative_to(source_root).as_posix()
+        payload = {
+            "canonical_format": "proof-of-audit-executable-evidence-hash/v1",
+            "bundle_mode": bundle_mode,
+            "entrypoint": relative_entrypoint,
+            "manifest": manifest,
+            "files": files,
+        }
+        return "0x" + sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    def _canonical_file_hashes(
+        self,
+        *,
+        source_root: Path,
+        source_path: Path,
+        bundle_mode: bool,
+    ) -> dict[str, str]:
+        if bundle_mode:
+            paths = sorted(path for path in source_root.rglob("*") if path.is_file())
+        else:
+            paths = [source_path]
+        hashes: dict[str, str] = {}
+        for path in paths:
+            relative_path = path.relative_to(source_root).as_posix()
+            hashes[relative_path] = sha256(path.read_bytes()).hexdigest()
+        return hashes
 
     def _is_archive(self, path: Path) -> bool:
         return zipfile.is_zipfile(path) or tarfile.is_tarfile(path)

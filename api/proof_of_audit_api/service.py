@@ -33,6 +33,10 @@ from proof_of_audit_agent.challenge_verifier import (
 from proof_of_audit_agent.executable_evidence_verifier import (
     ExecutableEvidenceVerifier,
 )
+from proof_of_audit_agent.executable_evidence_resolver import (
+    EvidenceResolutionError,
+    ExecutableEvidenceResolver,
+)
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import AuditStore, create_store
@@ -74,6 +78,7 @@ class AuditService:
             "deterministic_fixture": DeterministicChallengeVerifier(),
             "executable_test": ExecutableEvidenceVerifier(),
         }
+        self.evidence_resolver = ExecutableEvidenceResolver()
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config
         )
@@ -279,10 +284,17 @@ class AuditService:
         verifier = self.challenge_verifiers.get(evidence_type)
         if verifier is None:
             raise ValueError(f"unsupported evidence_type: {evidence_type}")
+        evidence_hash = self._build_committed_evidence_hash(
+            proof_uri=proof_uri,
+            evidence_type=evidence_type,
+            execution_env=execution_env,
+            evidence_manifest=evidence_manifest,
+            chain_id=int(record["onchain"].get("chain_id") or self.contract_config.chain_id),
+        )
 
         challenge_result = self.publisher.challenge_audit(
             audit_id=onchain_audit_id,
-            proof_uri=proof_uri,
+            evidence_hash=evidence_hash,
             challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
         )
         verification_result = verifier.verify(
@@ -298,12 +310,14 @@ class AuditService:
                     record["onchain"].get("chain_id") or self.contract_config.chain_id
                 ),
                 rpc_url=self.contract_config.rpc_url,
+                committed_evidence_hash=evidence_hash,
             )
         )
         challenge_record = {
             "challenger": challenger,
             "challenger_address": challenge_result.challenger_address,
             "proof_uri": proof_uri,
+            "evidence_hash": challenge_result.evidence_hash,
             "evidence_type": evidence_type,
             "execution_env": execution_env,
             "evidence_manifest": deepcopy(evidence_manifest),
@@ -321,7 +335,7 @@ class AuditService:
             "execution_log": verification_result.execution_log,
             "matched_findings": verification_result.matched_findings,
             "unmatched_findings": verification_result.unmatched_findings,
-            "challenge_hash": challenge_result.challenge_hash,
+            "challenge_hash": challenge_result.evidence_hash,
             "challenge_bond_wei": challenge_result.challenge_bond_wei,
             "chain_id": challenge_result.chain_id,
             "challenge_tx_hash": challenge_result.tx_hash,
@@ -918,6 +932,7 @@ class AuditService:
             },
             "evidence": {
                 "proofUri": challenge.get("proof_uri"),
+                "evidenceHash": challenge.get("evidence_hash"),
                 "verificationStatus": challenge.get("verification_status"),
                 "verificationSummary": challenge.get("verification_summary"),
             },
@@ -973,6 +988,37 @@ class AuditService:
         return "0x" + sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
+
+    def _build_committed_evidence_hash(
+        self,
+        *,
+        proof_uri: str,
+        evidence_type: str,
+        execution_env: str | None,
+        evidence_manifest: dict[str, Any] | None,
+        chain_id: int,
+    ) -> str:
+        if evidence_type != "executable_test":
+            return "0x" + sha256(proof_uri.encode("utf-8")).hexdigest()
+        try:
+            with self.evidence_resolver.resolve(
+                EvidenceContext(
+                    proof_uri=proof_uri,
+                    benchmark_id=None,
+                    target_contract="",
+                    published_report={},
+                    evidence_type=evidence_type,
+                    execution_env=execution_env,
+                    evidence_manifest=deepcopy(evidence_manifest),
+                    chain_id=chain_id,
+                    rpc_url=self.contract_config.rpc_url,
+                )
+            ) as resolved:
+                return resolved.canonical_hash
+        except EvidenceResolutionError as exc:
+            raise ValueError(
+                f"Executable evidence could not be committed on-chain: {exc}"
+            ) from exc
 
     def _build_validation_request_document(
         self, record: dict[str, Any]
@@ -1038,6 +1084,7 @@ class AuditService:
             },
             "evidence": {
                 "proofUri": challenge.get("proof_uri"),
+                "evidenceHash": challenge.get("evidence_hash"),
                 "verificationStatus": challenge.get("verification_status"),
                 "verificationSummary": challenge.get("verification_summary"),
                 "verificationDetail": challenge.get("verification_detail"),

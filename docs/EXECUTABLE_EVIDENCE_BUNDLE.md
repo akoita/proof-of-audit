@@ -22,6 +22,10 @@ Current manifest version:
 
 - `proof-of-audit-executable-evidence/v1`
 
+Canonical evidence hash version:
+
+- `proof-of-audit-executable-evidence-hash/v1`
+
 ## Intended bundle layout
 
 An executable evidence bundle is intended to contain:
@@ -66,6 +70,29 @@ Optional fields:
   - map of bundle-relative path to `sha256` hex digest
 - `metadata_path`
   - bundle-relative path to extra metadata or notes
+
+## Canonical hashing rules
+
+For executable challenge commitments, the committed on-chain hash is not `sha256(proof_uri)`.
+
+Instead, the API computes a canonical evidence hash from the validated materialized evidence:
+
+1. resolve and validate the evidence source
+2. normalize the bundle root
+3. collect the bundle-relative entrypoint path
+4. collect `sha256` digests for the included files
+5. hash a canonical JSON payload containing:
+   - canonical hash format version
+   - bundle mode flag
+   - entrypoint
+   - normalized manifest payload
+   - sorted file digest map
+
+For single-file executable evidence, the file digest map contains only the submitted Solidity test file.
+
+For validated bundles, the file digest map contains every regular file under the normalized bundle root.
+
+The resulting digest is committed on-chain as `evidenceHash`.
 
 Constraint:
 
@@ -113,6 +140,8 @@ Supported today:
   - optional `test_contract` or `match_contract` selector
 - the runner validates and materializes remote evidence before execution
 - archive extraction is guarded by size, file-count, path, symlink, and extension checks
+- executable challenges commit a canonical `evidenceHash` on-chain instead of only hashing the locator URI
+- the advisory runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed hash
 
 Not supported yet:
 
@@ -145,6 +174,13 @@ The request still carries `proof_uri`, but the manifest is where callers should 
 - target chain
 - entrypoint
 - optional pinned block
+
+The challenge record distinguishes:
+
+- `proof_uri`
+  - locator for where evidence was fetched
+- `evidence_hash`
+  - canonical content hash committed on-chain for executable evidence
 
 This allows later issues to add:
 

@@ -157,6 +157,7 @@ class ChallengeModel(BaseModel):
     challenger: str
     challenger_address: str | None = None
     proof_uri: str
+    evidence_hash: str | None = None
     evidence_type: Literal["deterministic_fixture", "executable_test"] = (
         "deterministic_fixture"
     )

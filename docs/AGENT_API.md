@@ -221,7 +221,9 @@ Executable evidence notes:
 
 - executable evidence is still advisory-only in the current model
 - callers should treat `evidence_manifest` as the canonical execution description
+- executable challenges now commit `evidence_hash` on-chain from canonical evidence content, while `proof_uri` remains only the locator
 - the runner fetches remote evidence before execution and executes only validated local materialized files
+- the runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed on-chain hash
 - `ipfs://` is the primary remote URI path for executable evidence
 - archive extraction is guarded by size, file-count, extension, symlink, and path-traversal checks
 

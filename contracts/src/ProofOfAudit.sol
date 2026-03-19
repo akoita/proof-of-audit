@@ -29,7 +29,7 @@ contract ProofOfAudit {
         AuditState state;
         Resolution resolution;
         address challenger;
-        bytes32 challengeHash;
+        bytes32 evidenceHash;
     }
 
     error IncorrectStake();
@@ -54,7 +54,7 @@ contract ProofOfAudit {
     event ChallengeOpened(
         uint256 indexed auditId,
         address indexed challenger,
-        bytes32 challengeHash,
+        bytes32 evidenceHash,
         uint256 challengeBond
     );
 
@@ -115,7 +115,7 @@ contract ProofOfAudit {
             state: AuditState.Published,
             resolution: Resolution.None,
             challenger: address(0),
-            challengeHash: bytes32(0)
+            evidenceHash: bytes32(0)
         });
 
         emit AuditPublished(
@@ -131,7 +131,7 @@ contract ProofOfAudit {
 
     function challengeAudit(
         uint256 auditId,
-        bytes32 challengeHash
+        bytes32 evidenceHash
     ) external payable {
         AuditRecord storage audit = audits[auditId];
         if (audit.state != AuditState.Published) revert InvalidState();
@@ -145,9 +145,9 @@ contract ProofOfAudit {
         audit.challengedAt = uint64(block.timestamp);
         audit.challengeBond = uint96(msg.value);
         audit.challenger = msg.sender;
-        audit.challengeHash = challengeHash;
+        audit.evidenceHash = evidenceHash;
 
-        emit ChallengeOpened(auditId, msg.sender, challengeHash, msg.value);
+        emit ChallengeOpened(auditId, msg.sender, evidenceHash, msg.value);
     }
 
     function resolveChallenge(uint256 auditId, bool upheld) external {

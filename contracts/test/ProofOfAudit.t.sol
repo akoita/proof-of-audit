@@ -48,9 +48,10 @@ contract ProofOfAuditTest is Test {
     function testChallengeCanBeResolvedInFavorOfChallenger() public {
         uint256 auditId = _publishDefaultAudit();
         uint256 challengerBalanceBefore = challenger.balance;
+        bytes32 evidenceHash = keccak256("poc");
 
         vm.prank(challenger);
-        registry.challengeAudit{value: BOND}(auditId, keccak256("poc"));
+        registry.challengeAudit{value: BOND}(auditId, evidenceHash);
 
         vm.prank(arbiter);
         registry.resolveChallenge(auditId, true);
@@ -63,19 +64,23 @@ contract ProofOfAuditTest is Test {
             uint256(ProofOfAudit.Resolution.ChallengeUpheld)
         );
         assertEq(audit.challenger, challenger);
+        assertEq(audit.evidenceHash, evidenceHash);
     }
 
     function testRejectedChallengeRewardsAuditor() public {
         uint256 auditId = _publishDefaultAudit();
         uint256 auditorBalanceBeforeChallenge = auditor.balance;
+        bytes32 evidenceHash = keccak256("weak-poc");
 
         vm.prank(challenger);
-        registry.challengeAudit{value: BOND}(auditId, keccak256("weak-poc"));
+        registry.challengeAudit{value: BOND}(auditId, evidenceHash);
 
         vm.prank(arbiter);
         registry.resolveChallenge(auditId, false);
 
         assertEq(auditor.balance, auditorBalanceBeforeChallenge + STAKE + BOND);
+        ProofOfAudit.AuditRecord memory audit = registry.getAudit(auditId);
+        assertEq(audit.evidenceHash, evidenceHash);
     }
 
     function testReleaseStakeAfterWindow() public {

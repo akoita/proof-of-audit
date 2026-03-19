@@ -17,6 +17,7 @@ class EvidenceContext:
     evidence_manifest: dict[str, Any] | None = None
     chain_id: int | None = None
     rpc_url: str | None = None
+    committed_evidence_hash: str | None = None
 
 
 class ChallengeVerifierStrategy(Protocol):
