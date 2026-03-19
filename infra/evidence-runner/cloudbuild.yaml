@@ -1,0 +1,40 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - infra/evidence-runner/Dockerfile
+      - -t
+      - ${_IMAGE_URI}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_IMAGE_URI}
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image
+      - ${_IMAGE_URI}
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --no-allow-unauthenticated
+      - --concurrency
+      - "1"
+      - --cpu
+      - "1"
+      - --memory
+      - 1Gi
+      - --timeout
+      - "300"
+substitutions:
+  _REGION: us-central1
+  _SERVICE: proof-of-audit-evidence-runner
+  _IMAGE_URI: us-central1-docker.pkg.dev/$PROJECT_ID/proof-of-audit/evidence-runner:latest
+images:
+  - ${_IMAGE_URI}

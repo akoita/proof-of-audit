@@ -7,6 +7,7 @@ from proof_of_audit_agent.backends.base import (
     EvidenceExecutionBackend,
     EvidenceExecutionResult,
 )
+from proof_of_audit_agent.backends.gcp_cloud_run import GCPCloudRunBackend
 from proof_of_audit_agent.backends.local_docker import LocalDockerBackend
 from proof_of_audit_agent.backends.local_subprocess import LocalSubprocessBackend
 
@@ -19,6 +20,8 @@ def build_execution_backend(
     executor: object | None = None,
     env: Mapping[str, str] | None = None,
     which: object | None = None,
+    urlopen: object | None = None,
+    metadata_urlopen: object | None = None,
 ) -> EvidenceExecutionBackend:
     source = dict(os.environ if env is None else env)
     backend_name = source.get(
@@ -50,6 +53,34 @@ def build_execution_backend(
             executor=executor,
             which=which,
         )
+    if backend_name == "gcp_cloud_run":
+        return GCPCloudRunBackend(
+            service_url=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_URL", ""
+            ),
+            audience=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_AUDIENCE"
+            )
+            or None,
+            bearer_token=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_BEARER_TOKEN"
+            )
+            or None,
+            allow_unauthenticated=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED",
+                "",
+            ).strip()
+            in {"1", "true", "TRUE", "yes", "YES"},
+            metadata_identity_url=source.get(
+                "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_METADATA_URL",
+                source.get(
+                    "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_METADATA_IDENTITY_URL",
+                    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity",
+                ),
+            ),
+            urlopen=urlopen,
+            metadata_urlopen=metadata_urlopen,
+        )
     raise ValueError(f"Unsupported executable evidence backend: {backend_name!r}")
 
 __all__ = [
@@ -57,6 +88,7 @@ __all__ = [
     "DEFAULT_EXECUTABLE_EVIDENCE_BACKEND",
     "EvidenceExecutionBackend",
     "EvidenceExecutionResult",
+    "GCPCloudRunBackend",
     "LocalDockerBackend",
     "LocalSubprocessBackend",
 ]

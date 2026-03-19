@@ -63,6 +63,8 @@ class ExecutableEvidenceRunner:
         executor: object | None = None,
         backend_env: Mapping[str, str] | None = None,
         which: object | None = None,
+        urlopen: object | None = None,
+        metadata_urlopen: object | None = None,
     ) -> None:
         self.forge_bin = forge_bin
         self.timeout_seconds = timeout_seconds
@@ -74,6 +76,8 @@ class ExecutableEvidenceRunner:
             executor=executor,
             env=backend_env,
             which=which,
+            urlopen=urlopen,
+            metadata_urlopen=metadata_urlopen,
         )
 
     def run(self, context: EvidenceContext) -> ExecutableEvidenceRunResult:

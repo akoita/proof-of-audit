@@ -228,6 +228,8 @@ Executable evidence notes:
 - archive extraction is guarded by size, file-count, extension, symlink, and path-traversal checks
 - the API host may execute advisory Foundry evidence either through the local subprocess backend or an explicitly configured Docker backend
 - the Docker backend runs with a read-only evidence mount, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, explicit `--network`, and bounded CPU / memory / PID limits
+- production-oriented deployments may also offload advisory Foundry execution to a dedicated Cloud Run runner service through the `gcp_cloud_run` backend
+- the Cloud Run backend sends the validated evidence root as an archive to a separate runner endpoint and records the resulting stdout / stderr back into the advisory verification log
 
 See [Executable evidence bundle format](./EXECUTABLE_EVIDENCE_BUNDLE.md) for the manifest shape and backward-compatibility rules.
 

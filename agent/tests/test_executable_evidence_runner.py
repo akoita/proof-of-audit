@@ -347,3 +347,67 @@ def test_runner_selects_docker_backend_from_configuration(
     assert result.isolation_level == "container"
     command = captured["command"]
     assert command[:2] == ["docker", "run"]
+
+
+def test_runner_selects_gcp_cloud_run_backend_from_configuration(
+    tmp_path: Path,
+) -> None:
+    evidence_path = tmp_path / "ChallengeEvidence.t.sol"
+    evidence_path.write_text("contract ChallengeEvidenceTest {}\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            del exc_type, exc, tb
+
+    def urlopen(req, timeout):  # type: ignore[no-untyped-def]
+        captured["url"] = req.full_url
+        captured["headers"] = dict(req.header_items())
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse(json.dumps({"returncode": 0, "stdout": "ok", "stderr": ""}))
+
+    runner = ExecutableEvidenceRunner(
+        backend_env={
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND": "gcp_cloud_run",
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_URL": (
+                "https://runner.example/execute"
+            ),
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED": "1",
+        },
+        urlopen=urlopen,
+    )
+
+    result = runner.run(
+        EvidenceContext(
+            proof_uri=evidence_path.as_uri(),
+            benchmark_id=None,
+            target_contract="0x1000000000000000000000000000000000000001",
+            published_report={},
+            evidence_type="executable_test",
+            execution_env="foundry",
+            evidence_manifest={
+                "bundle_format": "proof-of-audit-executable-evidence/v1",
+                "execution_env": "foundry",
+                "entrypoint": "ChallengeEvidence.t.sol",
+                "target_chain_id": 31337,
+                "pinned_block_number": 42,
+            },
+            chain_id=31337,
+            rpc_url="https://rpc.example",
+        )
+    )
+
+    assert result.outcome == "passed"
+    assert result.backend == "gcp_cloud_run"
+    assert result.isolation_level == "cloud"
+    assert captured["url"] == "https://runner.example/execute"
