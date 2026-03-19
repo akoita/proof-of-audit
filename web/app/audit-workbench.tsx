@@ -24,6 +24,10 @@ import { ChallengeCard } from "./components/challenge-card";
 import { AgentSidebar } from "./components/agent-sidebar";
 import { RecentClaims } from "./components/recent-claims";
 import { TargetComparison } from "./components/target-comparison";
+import { PublishedView } from "./components/views/published-view";
+import { ReputationView } from "./components/views/reputation-view";
+import { DisputedView } from "./components/views/disputed-view";
+import { ArchiveView } from "./components/views/archive-view";
 
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
@@ -293,121 +297,142 @@ export function AuditWorkbench() {
           </div>
         </div>
 
-        {/* Phase stepper */}
-        <PhaseStepper audit={activeAudit} />
+        {/* Phase stepper — workbench only */}
+        {activeView === "workbench" ? <PhaseStepper audit={activeAudit} /> : null}
 
-        {/* Main workspace: submission + audit report */}
-        <section id="workspace-section" className="workspace-grid">
-          {/* Left column: submit + meta */}
-          <div id="submit-section" style={{ display: "grid", gap: 20, alignContent: "start" }}>
-            <SubmitPanel
-              submissionMode={submissionMode}
-              contractAddress={contractAddress}
-              selectedFixtureId={selectedFixtureId}
-              entryContract={entryContract}
-              sourceBundleUri={sourceBundleUri}
-              sourceBundleLabel={sourceBundleLabel}
-              selectedFixture={selectedFixture}
-              isPending={isPending}
-              activeAction={activeAction}
-              config={contractConfig}
-              onModeChange={setSubmissionMode}
-              onContractAddressChange={setContractAddress}
-              onEntryContractChange={setEntryContract}
-              onSourceBundleUriChange={setSourceBundleUri}
-              onSourceBundleLabelChange={setSourceBundleLabel}
-              onSubmit={() => handleSubmit()}
-            />
-            {activeAction ? (
-              <p className="notice-banner notice-banner-info">{activeAction}…</p>
-            ) : null}
-            {error ? <p className="error-banner">{error}</p> : null}
-            {loadError ? <p className="error-banner">{loadError}</p> : null}
-
-            {/* Meta bento */}
-            <div className="meta-bento">
-              <div className="meta-bento-item">
-                <div className="meta-label">Audit Type</div>
-                <div className="meta-value">Automated Pro</div>
-              </div>
-              <div className="meta-bento-item">
-                <div className="meta-label">Version</div>
-                <div className="meta-value">v2.4.1-alpha</div>
-              </div>
-            </div>
-
-            {/* Agent sidebar cards */}
-            <div id="agent-info">
-            <AgentSidebar
-              config={contractConfig}
-              auditorService={auditorService}
-              publishStake={publishStake}
-              challengeBond={challengeBond}
-            />
-            </div>
-          </div>
-
-          {/* Right column: audit report */}
-          <div id="audit-report" style={{ display: "grid", gap: 20, alignContent: "start" }}>
-            {activeAudit ? (
-              <>
-                <AuditCard audit={activeAudit} />
-                <ActionsPanel
-                  audit={activeAudit}
-                  config={contractConfig}
-                  proofUri={proofUri}
+        {/* ── View-specific content ── */}
+        {activeView === "workbench" ? (
+          <>
+            {/* Main workspace: submission + audit report */}
+            <section id="workspace-section" className="workspace-grid">
+              {/* Left column: submit + meta */}
+              <div id="submit-section" style={{ display: "grid", gap: 20, alignContent: "start" }}>
+                <SubmitPanel
+                  submissionMode={submissionMode}
+                  contractAddress={contractAddress}
+                  selectedFixtureId={selectedFixtureId}
+                  entryContract={entryContract}
+                  sourceBundleUri={sourceBundleUri}
+                  sourceBundleLabel={sourceBundleLabel}
+                  selectedFixture={selectedFixture}
                   isPending={isPending}
                   activeAction={activeAction}
-                  publishStake={publishStake}
-                  challengeBond={challengeBond}
-                  onProofUriChange={setProofUri}
-                  onPublish={handlePublish}
-                  onChallenge={handleChallenge}
+                  config={contractConfig}
+                  onModeChange={setSubmissionMode}
+                  onContractAddressChange={setContractAddress}
+                  onEntryContractChange={setEntryContract}
+                  onSourceBundleUriChange={setSourceBundleUri}
+                  onSourceBundleLabelChange={setSourceBundleLabel}
+                  onSubmit={() => handleSubmit()}
                 />
-                <OnchainCard audit={activeAudit} />
-                <ValidationCard audit={activeAudit} />
-                <ChallengeCard audit={activeAudit} />
-                <TargetComparison
-                  audit={activeAudit}
-                  comparison={targetComparison}
-                  isLoaded={isComparisonLoaded}
-                  onSelect={syncAudit}
-                />
-                <RecentClaims
-                  audits={filteredAudits}
-                  activeId={activeAudit?.id ?? null}
-                  isLoaded={isLoaded}
-                  onSelect={syncAudit}
-                />
-              </>
-            ) : (
-              <div className="card">
-                <div className="empty-panel">
-                  <strong>No active audit selected</strong>
-                  <p className="muted">
-                    Generate a claim to populate the workbench, or pick one from recent activity.
-                  </p>
+                {activeAction ? (
+                  <p className="notice-banner notice-banner-info">{activeAction}…</p>
+                ) : null}
+                {error ? <p className="error-banner">{error}</p> : null}
+                {loadError ? <p className="error-banner">{loadError}</p> : null}
+
+                {/* Meta bento */}
+                <div className="meta-bento">
+                  <div className="meta-bento-item">
+                    <div className="meta-label">Audit Type</div>
+                    <div className="meta-value">Automated Pro</div>
+                  </div>
+                  <div className="meta-bento-item">
+                    <div className="meta-label">Version</div>
+                    <div className="meta-value">v2.4.1-alpha</div>
+                  </div>
+                </div>
+
+                {/* Agent sidebar cards */}
+                <div id="agent-info">
+                  <AgentSidebar
+                    config={contractConfig}
+                    auditorService={auditorService}
+                    publishStake={publishStake}
+                    challengeBond={challengeBond}
+                  />
                 </div>
               </div>
-            )}
-          </div>
-        </section>
 
-        {/* Fixtures — at the bottom */}
-        <div id="fixture-strip">
-        <FixtureStrip
-          fixtures={demoFixtures}
-          selectedId={selectedFixtureId}
-          isLoaded={isLoaded}
-          onSelect={(f) => {
-            setSubmissionMode("demo_fixture");
-            setSelectedFixtureId(f.id);
-            setContractAddress(f.address);
-            setEntryContract(f.entry_contract);
-            setProofUri(f.challenge_proof_uri);
-          }}
-        />
-        </div>
+              {/* Right column: audit report */}
+              <div id="audit-report" style={{ display: "grid", gap: 20, alignContent: "start" }}>
+                {activeAudit ? (
+                  <>
+                    <AuditCard audit={activeAudit} />
+                    <ActionsPanel
+                      audit={activeAudit}
+                      config={contractConfig}
+                      proofUri={proofUri}
+                      isPending={isPending}
+                      activeAction={activeAction}
+                      publishStake={publishStake}
+                      challengeBond={challengeBond}
+                      onProofUriChange={setProofUri}
+                      onPublish={handlePublish}
+                      onChallenge={handleChallenge}
+                    />
+                    <OnchainCard audit={activeAudit} />
+                    <ValidationCard audit={activeAudit} />
+                    <ChallengeCard audit={activeAudit} />
+                    <TargetComparison
+                      audit={activeAudit}
+                      comparison={targetComparison}
+                      isLoaded={isComparisonLoaded}
+                      onSelect={syncAudit}
+                    />
+                    <RecentClaims
+                      audits={filteredAudits}
+                      activeId={activeAudit?.id ?? null}
+                      isLoaded={isLoaded}
+                      onSelect={syncAudit}
+                    />
+                  </>
+                ) : (
+                  <div className="card">
+                    <div className="empty-panel">
+                      <strong>No active audit selected</strong>
+                      <p className="muted">
+                        Generate a claim to populate the workbench, or pick one from recent activity.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Fixtures — at the bottom */}
+            <div id="fixture-strip">
+              <FixtureStrip
+                fixtures={demoFixtures}
+                selectedId={selectedFixtureId}
+                isLoaded={isLoaded}
+                onSelect={(f) => {
+                  setSubmissionMode("demo_fixture");
+                  setSelectedFixtureId(f.id);
+                  setContractAddress(f.address);
+                  setEntryContract(f.entry_contract);
+                  setProofUri(f.challenge_proof_uri);
+                }}
+              />
+            </div>
+          </>
+        ) : activeView === "published" ? (
+          activeAudit ? (
+            <PublishedView audit={activeAudit} allAudits={recentAudits} onSelect={syncAudit} />
+          ) : (
+            <div className="card"><div className="empty-panel"><strong>No published claims found</strong><p className="muted">Publish an audit claim from the workbench to see it here.</p></div></div>
+          )
+        ) : activeView === "disputed" ? (
+          activeAudit ? (
+            <DisputedView audit={activeAudit} allAudits={recentAudits} onSelect={syncAudit} />
+          ) : (
+            <div className="card"><div className="empty-panel"><strong>No disputed claims</strong><p className="muted">No claims are currently under dispute.</p></div></div>
+          )
+        ) : activeView === "reputation" ? (
+          <ReputationView config={contractConfig} audits={recentAudits} auditorService={auditorService} />
+        ) : activeView === "archive" ? (
+          <ArchiveView audits={recentAudits} onSelect={syncAudit} />
+        ) : null}
 
         {/* Footer data */}
         <div className="footer-data">
