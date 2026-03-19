@@ -16,6 +16,7 @@ That means:
 - the advisory runner can fetch and validate remote evidence into a temp directory before execution
 - validated bundles can be executed from an isolated temp root with manifest-driven entrypoint selection
 - the API host can optionally execute advisory Foundry evidence in a hardened local Docker container instead of directly on the host subprocess path
+- the API host can also offload advisory Foundry execution to a dedicated Cloud Run runner service when stronger host separation or separate scaling is needed
 
 ## Bundle version
 
@@ -144,6 +145,7 @@ Supported today:
 - executable challenges commit a canonical `evidenceHash` on-chain instead of only hashing the locator URI
 - the advisory runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed hash
 - deployments can switch the advisory runner from `local_subprocess` to `docker` with environment configuration
+- deployments can also switch the advisory runner to `gcp_cloud_run` with a dedicated runner service URL and auth configuration
 
 Not supported yet:
 
@@ -207,3 +209,16 @@ Optional Docker backend overrides:
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_PIDS_LIMIT`
 
 The Docker backend mounts the validated evidence root read-only at `/evidence`, uses a writable tmpfs at `/tmp` for cache and artifact output, drops all Linux capabilities, and disables new privileges.
+
+To use the Cloud Run backend instead, configure:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND=gcp_cloud_run`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_URL=<runner-service-url>`
+
+Cloud Run auth options:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_BEARER_TOKEN`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_AUDIENCE`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED=1`
+
+If `..._AUDIENCE` is configured, the backend fetches an identity token from the GCP metadata server before calling the runner service. That is the intended path when the API itself runs on GCP with a service account allowed to invoke the Cloud Run runner.

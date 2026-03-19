@@ -255,6 +255,21 @@ Recommended Docker backend notes:
 - the Docker backend mounts validated evidence read-only and writes compiler cache / artifacts only to container tmpfs
 - plain local Docker can make network usage explicit with `--network`, but it does not enforce single-endpoint egress policy by itself
 
+For a remote runner deployment, the API can instead switch advisory Foundry execution to Cloud Run:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND=gcp_cloud_run`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_URL`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_BEARER_TOKEN`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_AUDIENCE`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED`
+
+Recommended Cloud Run backend notes:
+
+- deploy the dedicated runner service from [infra/evidence-runner/cloudbuild.yaml](/home/koita/dev/hackatons/proof-of-audit/infra/evidence-runner/cloudbuild.yaml)
+- keep the runner service authenticated by default and grant the API service account `run.invoker`
+- if the API runs on GCP, prefer `..._AUDIENCE` over a static bearer token so the backend can mint per-request identity tokens from metadata
+- the backend posts the validated evidence root as a zip archive to the runner service, so request size and Cloud Run timeout limits still matter operationally
+
 ## Dry run
 
 ```bash
