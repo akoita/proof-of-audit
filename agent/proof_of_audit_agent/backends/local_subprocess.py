@@ -68,15 +68,8 @@ class LocalSubprocessBackend(EvidenceExecutionBackend):
     def _build_preexec_fn(
         self, memory_limit_bytes: int
     ) -> Callable[[], None] | None:
-        try:
-            import resource
-        except ImportError:
-            return None
-
-        def configure_limits() -> None:
-            resource.setrlimit(
-                resource.RLIMIT_AS,
-                (memory_limit_bytes, memory_limit_bytes),
-            )
-
-        return configure_limits
+        del memory_limit_bytes
+        # Foundry and solc are not reliable under RLIMIT_AS in the local subprocess
+        # backend. Use the containerized backends when hard memory enforcement is
+        # required.
+        return None

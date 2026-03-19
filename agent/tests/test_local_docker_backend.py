@@ -38,7 +38,6 @@ def test_local_docker_backend_constructs_hardened_command(
             "42",
             "--gas-limit",
             "30000000",
-            "--no-ffi",
             "-vv",
         ],
         cwd=source_root,
