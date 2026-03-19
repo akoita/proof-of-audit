@@ -11,7 +11,9 @@ import pytest
 from api.tests.e2e.conftest import SystemStack
 
 
+AUDIT_STATUS_CHALLENGED = 2
 AUDIT_STATUS_RESOLVED = 3
+CHALLENGE_RESOLUTION_NONE = 0
 CHALLENGE_RESOLUTION_UPHELD = 1
 CHALLENGE_RESOLUTION_REJECTED = 2
 
@@ -219,7 +221,7 @@ def test_system_stack_exposes_live_contract_and_fixture_metadata(
 
 
 @pytest.mark.system_e2e
-def test_http_publish_and_verified_challenge_rejection_resolve_onchain(
+def test_http_publish_and_plain_proof_uri_challenge_stays_open_onchain(
     system_stack: SystemStack,
 ) -> None:
     fixture = system_stack.fixture_by_id("vulnerable-bank")
@@ -248,12 +250,12 @@ def test_http_publish_and_verified_challenge_rejection_resolve_onchain(
     assert reputation_claim.json()["error"] == "reputation_claim_not_found"
 
     challenged = challenge_audit(system_stack, created["id"], fixture["challenge_proof_uri"])
-    assert challenged["status"] == "resolved"
-    assert challenged["challenge"]["status"] == "rejected"
-    assert challenged["challenge"]["resolution"] == "rejected"
-    assert challenged["challenge"]["verification_status"] == "verified"
-    assert challenged["challenge"]["resolution_path"] == "deterministic"
-    assert challenged["challenge"]["resolve_tx_hash"].startswith("0x")
+    assert challenged["status"] == "challenged"
+    assert challenged["challenge"]["status"] == "opened"
+    assert challenged["challenge"]["resolution"] is None
+    assert challenged["challenge"]["verification_status"] == "verifier_unavailable"
+    assert challenged["challenge"]["resolution_path"] == "manual_fallback"
+    assert challenged["challenge"]["resolve_tx_hash"] is None
 
     validation_response = system_stack.client.get(
         f"/audits/{created['id']}/validation/response"
@@ -270,16 +272,16 @@ def test_http_publish_and_verified_challenge_rejection_resolve_onchain(
     fetched = system_stack.client.get(f"/audits/{created['id']}")
     assert fetched.status_code == 200
     payload = fetched.json()
-    assert payload["status"] == "resolved"
-    assert payload["challenge"]["status"] == "rejected"
+    assert payload["status"] == "challenged"
+    assert payload["challenge"]["status"] == "opened"
 
     audit_record = system_stack.contract.functions.getAudit(payload["onchain"]["audit_id"]).call()
-    assert int(audit_record[10]) == AUDIT_STATUS_RESOLVED
-    assert int(audit_record[11]) == CHALLENGE_RESOLUTION_REJECTED
+    assert int(audit_record[10]) == AUDIT_STATUS_CHALLENGED
+    assert int(audit_record[11]) == CHALLENGE_RESOLUTION_NONE
 
 
 @pytest.mark.system_e2e
-def test_invalid_evidence_requires_manual_resolution_over_http(
+def test_plain_proof_uri_requires_manual_resolution_over_http(
     system_stack: SystemStack,
 ) -> None:
     fixture = system_stack.fixture_by_id("clean-vault")
@@ -289,7 +291,7 @@ def test_invalid_evidence_requires_manual_resolution_over_http(
     challenged = challenge_audit(system_stack, created["id"], "ipfs://wrong-proof")
     assert challenged["status"] == "challenged"
     assert challenged["challenge"]["status"] == "opened"
-    assert challenged["challenge"]["verification_status"] == "invalid_evidence"
+    assert challenged["challenge"]["verification_status"] == "verifier_unavailable"
     assert challenged["challenge"]["resolution_path"] == "manual_fallback"
 
     resolved = system_stack.client.post(

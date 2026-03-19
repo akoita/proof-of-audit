@@ -15,9 +15,9 @@ from helpers import build_onchain_test_context
 
 
 def service_default_deterministic_verifier():
-    from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
+    from proof_of_audit_agent.challenge_verifier import ProofUriChallengeVerifier
 
-    return DeterministicChallengeVerifier()
+    return ProofUriChallengeVerifier()
 
 
 class RecordingVerifier:
@@ -213,6 +213,11 @@ class AuditServiceTest(unittest.TestCase):
                 "ipfs://reentrancy-bank/withdraw-drain",
                 "whitehat-one",
             )
+            service.resolve_audit(
+                first["id"],
+                upheld=False,
+                resolved_by="arbiter-one",
+            )
 
             second = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
@@ -223,6 +228,11 @@ class AuditServiceTest(unittest.TestCase):
                 second["id"],
                 "ipfs://clean-vault/missed-reentrancy",
                 "whitehat-two",
+            )
+            service.resolve_audit(
+                second["id"],
+                upheld=True,
+                resolved_by="arbiter-two",
             )
 
             all_audits = service.list_audits()
@@ -459,7 +469,7 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(latest["resolution"], "rejected")
             self.assertIsNotNone(latest["challenge_window_end"])
 
-    def test_verified_clean_fixture_challenge_auto_resolves_upheld(self) -> None:
+    def test_plain_proof_uri_challenge_stays_on_manual_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
             service = AuditService(
@@ -482,31 +492,24 @@ class AuditServiceTest(unittest.TestCase):
                 challenger="whitehat",
             )
 
-            self.assertEqual(challenged["status"], "resolved")
-            self.assertEqual(challenged["challenge"]["status"], "upheld")
-            self.assertEqual(challenged["challenge"]["resolution"], "upheld")
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(challenged["challenge"]["status"], "opened")
+            self.assertIsNone(challenged["challenge"].get("resolution"))
             self.assertEqual(
                 challenged["challenge"]["verification_status"],
-                "verified",
+                "verifier_unavailable",
             )
             self.assertEqual(
                 challenged["challenge"]["resolution_path"],
-                "deterministic",
+                "manual_fallback",
             )
-            self.assertEqual(
-                challenged["challenge"]["resolved_by"],
-                "deterministic-verifier",
-            )
-            self.assertEqual(challenged["validation"]["status"], "responded")
-            self.assertEqual(challenged["validation"]["response"], 0)
-            self.assertEqual(challenged["validation"]["response_tag"], "claim-refuted")
-            self.assertEqual(challenged["reputation_trail"]["status"], "resolution_recorded")
-            self.assertFalse(challenged["reputation_trail"]["claim_confirmed"])
-            resolved_record = onchain.contract.functions.getAudit(1).call()
-            self.assertEqual(int(resolved_record[10]), 3)
-            self.assertEqual(int(resolved_record[11]), 1)
+            self.assertIsNone(challenged["validation"]["response"])
+            self.assertIsNone(challenged["reputation_trail"]["claim_confirmed"])
+            challenged_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(challenged_record[10]), 2)
+            self.assertEqual(int(challenged_record[11]), 0)
 
-    def test_verified_report_confirmation_auto_resolves_rejected(self) -> None:
+    def test_manual_resolution_still_records_rejected_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
             service = AuditService(
@@ -523,22 +526,23 @@ class AuditServiceTest(unittest.TestCase):
             )
             service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
 
-            challenged = service.challenge_audit(
+            service.challenge_audit(
                 created["id"],
                 "ipfs://reentrancy-bank/withdraw-drain",
                 challenger="whitehat",
+            )
+            challenged = service.resolve_audit(
+                created["id"],
+                upheld=False,
+                resolved_by="arbiter-operator",
             )
 
             self.assertEqual(challenged["status"], "resolved")
             self.assertEqual(challenged["challenge"]["status"], "rejected")
             self.assertEqual(challenged["challenge"]["resolution"], "rejected")
             self.assertEqual(
-                challenged["challenge"]["verification_status"],
-                "verified",
-            )
-            self.assertEqual(
                 challenged["challenge"]["resolution_path"],
-                "deterministic",
+                "manual_fallback",
             )
             self.assertEqual(challenged["validation"]["status"], "responded")
             self.assertEqual(challenged["validation"]["response"], 100)
@@ -569,6 +573,11 @@ class AuditServiceTest(unittest.TestCase):
                 created["id"],
                 "ipfs://reentrancy-bank/withdraw-drain",
                 challenger="whitehat",
+            )
+            service.resolve_audit(
+                created["id"],
+                upheld=False,
+                resolved_by="arbiter-operator",
             )
 
             reputation = service.list_audits()[0]["agent"]["reputation"]
@@ -606,7 +615,7 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(challenged["challenge"]["status"], "opened")
             self.assertEqual(
                 challenged["challenge"]["verification_status"],
-                "invalid_evidence",
+                "verifier_unavailable",
             )
             self.assertEqual(
                 challenged["challenge"]["resolution_path"],

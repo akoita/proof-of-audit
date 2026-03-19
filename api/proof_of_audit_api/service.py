@@ -27,8 +27,8 @@ from proof_of_audit_api.validation_bridge import (
 )
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerifierStrategy,
-    DeterministicChallengeVerifier,
     EvidenceContext,
+    ProofUriChallengeVerifier,
 )
 from proof_of_audit_agent.executable_evidence_verifier import (
     ExecutableEvidenceVerifier,
@@ -75,7 +75,7 @@ class AuditService:
             workspace_root=data_root,
         )
         self.challenge_verifiers = challenge_verifiers or {
-            "deterministic_fixture": DeterministicChallengeVerifier(),
+            "deterministic_fixture": ProofUriChallengeVerifier(),
             "executable_test": ExecutableEvidenceVerifier(),
         }
         self.evidence_resolver = ExecutableEvidenceResolver()
