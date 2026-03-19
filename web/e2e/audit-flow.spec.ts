@@ -101,3 +101,19 @@ test("target comparison groups multiple claims for one contract", async ({ page 
     .toBeGreaterThanOrEqual(initialComparisonCount + 1);
   await expect(page.getByText(/published · .*challenged · .*resolved/i)).toBeVisible();
 });
+
+test("source bundle mode can submit without a deployed address", async ({ page }) => {
+  await page.goto("/");
+
+  const submitButton = page.getByTestId("submit-audit");
+  await page.getByRole("button", { name: "Source bundle" }).click();
+  await expect(submitButton).toBeDisabled();
+
+  await page
+    .getByPlaceholder("ipfs://... or https://...")
+    .fill("https://example.com/bundles/reentrancy-bank.zip");
+  await expect(submitButton).toBeEnabled();
+
+  await submitButton.click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+});

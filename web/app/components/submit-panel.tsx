@@ -30,6 +30,7 @@ const MODES: { id: InputKind; label: string }[] = [
 export function SubmitPanel({
   submissionMode,
   contractAddress,
+  selectedFixtureId,
   entryContract,
   sourceBundleUri,
   sourceBundleLabel,
@@ -43,6 +44,16 @@ export function SubmitPanel({
   onSourceBundleLabelChange,
   onSubmit,
 }: SubmitPanelProps) {
+  const trimmedContractAddress = contractAddress.trim();
+  const trimmedSourceBundleUri = sourceBundleUri.trim();
+  const canSubmit =
+    !isPending &&
+    (
+      (submissionMode === "demo_fixture" && selectedFixtureId.trim().length > 0) ||
+      (submissionMode === "deployed_address" && trimmedContractAddress.length > 0) ||
+      (submissionMode === "source_bundle" && trimmedSourceBundleUri.length > 0)
+    );
+
   return (
     <div className="card">
       <div className="card-body submit-panel">
@@ -97,6 +108,15 @@ export function SubmitPanel({
                 onChange={(e) => onSourceBundleLabelChange(e.target.value)}
               />
             </div>
+            <div>
+              <label className="section-label">Entry Contract</label>
+              <input
+                className="input-field"
+                placeholder="Entry contract (optional)"
+                value={entryContract}
+                onChange={(e) => onEntryContractChange(e.target.value)}
+              />
+            </div>
           </>
         ) : (
           <>
@@ -128,7 +148,7 @@ export function SubmitPanel({
         <button
           type="button"
           className="cta-primary"
-          disabled={isPending || !contractAddress}
+          disabled={!canSubmit}
           onClick={onSubmit}
           data-testid="submit-audit"
         >
