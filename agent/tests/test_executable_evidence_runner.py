@@ -127,6 +127,13 @@ def test_runner_fetches_ipfs_evidence_before_execution() -> None:
             published_report={},
             evidence_type="executable_test",
             execution_env="foundry",
+            evidence_manifest={
+                "bundle_format": "proof-of-audit-executable-evidence/v1",
+                "execution_env": "foundry",
+                "entrypoint": "ChallengeEvidence.t.sol",
+                "target_chain_id": 31337,
+                "pinned_block_number": 42,
+            },
             chain_id=31337,
             rpc_url="http://127.0.0.1:8545",
         )

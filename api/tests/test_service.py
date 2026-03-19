@@ -1,7 +1,8 @@
+from dataclasses import replace
+import json
 import tempfile
 import unittest
 from pathlib import Path
-import json
 
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerificationResult,
@@ -651,9 +652,34 @@ class AuditServiceTest(unittest.TestCase):
     def test_executable_evidence_requires_deployed_address_audit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
+            fixtures_file = Path(tmpdir) / "demo-fixtures.localhost.json"
+            fixtures_file.write_text(
+                json.dumps(
+                    {
+                        "fixtures": [
+                            {
+                                "id": "clean-vault",
+                                "label": "Clean Vault",
+                                "contract_name": "CleanVault",
+                                "entry_contract": "CleanVault",
+                                "benchmark_id": "clean-vault",
+                                "address": "0x4444000000000000000000000000000000000004",
+                                "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
+                                "note": "Clean benchmark with medium confidence",
+                                "source_path": "demo/contracts/CleanVault.sol",
+                            }
+                        ]
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             service = AuditService(
                 Path(tmpdir),
-                contract_config=onchain.contract_config,
+                contract_config=replace(
+                    onchain.contract_config,
+                    demo_fixtures_file=fixtures_file,
+                ),
                 publisher=onchain.publisher,
                 arbiter_client=onchain.arbiter_client,
             )
