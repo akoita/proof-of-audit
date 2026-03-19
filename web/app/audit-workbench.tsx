@@ -108,6 +108,8 @@ export function AuditWorkbench() {
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
   const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(null);
   const [auditorService, setAuditorService] = useState<AuditorServiceRecord | null>(null);
+  const [auditorServices, setAuditorServices] = useState<AuditorServiceRecord[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
 
   /* ── ui state ───────────────────────────────────────── */
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +142,10 @@ export function AuditWorkbench() {
   const footerNetwork = contractConfig
     ? `${contractConfig.network} · Chain ${contractConfig.chain_id}`
     : "Network unavailable";
+  const selectedAuditorService =
+    auditorServices.find((service) => service.service_id === selectedServiceId) ??
+    activeAudit?.auditor_service ??
+    auditorService;
 
   /* ── view-filtered audits ────────────────────────────── */
   const filteredAudits = auditsForView(activeView, recentAudits);
@@ -174,16 +180,25 @@ export function AuditWorkbench() {
   async function loadWorkbench() {
     setLoadError(null);
     try {
-      const [auditPayload, fixturePayload, configPayload, auditorPayload] = await Promise.all([
+      const [auditPayload, fixturePayload, configPayload, auditorPayload, auditorsPayload] = await Promise.all([
         apiFetch<{ items: AuditRecord[] }>("/audits"),
         apiFetch<{ items: DemoFixture[] }>("/fixtures"),
         apiFetch<PublicContractConfig>("/config"),
         apiFetch<AuditorServiceRecord>("/auditor"),
+        apiFetch<{ items: AuditorServiceRecord[] }>("/auditors"),
       ]);
       setRecentAudits(auditPayload.items);
       setDemoFixtures(fixturePayload.items);
       setContractConfig(configPayload);
       setAuditorService(auditorPayload);
+      setAuditorServices(auditorsPayload.items);
+      setSelectedServiceId((current) => {
+        if (current) return current;
+        if (auditPayload.items[0]?.auditor_service?.service_id) {
+          return auditPayload.items[0].auditor_service.service_id;
+        }
+        return configPayload.auditor_service.service_id;
+      });
       if (auditPayload.items.length > 0) {
         setActiveAudit((current) => current ?? selectAuditForView(activeView, auditPayload.items, null));
       }
@@ -219,6 +234,7 @@ export function AuditWorkbench() {
   function syncAudit(next: AuditRecord) {
     setActiveAudit(next);
     setSubmissionMode(next.submission.input_kind);
+    setSelectedServiceId(next.submission.service_id ?? next.auditor_service.service_id);
     setContractAddress(next.submission.contract_address ?? next.contract_address);
     setSelectedFixtureId(next.submission.fixture_id ?? "");
     setEntryContract(next.submission.entry_contract ?? "");
@@ -241,26 +257,29 @@ export function AuditWorkbench() {
         try {
           const payload =
             submissionMode === "demo_fixture"
-              ? {
-                  input_kind: "demo_fixture",
-                  fixture_id: selectedFixtureId,
-                  chain_id: contractConfig?.chain_id,
-                  entry_contract: entryContract || selectedFixture?.entry_contract,
+                ? {
+                    input_kind: "demo_fixture",
+                    service_id: selectedServiceId || contractConfig?.auditor_service.service_id,
+                    fixture_id: selectedFixtureId,
+                    chain_id: contractConfig?.chain_id,
+                    entry_contract: entryContract || selectedFixture?.entry_contract,
                   submitted_by: "web-demo",
                 }
-              : submissionMode === "source_bundle"
-                ? {
-                    input_kind: "source_bundle",
-                    source_bundle_uri: sourceBundleUri,
-                    source_bundle_label: sourceBundleLabel || undefined,
-                    entry_contract: entryContract || undefined,
+                : submissionMode === "source_bundle"
+                  ? {
+                      input_kind: "source_bundle",
+                      service_id: selectedServiceId || contractConfig?.auditor_service.service_id,
+                      source_bundle_uri: sourceBundleUri,
+                      source_bundle_label: sourceBundleLabel || undefined,
+                      entry_contract: entryContract || undefined,
                     submitted_by: "web-demo",
                   }
-                : {
-                    input_kind: "deployed_address",
-                    contract_address: contractAddress,
-                    chain_id: contractConfig?.chain_id,
-                    entry_contract: entryContract || undefined,
+                  : {
+                      input_kind: "deployed_address",
+                      service_id: selectedServiceId || contractConfig?.auditor_service.service_id,
+                      contract_address: contractAddress,
+                      chain_id: contractConfig?.chain_id,
+                      entry_contract: entryContract || undefined,
                     submitted_by: "web-demo",
                   };
           syncAudit(await apiFetch<AuditRecord>("/audits", { method: "POST", body: JSON.stringify(payload) }));
@@ -368,6 +387,9 @@ export function AuditWorkbench() {
                   submissionMode={submissionMode}
                   contractAddress={contractAddress}
                   selectedFixtureId={selectedFixtureId}
+                  auditorServices={auditorServices}
+                  selectedServiceId={selectedServiceId}
+                  selectedAuditorService={selectedAuditorService}
                   entryContract={entryContract}
                   sourceBundleUri={sourceBundleUri}
                   sourceBundleLabel={sourceBundleLabel}
@@ -376,6 +398,7 @@ export function AuditWorkbench() {
                   activeAction={activeAction}
                   config={contractConfig}
                   onModeChange={setSubmissionMode}
+                  onSelectedServiceIdChange={setSelectedServiceId}
                   onContractAddressChange={setContractAddress}
                   onEntryContractChange={setEntryContract}
                   onSourceBundleUriChange={setSourceBundleUri}
@@ -395,8 +418,14 @@ export function AuditWorkbench() {
                     <div className="meta-value">{submissionModeLabel(submissionMode)}</div>
                   </div>
                   <div className="meta-bento-item">
-                    <div className="meta-label">Version</div>
-                    <div className="meta-value">{contractConfig?.auditor?.version ?? "Unavailable"}</div>
+                    <div className="meta-label">Auditor</div>
+                    <div className="meta-value">{selectedAuditorService?.name ?? "Unavailable"}</div>
+                  </div>
+                  <div className="meta-bento-item">
+                    <div className="meta-label">Revision</div>
+                    <div className="meta-value">
+                      {activeAudit?.agent.version ?? contractConfig?.auditor?.version ?? "Unavailable"}
+                    </div>
                   </div>
                 </div>
 
@@ -404,7 +433,7 @@ export function AuditWorkbench() {
                 <div id="agent-info">
                   <AgentSidebar
                     config={contractConfig}
-                    auditorService={auditorService}
+                    auditorService={activeAudit?.auditor_service ?? selectedAuditorService ?? auditorService}
                     publishStake={publishStake}
                     challengeBond={challengeBond}
                   />
@@ -473,7 +502,11 @@ export function AuditWorkbench() {
             <div className="card"><div className="empty-panel"><strong>No disputed claims</strong><p className="muted">No claims are currently under dispute.</p></div></div>
           )
         ) : activeView === "reputation" ? (
-          <ReputationView config={contractConfig} audits={recentAudits} auditorService={auditorService} />
+          <ReputationView
+            config={contractConfig}
+            audits={recentAudits}
+            auditorService={activeAudit?.auditor_service ?? selectedAuditorService ?? auditorService}
+          />
         ) : activeView === "archive" ? (
           <ArchiveView audits={filteredAudits} onSelect={syncAudit} />
         ) : activeView === "docs" ? (

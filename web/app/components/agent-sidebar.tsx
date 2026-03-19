@@ -1,11 +1,11 @@
 "use client";
 
-import type { PublicContractConfig } from "../lib/types";
+import type { AuditorServiceRecord, PublicContractConfig } from "../lib/types";
 import { formatEth, shortenHex } from "../lib/format";
 
 type AgentSidebarProps = {
   config: PublicContractConfig | null;
-  auditorService: Record<string, unknown> | null;
+  auditorService: AuditorServiceRecord | null;
   publishStake: number;
   challengeBond: number;
 };
@@ -16,11 +16,12 @@ export function AgentSidebar({
   publishStake,
   challengeBond,
 }: AgentSidebarProps) {
-  const svc = auditorService as Record<string, string> | null;
+  const svc = auditorService;
   const agentName = svc?.name ?? "Proof-of-Audit Auditor";
-  const agentVersion = svc?.version ?? "v0.1.0";
-  const reputation = svc ? 72 : 17;
-  const trustLabel = reputation >= 70 ? "Trusted" : reputation >= 40 ? "Contested" : "Unverified";
+  const agentVersion = svc?.service_id ?? "unavailable";
+  const reputation = svc?.reputation?.score ?? 0;
+  const trustLabel =
+    reputation >= 70 ? "Trusted" : reputation >= 40 ? "Contested" : "Unverified";
   const trustColor = reputation >= 70 ? "var(--secondary)" : reputation >= 40 ? "var(--tertiary)" : "var(--error)";
   const circumference = 2 * Math.PI * 34;
   const dashArray = `${(reputation / 100) * circumference} ${circumference}`;
@@ -65,15 +66,15 @@ export function AgentSidebar({
         {/* Stats */}
         <div className="stats-row">
           <div className="stat-item">
-            <div className="stat-value">1</div>
+            <div className="stat-value">{svc?.reputation?.challenge_rejected_count ?? 0}</div>
             <div className="stat-label">Rejected</div>
           </div>
           <div className="stat-item">
-            <div className="stat-value">5</div>
+            <div className="stat-value">{svc?.reputation?.challenge_upheld_count ?? 0}</div>
             <div className="stat-label">Upheld</div>
           </div>
           <div className="stat-item">
-            <div className="stat-value">6</div>
+            <div className="stat-value">{svc?.reputation?.resolved_challenge_count ?? 0}</div>
             <div className="stat-label">Resolved</div>
           </div>
         </div>
@@ -102,47 +103,21 @@ export function AgentSidebar({
           </h4>
           <div className="agent-name" style={{ fontSize: "0.85rem" }}>{agentName}</div>
           <p className="muted" style={{ fontSize: "0.72rem", marginTop: 4, lineHeight: 1.5 }}>
-            {svc.description || "Deterministic smart contract review agent that publishes stake-backed code judgments."}
+            {svc?.capability
+              ? `${svc.capability} on ${svc.network} via ${svc.execution_mode}`
+              : "Deterministic smart contract review agent that publishes stake-backed code judgments."}
           </p>
           <div className="pill-row" style={{ marginTop: 10 }}>
-            {svc.offchain_manifest_url ? <span className="pill">Offchain Manifest</span> : null}
+            {svc?.registration_kind ? <span className="pill">{svc.registration_kind}</span> : null}
             {config?.contract_address ? (
               <span className="pill mono" style={{ fontSize: "0.58rem" }}>
                 {shortenHex(config.contract_address, 10, 8)}
               </span>
             ) : null}
-            <span className="pill">Local fallback</span>
+            {svc?.publication_mode ? <span className="pill">{svc.publication_mode}</span> : null}
           </div>
         </div>
       ) : null}
-
-      {/* Recent Activity */}
-      <div className="agent-card">
-        <h4 className="section-label" style={{ color: "var(--primary)" }}>
-          Recent Activity
-        </h4>
-        <div className="timeline-item">
-          <div className="timeline-dot" data-tone="success" />
-          <div className="timeline-info">
-            <h5>Claim Draft Finalized</h5>
-            <p>2 minutes ago</p>
-          </div>
-        </div>
-        <div className="timeline-item">
-          <div className="timeline-dot" data-tone="info" />
-          <div className="timeline-info">
-            <h5>Logic Verification Success</h5>
-            <p>5 minutes ago</p>
-          </div>
-        </div>
-        <div className="timeline-item">
-          <div className="timeline-dot" data-tone="success" />
-          <div className="timeline-info">
-            <h5>Audit Started</h5>
-            <p>11 minutes ago</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
