@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-ui-e2e test-e2e
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-testnet-smoke test-ui-e2e test-e2e
 
 PYTHON ?= python3
 
@@ -38,6 +38,9 @@ test-python:
 
 test-system-e2e:
 	PYTHONPATH=agent:api $(PYTHON) -m pytest -m system_e2e api/tests
+
+test-testnet-smoke:
+	PYTHONPATH=agent:api $(PYTHON) -m pytest -m testnet_smoke api/tests/testnet
 
 test-ui-e2e:
 	cd web && CI=1 PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} pnpm exec playwright test

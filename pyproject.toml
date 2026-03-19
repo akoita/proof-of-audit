@@ -31,6 +31,7 @@ include = ["proof_of_audit_agent*", "proof_of_audit_api*"]
 addopts = "--capture=no"
 markers = [
   "system_e2e: boots the real API and chain stack and drives it over HTTP",
+  "testnet_smoke: hits a configured deployed API and Base Sepolia RPC for gated smoke coverage",
 ]
 testpaths = [
   "agent/tests",
