@@ -150,3 +150,25 @@ test("filtered lifecycle views do not reuse stale draft selections", async ({ pa
     page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
   ).toHaveCount(0);
 });
+
+test("archive view excludes live published claims", async ({ page }) => {
+  await createAuditFromFixture(page, /Dual Risk Vault/i);
+  await publishActiveAudit(page);
+
+  await page.getByRole("button", { name: /Reentrancy Bank/i }).click();
+  await page.getByTestId("submit-audit").click();
+  await publishActiveAudit(page);
+  await page.getByTestId("challenge-btn").click();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("resolved");
+
+  const sidebarNav = page.locator(".sidebar-nav");
+  await sidebarNav.getByRole("button", { name: "Archive" }).click();
+
+  await expect(page.getByText("Audit History Archive", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(/Withdraw updates balance after the external call, enabling recursive drains/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
+  ).toHaveCount(0);
+});

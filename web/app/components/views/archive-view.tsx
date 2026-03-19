@@ -9,7 +9,7 @@ type ArchiveViewProps = {
 };
 
 export function ArchiveView({ audits, onSelect }: ArchiveViewProps) {
-  const resolved = audits.filter((a) => a.status === "resolved" || a.status === "published");
+  const resolved = audits.filter((a) => a.status === "resolved");
 
   return (
     <div className="view-archive">
