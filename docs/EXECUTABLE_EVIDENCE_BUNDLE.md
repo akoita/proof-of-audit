@@ -8,13 +8,13 @@ It is the format companion for the advisory executable verifier introduced in:
 
 ## Status
 
-Current status: format defined, bundle execution not yet implemented.
+Current status: format defined and advisory bundle execution implemented.
 
 That means:
 
 - the API can carry manifest-shaped metadata for executable evidence
-- the advisory runner can now fetch and validate remote evidence into a temp directory before execution
-- multi-file bundle execution remains intentionally narrow and tied to validated bundle contents
+- the advisory runner can fetch and validate remote evidence into a temp directory before execution
+- validated bundles can be executed from an isolated temp root with manifest-driven entrypoint selection
 
 ## Bundle version
 
@@ -106,13 +106,18 @@ Supported today:
   - `execution_env`
   - `target_chain_id`
   - `pinned_block_number`
+- validated bundles can execute with:
+  - manifest `entrypoint`
+  - wrapped archive root normalization for single-directory bundles
+  - helper contracts included under the bundle root
+  - optional `test_contract` or `match_contract` selector
 - the runner validates and materializes remote evidence before execution
 - archive extraction is guarded by size, file-count, path, symlink, and extension checks
 
 Not supported yet:
 
 - canonical on-chain evidence bundle hashes
-- richer bundle execution semantics beyond validated local materialization
+- bundle-provided `foundry.toml`, remappings, or custom dependency resolution outside the validated bundle root
 
 ## Backward compatibility
 
@@ -143,9 +148,6 @@ The request still carries `proof_uri`, but the manifest is where callers should 
 
 This allows later issues to add:
 
-- remote bundle fetch
-- validated extraction
-- manifest-driven execution
 - canonical on-chain bundle hash commitments
 
 without redefining the bundle shape again.

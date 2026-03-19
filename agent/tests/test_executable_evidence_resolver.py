@@ -126,3 +126,35 @@ def test_resolver_extracts_zip_bundle_and_reads_manifest() -> None:
         assert resolved.source_path.name == "ChallengeEvidence.t.sol"
         assert resolved.manifest["entrypoint"] == "test/ChallengeEvidence.t.sol"
         assert resolved.source_path.read_text(encoding="utf-8").startswith("contract")
+
+
+def test_resolver_uses_nested_bundle_root_for_single_wrapped_directory() -> None:
+    archive = io.BytesIO()
+    manifest = {
+        "bundle_format": "proof-of-audit-executable-evidence/v1",
+        "execution_env": "foundry",
+        "entrypoint": "test/ChallengeEvidence.t.sol",
+        "target_chain_id": 31337,
+    }
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("challenge-bundle/manifest.json", json.dumps(manifest))
+        bundle.writestr(
+            "challenge-bundle/test/ChallengeEvidence.t.sol",
+            "contract ChallengeEvidenceTest {}\n",
+        )
+        bundle.writestr("challenge-bundle/src/Helper.sol", "contract Helper {}\n")
+
+    def urlopen(req, timeout):  # type: ignore[no-untyped-def]
+        del req, timeout
+        return FakeResponse(archive.getvalue())
+
+    resolver = ExecutableEvidenceResolver(
+        ipfs_gateway="https://gateway.example/ipfs",
+        urlopen=urlopen,
+    )
+
+    with resolver.resolve(_context("ipfs://QmBundle/wrapped-bundle.zip")) as resolved:
+        assert resolved.bundle_mode is True
+        assert resolved.source_root.name == "challenge-bundle"
+        assert resolved.source_path == resolved.source_root / "test/ChallengeEvidence.t.sol"
+        assert (resolved.source_root / "src/Helper.sol").is_file()

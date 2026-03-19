@@ -121,16 +121,17 @@ class ExecutableEvidenceResolver:
                 extracted_root = materialized_root / "extracted"
                 extracted_root.mkdir(parents=True, exist_ok=True)
                 self._extract_archive(downloaded_path, extracted_root)
+                bundle_root = self._resolve_bundle_root(extracted_root)
                 manifest = self._resolve_manifest(
-                    source_root=extracted_root,
+                    source_root=bundle_root,
                     source_path=None,
                     request_manifest=context.evidence_manifest,
                 )
-                entrypoint = self._resolve_entrypoint(extracted_root, manifest)
-                self._validate_hashes(extracted_root, manifest)
+                entrypoint = self._resolve_entrypoint(bundle_root, manifest)
+                self._validate_hashes(bundle_root, manifest)
                 return ResolvedExecutableEvidence(
                     source_path=entrypoint,
-                    source_root=extracted_root,
+                    source_root=bundle_root,
                     source_text=self._read_text(entrypoint),
                     manifest=manifest,
                     bundle_mode=True,
@@ -256,6 +257,19 @@ class ExecutableEvidenceResolver:
         raise EvidenceResolutionError(
             "Executable evidence archives must include manifest.json with an entrypoint or contain exactly one Solidity test file."
         )
+
+    def _resolve_bundle_root(self, extracted_root: Path) -> Path:
+        manifest_path = extracted_root / "manifest.json"
+        if manifest_path.is_file():
+            return extracted_root
+
+        top_level_dirs = sorted(
+            path for path in extracted_root.iterdir() if path.is_dir()
+        )
+        top_level_files = [path for path in extracted_root.iterdir() if path.is_file()]
+        if not top_level_files and len(top_level_dirs) == 1:
+            return top_level_dirs[0]
+        return extracted_root
 
     def _validate_hashes(self, source_root: Path, manifest: dict[str, Any]) -> None:
         expected_hashes = manifest.get("expected_file_hashes")
