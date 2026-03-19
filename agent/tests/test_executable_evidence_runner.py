@@ -297,3 +297,53 @@ def test_runner_executes_wrapped_bundle_with_helper_contracts() -> None:
     assert "--match-contract" in command
     contract_index = command.index("--match-contract")
     assert command[contract_index + 1] == "^ChallengeEvidenceTest$"
+
+
+def test_runner_selects_docker_backend_from_configuration(
+    tmp_path: Path,
+) -> None:
+    evidence_path = tmp_path / "ChallengeEvidence.t.sol"
+    evidence_path.write_text("contract ChallengeEvidenceTest {}\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def executor(command, **kwargs):  # type: ignore[no-untyped-def]
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    runner = ExecutableEvidenceRunner(
+        executor=executor,
+        backend_env={
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND": "docker",
+            "PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_IMAGE": (
+                "ghcr.io/foundry-rs/foundry:v1.3.1"
+            ),
+        },
+        which=lambda binary: f"/usr/bin/{binary}",
+    )
+
+    result = runner.run(
+        EvidenceContext(
+            proof_uri=evidence_path.as_uri(),
+            benchmark_id=None,
+            target_contract="0x1000000000000000000000000000000000000001",
+            published_report={},
+            evidence_type="executable_test",
+            execution_env="foundry",
+            evidence_manifest={
+                "bundle_format": "proof-of-audit-executable-evidence/v1",
+                "execution_env": "foundry",
+                "entrypoint": "ChallengeEvidence.t.sol",
+                "target_chain_id": 31337,
+                "pinned_block_number": 42,
+            },
+            chain_id=31337,
+            rpc_url="https://rpc.example",
+        )
+    )
+
+    assert result.outcome == "passed"
+    assert result.backend == "docker"
+    assert result.isolation_level == "container"
+    command = captured["command"]
+    assert command[:2] == ["docker", "run"]

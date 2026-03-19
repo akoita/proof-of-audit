@@ -7,11 +7,12 @@ import subprocess
 from pathlib import Path
 import shutil
 import tempfile
+from typing import Mapping
 from urllib import error, request
 
 from proof_of_audit_agent.backends import (
     EvidenceExecutionBackend,
-    LocalSubprocessBackend,
+    build_execution_backend,
 )
 from proof_of_audit_agent.challenge_verifier import EvidenceContext
 from proof_of_audit_agent.executable_evidence_resolver import (
@@ -60,15 +61,19 @@ class ExecutableEvidenceRunner:
         resolver: ExecutableEvidenceResolver | None = None,
         backend: EvidenceExecutionBackend | None = None,
         executor: object | None = None,
+        backend_env: Mapping[str, str] | None = None,
+        which: object | None = None,
     ) -> None:
         self.forge_bin = forge_bin
         self.timeout_seconds = timeout_seconds
         self.memory_limit_bytes = memory_limit_bytes
         self.gas_limit = gas_limit
         self.resolver = resolver or ExecutableEvidenceResolver()
-        self.backend = backend or LocalSubprocessBackend(
-            executable_name=forge_bin,
+        self.backend = backend or build_execution_backend(
+            forge_bin=forge_bin,
             executor=executor,
+            env=backend_env,
+            which=which,
         )
 
     def run(self, context: EvidenceContext) -> ExecutableEvidenceRunResult:
