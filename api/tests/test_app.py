@@ -430,6 +430,48 @@ class AuditApiAppTest(unittest.TestCase):
             manifest["validation_bridge"]["registry_address"],
         )
 
+    def test_challenger_feed_endpoint_returns_recent_lifecycle_events(self) -> None:
+        onchain = build_onchain_test_context()
+        service = AuditService(
+            Path(self.tempdir.name) / "challenger-feed-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+            validation_bridge=onchain.validation_bridge,
+            reputation_bridge=onchain.reputation_bridge,
+        )
+        created = service.create_audit(
+            onchain.web3.eth.accounts[2],
+            submitted_by="judge",
+        )
+        service.publish_audit(created["id"], 10**16, None)
+        service.challenge_audit(
+            created["id"],
+            "ipfs://demo-poc",
+            challenger="whitehat",
+        )
+        client = TestClient(
+            create_app(
+                Path(self.tempdir.name) / "challenger-feed-data",
+                env_file=Path(self.tempdir.name) / ".env.local",
+                audit_service=service,
+            )
+        )
+
+        response = client.get("/challenger-feed?limit=2")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["items"]), 2)
+        self.assertEqual(payload["items"][0]["event_kind"], "challenge_opened")
+        self.assertEqual(payload["items"][1]["event_kind"], "audit_published")
+        self.assertEqual(payload["items"][0]["service_id"], "proof-of-audit-auditor")
+        self.assertEqual(payload["items"][0]["auditor_name"], "Proof-of-Audit Auditor")
+        self.assertEqual(payload["items"][0]["current_state"], "challenged")
+        self.assertTrue(payload["items"][0]["publish_tx_hash"].startswith("0x"))
+        self.assertTrue(payload["items"][0]["challenge_tx_hash"].startswith("0x"))
+        self.assertIsNotNone(payload["items"][0]["challenge_window_end"])
+
     def test_default_auditor_reputation_endpoint_returns_summary(self) -> None:
         response = self.client.get("/auditor/reputation")
 

@@ -322,6 +322,45 @@ class TargetComparisonResponse(BaseModel):
     items: list[AuditRecordModel]
 
 
+ChallengerEventKind = Literal[
+    "audit_published",
+    "challenge_opened",
+    "challenge_resolved",
+]
+
+
+class ChallengerFeedItemModel(BaseModel):
+    event_id: str
+    event_kind: ChallengerEventKind
+    event_timestamp: str
+    audit_id: str
+    published_audit_id: int | None = None
+    service_id: str
+    auditor_id: str
+    auditor_name: str
+    target_contract: str
+    target_key: str
+    publish_timestamp: str | None = None
+    challenge_window_end: str | None = None
+    current_state: str
+    report_hash: str
+    metadata_hash: str
+    summary: str
+    max_severity: int
+    finding_count: int
+    publish_tx_hash: str | None = None
+    publish_tx_url: str | None = None
+    challenge_tx_hash: str | None = None
+    challenge_tx_url: str | None = None
+    resolve_tx_hash: str | None = None
+    resolve_tx_url: str | None = None
+    resolution: str | None = None
+
+
+class ChallengerFeedResponse(BaseModel):
+    items: list[ChallengerFeedItemModel]
+
+
 class DemoFixtureModel(BaseModel):
     id: str
     label: str

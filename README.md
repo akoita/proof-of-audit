@@ -113,6 +113,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `GET`  | `/audits?contract_address=` | List claims for one target contract   |
 | `GET`  | `/targets/:address/audits` | Target-scoped claim history           |
 | `GET`  | `/targets/:address/comparison` | Comparative target claim summary   |
+| `GET`  | `/challenger-feed`         | Poll recent published/challenged/resolved lifecycle events |
 | `POST` | `/audits`                  | Create a draft audit claim            |
 | `POST` | `/audits/:id/publish`      | Stake ETH and publish on-chain        |
 | `POST` | `/audits/:id/challenge`    | Submit evidence against the claim     |
@@ -158,6 +159,7 @@ make install-git-hooks
 | [Demo script](./docs/DEMO_SCRIPT.md)              | 60-second live walkthrough          |
 | [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
 | [Agent API](./docs/AGENT_API.md)                  | Integration guide for agent callers |
+| [Challenger feed](./docs/CHALLENGER_FEED.md)      | Polling surface for challenger tooling |
 | [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) | Standards mapping                   |
 | [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
