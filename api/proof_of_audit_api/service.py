@@ -25,7 +25,14 @@ from proof_of_audit_api.validation_bridge import (
     ValidationBridgeError,
     ValidationRegistryBridge,
 )
-from proof_of_audit_agent.challenge_verifier import DeterministicChallengeVerifier
+from proof_of_audit_agent.challenge_verifier import (
+    ChallengeVerifierStrategy,
+    DeterministicChallengeVerifier,
+    EvidenceContext,
+)
+from proof_of_audit_agent.executable_evidence_verifier import (
+    ExecutableEvidenceVerifier,
+)
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import AuditStore, create_store
@@ -40,6 +47,7 @@ class AuditService:
         arbiter_client: ProofOfAuditPublisher | None = None,
         validation_bridge: ValidationRegistryBridge | None = None,
         reputation_bridge: ReputationRegistryBridge | None = None,
+        challenge_verifiers: dict[str, ChallengeVerifierStrategy] | None = None,
         store: AuditStore | None = None,
         store_kind: str = "sqlite",
         store_path: Path | None = None,
@@ -62,7 +70,10 @@ class AuditService:
             ),
             workspace_root=data_root,
         )
-        self.challenge_verifier = DeterministicChallengeVerifier()
+        self.challenge_verifiers = challenge_verifiers or {
+            "deterministic_fixture": DeterministicChallengeVerifier(),
+            "executable_test": ExecutableEvidenceVerifier(),
+        }
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
             self.contract_config
         )
@@ -238,13 +249,26 @@ class AuditService:
         return record
 
     def challenge_audit(
-        self, audit_id: str, proof_uri: str, challenger: str
+        self,
+        audit_id: str,
+        proof_uri: str,
+        challenger: str,
+        evidence_type: str = "deterministic_fixture",
+        execution_env: str | None = None,
+        evidence_manifest: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         record = self._require_audit(audit_id)
         if record["challenge"] is not None or record["status"] in {"challenged", "resolved"}:
             raise ValueError("audit has already been challenged")
         if record["status"] != "published" or record["onchain"] is None:
             raise ValueError("audit must be published before challenge")
+        if (
+            evidence_type == "executable_test"
+            and record["submission"]["input_kind"] != "deployed_address"
+        ):
+            raise ValueError(
+                "executable_test challenge evidence is only supported for deployed_address audits"
+            )
         onchain_audit_id = record["onchain"].get("audit_id")
         if not isinstance(onchain_audit_id, int):
             raise ValueError("published audit is missing its on-chain audit id")
@@ -252,20 +276,37 @@ class AuditService:
             raise OnchainConfigurationError(
                 "On-chain challenge submission is not configured for this API instance."
             )
+        verifier = self.challenge_verifiers.get(evidence_type)
+        if verifier is None:
+            raise ValueError(f"unsupported evidence_type: {evidence_type}")
 
         challenge_result = self.publisher.challenge_audit(
             audit_id=onchain_audit_id,
             proof_uri=proof_uri,
             challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
         )
-        verification_result = self.challenge_verifier.verify(
-            record["report"]["benchmark_id"],
-            proof_uri,
+        verification_result = verifier.verify(
+            EvidenceContext(
+                proof_uri=proof_uri,
+                benchmark_id=str(record["report"].get("benchmark_id") or "unknown"),
+                target_contract=record["contract_address"],
+                published_report=deepcopy(record["report"]),
+                evidence_type=evidence_type,
+                execution_env=execution_env,
+                evidence_manifest=deepcopy(evidence_manifest),
+                chain_id=int(
+                    record["onchain"].get("chain_id") or self.contract_config.chain_id
+                ),
+                rpc_url=self.contract_config.rpc_url,
+            )
         )
         challenge_record = {
             "challenger": challenger,
             "challenger_address": challenge_result.challenger_address,
             "proof_uri": proof_uri,
+            "evidence_type": evidence_type,
+            "execution_env": execution_env,
+            "evidence_manifest": deepcopy(evidence_manifest),
             "submitted_at": datetime.now(UTC).isoformat(),
             "verifier": verification_result.verifier,
             "status": "opened",
@@ -274,6 +315,12 @@ class AuditService:
             "verification_summary": verification_result.summary,
             "verification_detail": verification_result.detail,
             "verification_case_id": verification_result.case_id,
+            "advisory_verdict": (
+                verification_result.resolution if verification_result.advisory_only else None
+            ),
+            "execution_log": verification_result.execution_log,
+            "matched_findings": verification_result.matched_findings,
+            "unmatched_findings": verification_result.unmatched_findings,
             "challenge_hash": challenge_result.challenge_hash,
             "challenge_bond_wei": challenge_result.challenge_bond_wei,
             "chain_id": challenge_result.chain_id,
@@ -286,6 +333,7 @@ class AuditService:
         if (
             verification_result.status == "verified"
             and verification_result.upheld is not None
+            and not verification_result.advisory_only
             and self.arbiter_client is not None
         ):
             try:
@@ -1022,6 +1070,33 @@ class AuditService:
 
     def _normalize_challenge(self, challenge: Any) -> dict[str, Any]:
         payload = deepcopy(challenge) if isinstance(challenge, dict) else {}
+        payload["evidence_type"] = str(
+            payload.get("evidence_type") or "deterministic_fixture"
+        )
+        execution_env = payload.get("execution_env")
+        payload["execution_env"] = str(execution_env) if execution_env is not None else None
+        evidence_manifest = payload.get("evidence_manifest")
+        payload["evidence_manifest"] = (
+            deepcopy(evidence_manifest) if isinstance(evidence_manifest, dict) else None
+        )
+        advisory_verdict = payload.get("advisory_verdict")
+        payload["advisory_verdict"] = (
+            str(advisory_verdict) if advisory_verdict is not None else None
+        )
+        execution_log = payload.get("execution_log")
+        payload["execution_log"] = str(execution_log) if execution_log else None
+        matched_findings = payload.get("matched_findings")
+        payload["matched_findings"] = (
+            [str(item) for item in matched_findings]
+            if isinstance(matched_findings, list)
+            else []
+        )
+        unmatched_findings = payload.get("unmatched_findings")
+        payload["unmatched_findings"] = (
+            [str(item) for item in unmatched_findings]
+            if isinstance(unmatched_findings, list)
+            else []
+        )
         if payload.get("resolution_path") in {"deterministic", "manual_fallback"}:
             return payload
 

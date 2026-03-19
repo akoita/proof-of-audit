@@ -420,6 +420,13 @@ def create_app(
             record = service.challenge_audit(
                 audit_id,
                 proof_uri=payload.proof_uri,
+                evidence_type=payload.evidence_type,
+                execution_env=payload.execution_env,
+                evidence_manifest=(
+                    payload.evidence_manifest.model_dump(exclude_none=True)
+                    if payload.evidence_manifest is not None
+                    else None
+                ),
                 challenger=payload.challenger,
             )
         except KeyError:

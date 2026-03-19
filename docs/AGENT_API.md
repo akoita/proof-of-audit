@@ -181,6 +181,25 @@ Example:
 }
 ```
 
+Executable evidence example:
+
+```json
+{
+  "proof_uri": "file:///tmp/ChallengeEvidence.t.sol",
+  "evidence_type": "executable_test",
+  "execution_env": "foundry",
+  "evidence_manifest": {
+    "bundle_format": "proof-of-audit-executable-evidence/v1",
+    "execution_env": "foundry",
+    "entrypoint": "ChallengeEvidence.t.sol",
+    "target_chain_id": 31337,
+    "test_contract": "ChallengeEvidenceTest",
+    "pinned_block_number": 42
+  },
+  "challenger": "agent-challenger"
+}
+```
+
 Preconditions:
 
 - the audit must already be `published`
@@ -197,6 +216,16 @@ On success, one of two things happens:
   - audit moves to `challenged`
   - challenge stays `opened`
   - validation request remains open until fallback resolution
+
+Executable evidence notes:
+
+- executable evidence is still advisory-only in the current model
+- callers should treat `evidence_manifest` as the canonical execution description
+- the runner fetches remote evidence before execution and executes only validated local materialized files
+- `ipfs://` is the primary remote URI path for executable evidence
+- archive extraction is guarded by size, file-count, extension, symlink, and path-traversal checks
+
+See [Executable evidence bundle format](./EXECUTABLE_EVIDENCE_BUNDLE.md) for the manifest shape and backward-compatibility rules.
 
 ### Resolve a fallback case
 
