@@ -172,6 +172,26 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(payload["auditor_service"]["deterministic_resolution_supported"])
         self.assertTrue(payload["auditor_service"]["manual_fallback_supported"])
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
+        self.assertEqual(payload["auditor_service"]["execution_mode"], "local_worker")
+        self.assertIsNone(payload["auditor_service"]["execution_endpoint"])
+        self.assertEqual(
+            payload["auditor_service"]["settlement_mode"],
+            "native_proof_of_audit",
+        )
+        self.assertEqual(payload["auditor_service"]["publication_mode"], "api_mediated")
+        self.assertEqual(
+            payload["auditor_service"]["staking_adapter_kind"],
+            "native_proof_of_audit",
+        )
+        self.assertIsNone(payload["auditor_service"]["staking_adapter_address"])
+        self.assertEqual(
+            payload["auditor_service"]["staking_adapter_method"],
+            "publishAudit",
+        )
+        self.assertEqual(
+            payload["auditor_service"]["publication_scope"],
+            "submit_selected_claim",
+        )
         self.assertTrue(payload["auditor_service"]["manifest_hash"])
         self.assertEqual(payload["auditor_service"]["reputation"]["score"], 50)
         self.assertEqual(payload["auditor_service"]["reputation"]["band"], "provisional")
@@ -218,6 +238,14 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(payload["deterministic_resolution_supported"])
         self.assertTrue(payload["manual_fallback_supported"])
         self.assertEqual(payload["submit_path"], "/audits")
+        self.assertEqual(payload["execution_mode"], "local_worker")
+        self.assertIsNone(payload["execution_endpoint"])
+        self.assertEqual(payload["settlement_mode"], "native_proof_of_audit")
+        self.assertEqual(payload["publication_mode"], "api_mediated")
+        self.assertEqual(payload["staking_adapter_kind"], "native_proof_of_audit")
+        self.assertIsNone(payload["staking_adapter_address"])
+        self.assertEqual(payload["staking_adapter_method"], "publishAudit")
+        self.assertEqual(payload["publication_scope"], "submit_selected_claim")
         self.assertEqual(payload["publish_path_template"], "/audits/{id}/publish")
         self.assertEqual(payload["challenge_path_template"], "/audits/{id}/challenge")
         self.assertEqual(
@@ -251,11 +279,19 @@ class AuditApiAppTest(unittest.TestCase):
                                 "capability": "audit_contract",
                                 "discovery_path": "/auditors/external-auditor",
                                 "submit_path": "/audits",
+                                "execution_mode": "remote_http",
+                                "execution_endpoint": "https://example.invalid/audits",
                                 "publish_path_template": "/audits/{id}/publish",
                                 "challenge_path_template": "/audits/{id}/challenge",
                                 "network": "base-sepolia",
                                 "active": True,
                                 "supported_trust": ["crypto-economic"],
+                                "settlement_mode": "adapter_delegated",
+                                "publication_mode": "api_mediated",
+                                "staking_adapter_kind": "proof_of_audit_stake_adapter",
+                                "staking_adapter_address": "0xfeed",
+                                "staking_adapter_method": "publishStakedAudit",
+                                "publication_scope": "submit_selected_claim",
                                 "registry_contract_address": "0x456",
                                 "validation_registry_address": "0x789",
                                 "validation_source": "erc8004-official",
@@ -334,12 +370,26 @@ class AuditApiAppTest(unittest.TestCase):
             listed_payload["items"][1]["service_id"],
             "external-auditor",
         )
+        self.assertEqual(listed_payload["items"][1]["execution_mode"], "remote_http")
+        self.assertEqual(
+            listed_payload["items"][1]["execution_endpoint"],
+            "https://example.invalid/audits",
+        )
+        self.assertEqual(
+            listed_payload["items"][1]["settlement_mode"],
+            "adapter_delegated",
+        )
+        self.assertEqual(
+            listed_payload["items"][1]["staking_adapter_address"],
+            "0xfeed",
+        )
         self.assertEqual(listed_payload["items"][0]["reputation"]["score"], 50)
         self.assertEqual(listed_payload["items"][1]["reputation"]["band"], "provisional")
 
         detail = client.get("/auditors/external-auditor")
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()["registration_uri"], "https://example.invalid/external-auditor.json")
+        self.assertEqual(detail.json()["publication_mode"], "api_mediated")
         self.assertEqual(detail.json()["reputation"]["resolved_challenge_count"], 0)
 
         reputation = client.get("/auditors/external-auditor/reputation")

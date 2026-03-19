@@ -56,6 +56,23 @@ class ContractConfigTest(unittest.TestCase):
         )
         self.assertEqual(config.auditor_service.discovery_path, "/auditor")
         self.assertEqual(config.auditor_service.submit_path, "/audits")
+        self.assertEqual(config.auditor_service.execution_mode, "local_worker")
+        self.assertIsNone(config.auditor_service.execution_endpoint)
+        self.assertEqual(
+            config.auditor_service.settlement_mode,
+            "native_proof_of_audit",
+        )
+        self.assertEqual(config.auditor_service.publication_mode, "api_mediated")
+        self.assertEqual(
+            config.auditor_service.staking_adapter_kind,
+            "native_proof_of_audit",
+        )
+        self.assertIsNone(config.auditor_service.staking_adapter_address)
+        self.assertEqual(config.auditor_service.staking_adapter_method, "publishAudit")
+        self.assertEqual(
+            config.auditor_service.publication_scope,
+            "submit_selected_claim",
+        )
         self.assertEqual(
             config.auditor_service.validation_registry_address,
             str(manifest["validation_bridge"]["registry_address"]),
@@ -203,11 +220,19 @@ class ContractConfigTest(unittest.TestCase):
                                     "capability": "audit_contract",
                                     "discovery_path": "/auditors/external-auditor",
                                     "submit_path": "/audits",
+                                    "execution_mode": "remote_http",
+                                    "execution_endpoint": "https://example.invalid/audits",
                                     "publish_path_template": "/audits/{id}/publish",
                                     "challenge_path_template": "/audits/{id}/challenge",
                                     "network": "base-sepolia",
                                     "active": True,
                                     "supported_trust": ["crypto-economic"],
+                                    "settlement_mode": "adapter_delegated",
+                                    "publication_mode": "api_mediated",
+                                    "staking_adapter_kind": "proof_of_audit_stake_adapter",
+                                    "staking_adapter_address": "0xfeed",
+                                    "staking_adapter_method": "publishStakedAudit",
+                                    "publication_scope": "submit_selected_claim",
                                     "registry_contract_address": "0x456",
                                     "validation_registry_address": "0x789",
                                     "validation_source": "erc8004-official",
@@ -267,6 +292,19 @@ class ContractConfigTest(unittest.TestCase):
             self.assertEqual(
                 config.auditor_services[1].service_id,
                 "external-auditor",
+            )
+            self.assertEqual(config.auditor_services[1].execution_mode, "remote_http")
+            self.assertEqual(
+                config.auditor_services[1].execution_endpoint,
+                "https://example.invalid/audits",
+            )
+            self.assertEqual(
+                config.auditor_services[1].settlement_mode,
+                "adapter_delegated",
+            )
+            self.assertEqual(
+                config.auditor_services[1].staking_adapter_address,
+                "0xfeed",
             )
             self.assertIsNotNone(
                 config.auditor_registration_document_by_service_id("external-auditor")

@@ -41,6 +41,7 @@ Key file:
 - normalizes submissions
 - persists audit records
 - exposes the auditor profile and service record
+- can describe multiple auditor services with explicit execution and settlement metadata
 - exposes whether the current identity path is the official ERC-8004 registry or a local fallback
 - emits ERC-8004-aligned validation request and response documents for published and resolved audits
 - submits publish and challenge transactions
@@ -79,6 +80,19 @@ Key file:
 
 Key file:
 - `/home/koita/dev/hackatons/proof-of-audit/contracts/src/ProofOfAudit.sol`
+
+### Pluggable auditor boundary
+
+Independent auditors are expected to integrate through a narrow boundary:
+
+- Proof-of-Audit-compatible audit request / response shapes
+- a service record that declares execution and settlement mode
+- an optional staking adapter contract when publication is delegated
+
+That adapter boundary is documented in:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/PLUGGABLE_AUDITOR_INTEGRATION.md`
+- `/home/koita/dev/hackatons/proof-of-audit/contracts/src/interfaces/IProofOfAuditStakeAdapter.sol`
 
 ### Validation bridge
 
