@@ -101,14 +101,15 @@ test("source bundle mode can submit without a deployed address", async ({ page }
 
 test("filtered lifecycle views show empty states instead of stale draft audits", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
+  const sidebarNav = page.locator(".sidebar-nav");
 
-  await page.getByRole("button", { name: "Published" }).click();
+  await sidebarNav.getByRole("button", { name: "Published" }).click();
   await expect(page.getByText("No published claims found", { exact: true })).toBeVisible();
   await expect(
     page.getByText("Publish an audit claim from the workbench to see it here.", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Disputed" }).click();
+  await sidebarNav.getByRole("button", { name: "Disputed" }).click();
   await expect(page.getByText("No disputed claims", { exact: true })).toBeVisible();
   await expect(
     page.getByText("No claims are currently under dispute.", { exact: true }),
