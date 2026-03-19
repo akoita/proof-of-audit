@@ -50,6 +50,23 @@ const VIEW_STATUS_MAP: Record<string, string[]> = {
   archive:    ["resolved"],
 };
 
+function auditsForView(view: string, audits: AuditRecord[]): AuditRecord[] {
+  const statuses = VIEW_STATUS_MAP[view] ?? [];
+  if (statuses.length === 0) return audits;
+  return audits.filter((audit) => statuses.includes(audit.status));
+}
+
+function selectAuditForView(
+  view: string,
+  audits: AuditRecord[],
+  current: AuditRecord | null,
+): AuditRecord | null {
+  const scopedAudits = auditsForView(view, audits);
+  if (scopedAudits.length === 0) return null;
+  if (!current) return scopedAudits[0];
+  return scopedAudits.find((audit) => audit.id === current.id) ?? scopedAudits[0];
+}
+
 export function AuditWorkbench() {
   /* ── sidebar state ────────────────────────────────────── */
   const [activeView, setActiveView] = useState("workbench");
@@ -57,11 +74,7 @@ export function AuditWorkbench() {
   /* ── view filtering ──────────────────────────────────── */
   function handleViewChange(view: string) {
     setActiveView(view);
-    const statuses = VIEW_STATUS_MAP[view] ?? [];
-    if (statuses.length > 0) {
-      const match = recentAudits.find((a) => statuses.includes(a.status));
-      if (match) setActiveAudit(match);
-    }
+    setActiveAudit((current) => selectAuditForView(view, recentAudits, current));
     // Scroll to top of content
     document.querySelector(".page-shell")?.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -110,16 +123,25 @@ export function AuditWorkbench() {
   const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
 
   /* ── view-filtered audits ────────────────────────────── */
-  const filteredAudits = (() => {
-    const statuses = VIEW_STATUS_MAP[activeView] ?? [];
-    if (statuses.length === 0) return recentAudits;
-    return recentAudits.filter((a) => statuses.includes(a.status));
-  })();
+  const filteredAudits = auditsForView(activeView, recentAudits);
+  const scopedActiveAudit =
+    activeView === "workbench"
+      ? activeAudit
+      : selectAuditForView(activeView, recentAudits, activeAudit);
 
   /* ── data loading ───────────────────────────────────── */
   useEffect(() => {
     startTransition(() => void loadWorkbench());
   }, []);
+
+  useEffect(() => {
+    setActiveAudit((current) => {
+      const next = selectAuditForView(activeView, recentAudits, current);
+      if (next?.id === current?.id) return current;
+      if (!next && !current) return current;
+      return next;
+    });
+  }, [activeView, recentAudits]);
 
   useEffect(() => {
     if (!activeAudit?.contract_address) {
@@ -144,7 +166,7 @@ export function AuditWorkbench() {
       setContractConfig(configPayload);
       setAuditorService(auditorPayload);
       if (auditPayload.items.length > 0) {
-        setActiveAudit((c) => c ?? auditPayload.items[0]);
+        setActiveAudit((current) => current ?? selectAuditForView(activeView, auditPayload.items, null));
       }
       if (fixturePayload.items.length > 0 && !selectedFixtureId) {
         const first = preferredDemoFixture(fixturePayload.items);
@@ -417,21 +439,21 @@ export function AuditWorkbench() {
             </div>
           </>
         ) : activeView === "published" ? (
-          activeAudit ? (
-            <PublishedView audit={activeAudit} allAudits={recentAudits} onSelect={syncAudit} />
+          scopedActiveAudit ? (
+            <PublishedView audit={scopedActiveAudit} allAudits={filteredAudits} onSelect={syncAudit} />
           ) : (
             <div className="card"><div className="empty-panel"><strong>No published claims found</strong><p className="muted">Publish an audit claim from the workbench to see it here.</p></div></div>
           )
         ) : activeView === "disputed" ? (
-          activeAudit ? (
-            <DisputedView audit={activeAudit} allAudits={recentAudits} onSelect={syncAudit} />
+          scopedActiveAudit ? (
+            <DisputedView audit={scopedActiveAudit} allAudits={filteredAudits} onSelect={syncAudit} />
           ) : (
             <div className="card"><div className="empty-panel"><strong>No disputed claims</strong><p className="muted">No claims are currently under dispute.</p></div></div>
           )
         ) : activeView === "reputation" ? (
           <ReputationView config={contractConfig} audits={recentAudits} auditorService={auditorService} />
         ) : activeView === "archive" ? (
-          <ArchiveView audits={recentAudits} onSelect={syncAudit} />
+          <ArchiveView audits={filteredAudits} onSelect={syncAudit} />
         ) : null}
 
         {/* Footer data */}
