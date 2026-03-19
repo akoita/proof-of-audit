@@ -10,6 +10,11 @@ import shutil
 import subprocess
 import zipfile
 
+from proof_of_audit_agent.auditor_backend import (
+    AuditExecution,
+    AuditExecutionResult,
+    AuditSubmission,
+)
 from proof_of_audit_agent.models import AuditReport, Finding
 
 
@@ -42,56 +47,6 @@ class AgentForgeRuntimeConfig:
         return self.mode == "agent_forge"
 
 
-@dataclass(frozen=True)
-class AuditExecution:
-    backend: str
-    mode: str
-    status: str
-    source: str
-    live_attempted: bool
-    fallback_used: bool
-    task_prompt: str | None = None
-    workspace_dir: str | None = None
-    source_path: str | None = None
-    report_path: str | None = None
-    run_id: str | None = None
-    run_dir: str | None = None
-    provider: str | None = None
-    model: str | None = None
-    error: str | None = None
-
-    def to_dict(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "backend": self.backend,
-            "mode": self.mode,
-            "status": self.status,
-            "source": self.source,
-            "live_attempted": self.live_attempted,
-            "fallback_used": self.fallback_used,
-        }
-        optional_values = {
-            "task_prompt": self.task_prompt,
-            "workspace_dir": self.workspace_dir,
-            "source_path": self.source_path,
-            "report_path": self.report_path,
-            "run_id": self.run_id,
-            "run_dir": self.run_dir,
-            "provider": self.provider,
-            "model": self.model,
-            "error": self.error,
-        }
-        for key, value in optional_values.items():
-            if value is not None:
-                payload[key] = value
-        return payload
-
-
-@dataclass(frozen=True)
-class AuditExecutionResult:
-    report: AuditReport
-    execution: AuditExecution | None = None
-
-
 class AgentForgeExecutionError(ValueError):
     """Raised when live execution is required but cannot complete."""
 
@@ -101,33 +56,29 @@ class AgentForgeBackend:
         self.runtime = runtime
         self.workspace_root = workspace_root
 
-    def run_submission(
-        self,
-        *,
-        audit_id: str,
-        input_kind: str,
-        repository_url: str | None = None,
-        source_bundle_uri: str | None = None,
-        entry_contract: str | None = None,
-    ) -> AuditExecutionResult | None:
+    @property
+    def backend_name(self) -> str:
+        return "agent_forge"
+
+    def run_submission(self, submission: AuditSubmission) -> AuditExecutionResult | None:
         if not self.runtime.live_enabled:
             return None
-        if input_kind not in self.runtime.enabled_input_kinds:
+        if submission.input_kind not in self.runtime.enabled_input_kinds:
             if self.runtime.strict_live_mode:
                 raise AgentForgeExecutionError(
-                    f"agent-forge mode does not support {input_kind} submissions yet"
+                    f"agent-forge mode does not support {submission.input_kind} submissions yet"
                 )
             return None
 
         source_path = self._resolve_source_path(
-            input_kind=input_kind,
-            repository_url=repository_url,
-            source_bundle_uri=source_bundle_uri,
+            input_kind=submission.input_kind,
+            repository_url=submission.repository_url,
+            source_bundle_uri=submission.source_bundle_uri,
         )
         if source_path is None:
             if self.runtime.strict_live_mode:
                 raise AgentForgeExecutionError(
-                    f"agent-forge mode requires a local repository path or file:// source for {input_kind} submissions"
+                    f"agent-forge mode requires a local repository path or file:// source for {submission.input_kind} submissions"
                 )
             return None
 
@@ -135,8 +86,10 @@ class AgentForgeBackend:
         if not command:
             raise AgentForgeExecutionError("agent-forge command is not configured")
 
-        workspace_dir = self._prepare_workspace(audit_id, source_path)
-        task_prompt = self._build_task_prompt(entry_contract=entry_contract)
+        if submission.audit_id is None:
+            raise AgentForgeExecutionError("agent-forge submissions require an audit_id")
+        workspace_dir = self._prepare_workspace(submission.audit_id, source_path)
+        task_prompt = self._build_task_prompt(entry_contract=submission.entry_contract)
         report_path = workspace_dir / REPORT_FILE
         before_runs = self._snapshot_runs()
 
@@ -146,7 +99,7 @@ class AgentForgeBackend:
                 report_path=report_path,
                 workspace_dir=workspace_dir,
                 source_path=source_path,
-                entry_contract=entry_contract,
+                entry_contract=submission.entry_contract,
             )
         except Exception as exc:
             if self.runtime.strict_live_mode:
@@ -155,7 +108,7 @@ class AgentForgeBackend:
 
         run_dir = self._detect_new_run(before_runs, workspace_dir)
         execution = AuditExecution(
-            backend="agent_forge",
+            backend=self.backend_name,
             mode=self.runtime.mode,
             status="completed",
             source="agent_forge_run",
