@@ -29,6 +29,7 @@ import { PublishedView } from "./components/views/published-view";
 import { ReputationView } from "./components/views/reputation-view";
 import { DisputedView } from "./components/views/disputed-view";
 import { ArchiveView } from "./components/views/archive-view";
+import { DocsView } from "./components/views/docs-view";
 
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
@@ -475,6 +476,8 @@ export function AuditWorkbench() {
           <ReputationView config={contractConfig} audits={recentAudits} auditorService={auditorService} />
         ) : activeView === "archive" ? (
           <ArchiveView audits={filteredAudits} onSelect={syncAudit} />
+        ) : activeView === "docs" ? (
+          <DocsView />
         ) : null}
 
         {/* Footer data */}
