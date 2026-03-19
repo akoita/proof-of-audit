@@ -1,0 +1,29 @@
+name: Testnet Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  testnet-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install API dependencies
+        run: python -m pip install setuptools wheel && python -m pip install --no-build-isolation -e '.[dev]'
+      - name: Build contract artifacts for API integration tests
+        run: forge build --root contracts
+      - name: Run Base Sepolia smoke suite
+        env:
+          PROOF_OF_AUDIT_TESTNET_RPC_URL: ${{ secrets.PROOF_OF_AUDIT_TESTNET_RPC_URL || vars.PROOF_OF_AUDIT_TESTNET_RPC_URL || '' }}
+          PROOF_OF_AUDIT_TESTNET_CHAIN_ID: ${{ vars.PROOF_OF_AUDIT_TESTNET_CHAIN_ID || '84532' }}
+          PROOF_OF_AUDIT_TESTNET_PRIVATE_KEY: ${{ secrets.PROOF_OF_AUDIT_TESTNET_PRIVATE_KEY || '' }}
+          PROOF_OF_AUDIT_TESTNET_API_URL: ${{ secrets.PROOF_OF_AUDIT_TESTNET_API_URL || vars.PROOF_OF_AUDIT_TESTNET_API_URL || '' }}
+          PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI: ${{ secrets.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI || vars.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI || '' }}
+          PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON: ${{ secrets.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON || vars.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON || '' }}
+        run: PYTHON_BIN=python make test-testnet-smoke

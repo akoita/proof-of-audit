@@ -140,6 +140,7 @@ For detailed integration guidance, see the [Agent API](./docs/AGENT_API.md), [Ag
 # Run all tests
 make test-python        # Python unit tests
 make test-system-e2e    # Full stack end-to-end
+make test-testnet-smoke # Gated Base Sepolia smoke suite
 make test-ui-e2e        # Browser end-to-end (Playwright)
 cd contracts && forge test  # Smart contract tests
 ```
