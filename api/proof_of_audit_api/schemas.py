@@ -80,11 +80,19 @@ class AuditorServiceRecordModel(BaseModel):
     capability: str
     discovery_path: str
     submit_path: str
+    execution_mode: str
+    execution_endpoint: str | None = None
     publish_path_template: str
     challenge_path_template: str
     network: str
     active: bool
     supported_trust: list[str]
+    settlement_mode: str
+    publication_mode: str
+    staking_adapter_kind: str
+    staking_adapter_address: str | None = None
+    staking_adapter_method: str | None = None
+    publication_scope: str
     registry_contract_address: str | None = None
     validation_registry_address: str | None = None
     validation_source: str | None = None

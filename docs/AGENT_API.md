@@ -50,6 +50,28 @@ The current service record advertises these `submission_modes`:
 - `source_bundle`
 - `repository_url`
 
+For pluggable auditors, the service record also declares how the auditor executes
+and settles claims:
+
+- `execution_mode`
+  - `local_worker` for the built-in worker path
+  - `remote_http` for a remote auditor service
+- `execution_endpoint`
+  - optional endpoint for a remote execution service
+- `settlement_mode`
+  - `native_proof_of_audit` when the native contract is the settlement target
+  - `adapter_delegated` when publication happens through an auditor-owned adapter
+- `publication_mode`
+  - `api_mediated` when this application is allowed to publish the selected claim
+  - `self_published` when the external auditor must publish itself
+- `staking_adapter_kind`
+- `staking_adapter_address`
+- `staking_adapter_method`
+- `publication_scope`
+
+These fields are meant to tell integrators whether a listed auditor is local,
+remote, directly settled, or adapter-settled before they attempt submission.
+
 Current constraints:
 
 - `demo_fixture`

@@ -320,11 +320,19 @@ class AuditorServiceRecord:
     capability: str
     discovery_path: str
     submit_path: str
+    execution_mode: str
+    execution_endpoint: str | None
     publish_path_template: str
     challenge_path_template: str
     network: str
     active: bool
     supported_trust: tuple[str, ...]
+    settlement_mode: str
+    publication_mode: str
+    staking_adapter_kind: str
+    staking_adapter_address: str | None
+    staking_adapter_method: str | None
+    publication_scope: str
     registry_contract_address: str | None
     validation_registry_address: str | None
     validation_source: str | None
@@ -353,6 +361,7 @@ class AuditorServiceRecord:
         capability = str(payload.get("capability") or "").strip()
         discovery_path = str(payload.get("discovery_path") or "").strip()
         submit_path = str(payload.get("submit_path") or "").strip()
+        execution_mode = str(payload.get("execution_mode") or "").strip()
         publish_path_template = str(
             payload.get("publish_path_template") or ""
         ).strip()
@@ -369,6 +378,10 @@ class AuditorServiceRecord:
         reputation_path_template = str(
             payload.get("reputation_path_template") or ""
         ).strip()
+        settlement_mode = str(payload.get("settlement_mode") or "").strip()
+        publication_mode = str(payload.get("publication_mode") or "").strip()
+        staking_adapter_kind = str(payload.get("staking_adapter_kind") or "").strip()
+        publication_scope = str(payload.get("publication_scope") or "").strip()
         if not all(
             [
                 service_id,
@@ -382,9 +395,14 @@ class AuditorServiceRecord:
                 capability,
                 discovery_path,
                 submit_path,
+                execution_mode,
                 publish_path_template,
                 challenge_path_template,
                 network,
+                settlement_mode,
+                publication_mode,
+                staking_adapter_kind,
+                publication_scope,
                 validation_request_path_template,
                 validation_response_path_template,
                 reputation_path_template,
@@ -416,6 +434,12 @@ class AuditorServiceRecord:
             capability=capability,
             discovery_path=discovery_path,
             submit_path=submit_path,
+            execution_mode=execution_mode,
+            execution_endpoint=(
+                str(payload["execution_endpoint"])
+                if payload.get("execution_endpoint") is not None
+                else None
+            ),
             publish_path_template=publish_path_template,
             challenge_path_template=challenge_path_template,
             network=network,
@@ -423,6 +447,20 @@ class AuditorServiceRecord:
             supported_trust=tuple(
                 str(item) for item in payload.get("supported_trust", []) if str(item).strip()
             ),
+            settlement_mode=settlement_mode,
+            publication_mode=publication_mode,
+            staking_adapter_kind=staking_adapter_kind,
+            staking_adapter_address=(
+                str(payload["staking_adapter_address"])
+                if payload.get("staking_adapter_address") is not None
+                else None
+            ),
+            staking_adapter_method=(
+                str(payload["staking_adapter_method"])
+                if payload.get("staking_adapter_method") is not None
+                else None
+            ),
+            publication_scope=publication_scope,
             registry_contract_address=(
                 str(payload["registry_contract_address"])
                 if payload.get("registry_contract_address") is not None
@@ -481,11 +519,19 @@ class AuditorServiceRecord:
             "capability": self.capability,
             "discovery_path": self.discovery_path,
             "submit_path": self.submit_path,
+            "execution_mode": self.execution_mode,
+            "execution_endpoint": self.execution_endpoint,
             "publish_path_template": self.publish_path_template,
             "challenge_path_template": self.challenge_path_template,
             "network": self.network,
             "active": self.active,
             "supported_trust": list(self.supported_trust),
+            "settlement_mode": self.settlement_mode,
+            "publication_mode": self.publication_mode,
+            "staking_adapter_kind": self.staking_adapter_kind,
+            "staking_adapter_address": self.staking_adapter_address,
+            "staking_adapter_method": self.staking_adapter_method,
+            "publication_scope": self.publication_scope,
             "registry_contract_address": self.registry_contract_address,
             "validation_registry_address": self.validation_registry_address,
             "validation_source": self.validation_source,
@@ -918,11 +964,19 @@ class ContractConfig:
             capability=capability,
             discovery_path="/auditor",
             submit_path="/audits",
+            execution_mode="local_worker",
+            execution_endpoint=None,
             publish_path_template="/audits/{id}/publish",
             challenge_path_template="/audits/{id}/challenge",
             network=self.network,
             active=self.auditor.active,
             supported_trust=self.auditor.supported_trust,
+            settlement_mode="native_proof_of_audit",
+            publication_mode="api_mediated",
+            staking_adapter_kind="native_proof_of_audit",
+            staking_adapter_address=self.contract_address,
+            staking_adapter_method="publishAudit",
+            publication_scope="submit_selected_claim",
             registry_contract_address=self.contract_address,
             validation_registry_address=self.validation_registry_address,
             validation_source=self.validation_bridge_source,
