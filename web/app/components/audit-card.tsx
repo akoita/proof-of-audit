@@ -15,17 +15,26 @@ type AuditCardProps = {
   audit: AuditRecord;
 };
 
+function confidencePercent(confidence: string): number {
+  switch (confidence) {
+    case "high": return 85;
+    case "medium": return 60;
+    case "low": return 35;
+    default: return 50;
+  }
+}
+
 export function AuditCard({ audit }: AuditCardProps) {
-  const severityEntries = Object.entries(audit.report.severity_breakdown).filter(
-    ([, count]) => count > 0,
-  );
+  const severityOrder = ["critical", "high", "medium", "low", "info"];
+  const pct = confidencePercent(audit.report.confidence);
 
   return (
     <div className="audit-card-inner">
-      {/* Header row */}
-      <div className="section-heading">
-        <p>Current audit</p>
+      {/* Card header — title + status */}
+      <div className="audit-card-header">
+        <h2>{audit.report.summary}</h2>
         <span
+          className="audit-status-badge"
           data-testid="current-audit-status"
           data-tone={statusTone(audit.status)}
         >
@@ -33,7 +42,56 @@ export function AuditCard({ audit }: AuditCardProps) {
         </span>
       </div>
 
-      {/* Summary chips */}
+      {/* Report summary: gauge + severity side by side */}
+      <div className="report-summary-row">
+        <div className="report-summary-label">Report summary</div>
+
+        <div className="report-summary-content">
+          {/* Gauge */}
+          <div className="confidence-gauge">
+            <svg viewBox="0 0 100 100" className="gauge-ring">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" strokeWidth="8" />
+              <circle
+                cx="50" cy="50" r="40" fill="none"
+                stroke="var(--accent)"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${pct * 2.512} 251.2`}
+                transform="rotate(-90 50 50)"
+                className="gauge-fill"
+              />
+            </svg>
+            <div className="gauge-label">
+              <strong>{pct}%</strong>
+            </div>
+          </div>
+
+          {/* Severity bars */}
+          <div className="severity-section">
+            <div className="severity-section-title">Severity</div>
+            {severityOrder.map((sev) => {
+              const count = audit.report.severity_breakdown[sev] ?? 0;
+              if (sev === "info" && count === 0) return null;
+              return (
+                <div key={sev} className="severity-row">
+                  <span className="severity-count-left">{count}</span>
+                  <span className="severity-label">{titleCase(sev)}</span>
+                  <div className="severity-bar-track">
+                    <div
+                      className="severity-bar-fill"
+                      data-severity={sev}
+                      style={{ width: `${Math.min(count * 25, 100)}%` }}
+                    />
+                  </div>
+                  <span className="severity-count">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Meta chips */}
       <div className="audit-summary-bar">
         <span>{audit.agent.id}</span>
         <span>{submissionModeLabel(audit.submission.input_kind)}</span>
@@ -42,89 +100,39 @@ export function AuditCard({ audit }: AuditCardProps) {
         <span title={audit.contract_address}>{submissionTargetLabel(audit)}</span>
       </div>
 
-      {/* Headline */}
-      <h2>{audit.report.summary}</h2>
-      <p className="muted">
+      <p className="muted audit-actor-note">
         {audit.agent.name} is the named actor responsible for this claim.
       </p>
 
-      {/* Stats + gauge row */}
-      <div className="audit-metrics">
-        {/* Confidence gauge */}
-        <div className="confidence-gauge">
-          <svg viewBox="0 0 80 80" className="gauge-ring">
-            <circle
-              cx="40"
-              cy="40"
-              r="34"
-              fill="none"
-              stroke="var(--line)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="40"
-              cy="40"
-              r="34"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={`${(audit.report.confidence === "high" ? 85 : audit.report.confidence === "medium" ? 60 : 35) * 2.136} 214`}
-              transform="rotate(-90 40 40)"
-              className="gauge-fill"
-            />
-          </svg>
-          <div className="gauge-label">
-            <strong>{titleCase(audit.report.confidence)}</strong>
-            <span>Confidence</span>
-          </div>
+      {/* Compact stats row */}
+      <div className="metrics-grid">
+        <div>
+          <span>Auditor</span>
+          <strong>{audit.agent.name}</strong>
         </div>
-
-        {/* Key metrics */}
-        <div className="metrics-grid">
-          <div>
-            <span>Status</span>
-            <strong>{lifecycleLabel(audit)}</strong>
-          </div>
-          <div>
-            <span>Created</span>
-            <strong>{relativeTimeLabel(audit.created_at)}</strong>
-          </div>
-          <div>
-            <span>Findings</span>
-            <strong>{audit.report.finding_count}</strong>
-          </div>
-          <div>
-            <span>Max severity</span>
-            <strong>{audit.report.max_severity}</strong>
-          </div>
-          <div>
-            <span>Report hash</span>
-            <strong title={audit.report.report_hash}>
-              {shortenHex(audit.report.report_hash, 10, 6)}
-            </strong>
-          </div>
+        <div>
+          <span>Status</span>
+          <strong>{lifecycleLabel(audit)}</strong>
+        </div>
+        <div>
+          <span>Created</span>
+          <strong>{relativeTimeLabel(audit.created_at)}</strong>
+        </div>
+        <div>
+          <span>Findings</span>
+          <strong>{audit.report.finding_count}</strong>
+        </div>
+        <div>
+          <span>Max severity</span>
+          <strong>{audit.report.max_severity}</strong>
+        </div>
+        <div>
+          <span>Report hash</span>
+          <strong title={audit.report.report_hash}>
+            {shortenHex(audit.report.report_hash, 10, 6)}
+          </strong>
         </div>
       </div>
-
-      {/* Severity bars */}
-      {severityEntries.length > 0 && (
-        <div className="severity-bars">
-          {severityEntries.map(([severity, count]) => (
-            <div key={severity} className="severity-row">
-              <span className="severity-label">{titleCase(severity)}</span>
-              <div className="severity-bar-track">
-                <div
-                  className="severity-bar-fill"
-                  data-severity={severity}
-                  style={{ width: `${Math.min(count * 25, 100)}%` }}
-                />
-              </div>
-              <span className="severity-count">{count}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

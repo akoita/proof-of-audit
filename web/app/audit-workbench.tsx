@@ -225,33 +225,15 @@ export function AuditWorkbench() {
       <Navbar config={contractConfig} />
 
       <main className="page-shell">
+        {/* Dashboard title row */}
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">Dashboard</h1>
+        </div>
+
         {/* Phase stepper */}
         <PhaseStepper audit={activeAudit} />
 
-        {/* Hero */}
-        <section className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">Proof-of-Audit Workbench</p>
-            <h1>Trust and challengeability for agent-made code judgments.</h1>
-            <p className="lede">
-              A named auditor agent makes a claim about a contract, stakes behind
-              it, and can be challenged through a neutral on-chain process.
-            </p>
-            <div className="deployment-banner">
-              <span className="deployment-badge">✓ Verified on Base Sepolia</span>
-              <a
-                href="https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24"
-                target="_blank"
-                rel="noreferrer"
-                className="deployment-link"
-              >
-                View ProofOfAudit contract on Basescan ↗
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Submit */}
+        {/* Submit (compact) */}
         <section className="submit-section">
           <SubmitPanel
             submissionMode={submissionMode}
@@ -278,21 +260,7 @@ export function AuditWorkbench() {
           {loadError ? <p className="error-banner">{loadError}</p> : null}
         </section>
 
-        {/* Fixtures */}
-        <FixtureStrip
-          fixtures={demoFixtures}
-          selectedId={selectedFixtureId}
-          isLoaded={isLoaded}
-          onSelect={(f) => {
-            setSubmissionMode("demo_fixture");
-            setSelectedFixtureId(f.id);
-            setContractAddress(f.address);
-            setEntryContract(f.entry_contract);
-            setProofUri(f.challenge_proof_uri);
-          }}
-        />
-
-        {/* Main workspace */}
+        {/* Main workspace: audit report + agent sidebar */}
         <section className="workspace-grid">
           <article className="panel report-panel">
             {activeAudit ? (
@@ -346,6 +314,20 @@ export function AuditWorkbench() {
             />
           </aside>
         </section>
+
+        {/* Fixtures — at the bottom like the mockup */}
+        <FixtureStrip
+          fixtures={demoFixtures}
+          selectedId={selectedFixtureId}
+          isLoaded={isLoaded}
+          onSelect={(f) => {
+            setSubmissionMode("demo_fixture");
+            setSelectedFixtureId(f.id);
+            setContractAddress(f.address);
+            setEntryContract(f.entry_contract);
+            setProofUri(f.challenge_proof_uri);
+          }}
+        />
       </main>
     </div>
   );

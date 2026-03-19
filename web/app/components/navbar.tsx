@@ -13,8 +13,15 @@ export function Navbar({ config }: NavbarProps) {
       <div className="navbar-brand">
         <span className="navbar-logo">◈</span>
         <span className="navbar-title">Proof of Audit</span>
+        <div className="navbar-tabs">
+          <span className="navbar-tab" data-active="true">Dashboard</span>
+          <span className="navbar-tab">Audit</span>
+          <span className="navbar-tab">Claims</span>
+          <span className="navbar-tab">Explorer</span>
+        </div>
       </div>
       <div className="navbar-meta">
+        <button className="wallet-btn" type="button">Wallet Connect</button>
         {config?.contract_address ? (
           <span className="network-badge" data-tone="confirmed">
             <span className="network-dot" />

@@ -148,13 +148,75 @@ body { padding: 0; }
   50% { opacity: 0.5; }
 }
 
+/* ── Navbar tabs ──────────────────────────────────────── */
+.navbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.navbar-tab {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+}
+
+.navbar-tab:hover {
+  color: var(--ink);
+  background: rgba(210, 195, 175, 0.06);
+}
+
+.navbar-tab[data-active="true"] {
+  background: rgba(232, 160, 32, 0.12);
+  color: var(--accent);
+}
+
+.wallet-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: rgba(16, 14, 12, 0.6);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+}
+
+.wallet-btn:hover {
+  border-color: rgba(232, 160, 32, 0.3);
+  background: rgba(232, 160, 32, 0.06);
+}
+
+/* ── Dashboard header ─────────────────────────────────── */
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 /* ── Page shell ───────────────────────────────────────── */
 .page-shell {
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px 24px 48px;
   display: grid;
-  gap: 24px;
+  gap: 20px;
 }
 
 /* ── Phase stepper ────────────────────────────────────── */
@@ -613,53 +675,67 @@ body { padding: 0; }
 }
 
 /* ── Audit card ───────────────────────────────────────── */
-.report-panel h2 {
-  margin: 12px 0 8px;
-  max-width: 24ch;
+.audit-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.audit-card-header h2 {
+  margin: 0;
+  max-width: 20ch;
   font-family: "Space Grotesk", "Inter", sans-serif;
-  font-size: clamp(1.5rem, 2.5vw, 2.2rem);
+  font-size: clamp(1.4rem, 2.5vw, 1.9rem);
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.1;
   letter-spacing: -0.02em;
 }
 
-.audit-summary-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.audit-summary-bar span {
-  padding: 5px 10px;
+.audit-status-badge {
+  padding: 5px 14px;
   border-radius: var(--radius-pill);
-  background: rgba(232, 160, 32, 0.06);
-  border: 1px solid rgba(232, 160, 32, 0.12);
-  color: var(--accent-light);
-  font-size: 0.74rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* ── Audit metrics row ────────────────────────────────── */
-.audit-metrics {
+/* ── Report summary: gauge + severity side by side ────── */
+.report-summary-row {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(16, 14, 12, 0.55);
+}
+
+.report-summary-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 14px;
+}
+
+.report-summary-content {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 16px;
-  align-items: start;
-  margin-top: 12px;
+  grid-template-columns: 120px 1fr;
+  gap: 24px;
+  align-items: center;
 }
 
 .confidence-gauge {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 110px;
+  height: 110px;
 }
 
 .gauge-ring { width: 100%; height: 100%; }
 
 .gauge-fill {
-  transition: stroke-dasharray 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: stroke-dasharray 800ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .gauge-label {
@@ -672,16 +748,41 @@ body { padding: 0; }
 }
 
 .gauge-label strong {
-  font-size: 0.72rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--accent);
 }
 
-.gauge-label span {
-  font-size: 0.58rem;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+/* ── Severity section (inside report summary) ─────────── */
+.severity-section {
+  display: grid;
+  gap: 6px;
+}
+
+.severity-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.audit-actor-note { margin-top: 4px; font-size: 0.85rem; }
+
+.audit-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.audit-summary-bar span {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(232, 160, 32, 0.06);
+  border: 1px solid rgba(232, 160, 32, 0.12);
+  color: var(--accent-light);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .metrics-grid {
@@ -716,21 +817,18 @@ body { padding: 0; }
 }
 
 /* ── Severity bars ────────────────────────────────────── */
-.severity-bars {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(16, 14, 12, 0.5);
-}
-
 .severity-row {
   display: grid;
-  grid-template-columns: 80px 1fr 30px;
+  grid-template-columns: 24px 70px 1fr 28px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.severity-count-left {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+  color: var(--ink);
 }
 
 .severity-label {
