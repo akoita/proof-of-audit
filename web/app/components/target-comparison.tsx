@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { AuditRecord, TargetComparisonResponse } from "../lib/types";
 import {
   formatEth,
@@ -8,7 +9,6 @@ import {
   severityRankLabel,
   statusTone,
   submissionModeLabel,
-  titleCase,
 } from "../lib/format";
 
 type TargetComparisonProps = {
@@ -18,9 +18,14 @@ type TargetComparisonProps = {
   onSelect: (audit: AuditRecord) => void;
 };
 
+const PAGE_SIZE = 6;
+
 export function TargetComparison({ audit, comparison, isLoaded, onSelect }: TargetComparisonProps) {
+  const [expanded, setExpanded] = useState(false);
   const items = comparison?.items ?? [];
   const summary = comparison?.summary;
+  const visible = expanded ? items : items.slice(0, PAGE_SIZE);
+  const hasMore = items.length > PAGE_SIZE;
 
   return (
     <div className="card">
@@ -69,11 +74,10 @@ export function TargetComparison({ audit, comparison, isLoaded, onSelect }: Targ
               </div>
             ) : null}
 
-            {/* Comparison grid */}
+            {/* Comparison grid — limited */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
-              {items.map((item) => {
+              {visible.map((item) => {
                 const isActive = item.id === audit?.id;
-                const tone = statusTone(item.status);
                 const badgeClass = item.status === "published" ? "badge-published"
                   : item.status === "challenged" ? "badge-challenged"
                   : item.status === "resolved" ? "badge-published"
@@ -119,6 +123,18 @@ export function TargetComparison({ audit, comparison, isLoaded, onSelect }: Targ
                 );
               })}
             </div>
+
+            {/* Show more / less */}
+            {hasMore ? (
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setExpanded(!expanded)}
+                style={{ width: "100%", marginTop: 14, justifyContent: "center", fontSize: "0.72rem" }}
+              >
+                {expanded ? "Show Less" : `Show ${items.length - PAGE_SIZE} More Claims`}
+              </button>
+            ) : null}
           </>
         )}
       </div>

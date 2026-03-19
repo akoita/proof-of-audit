@@ -340,6 +340,22 @@ export function AuditWorkbench() {
         {/* Phase stepper — workbench only */}
         {activeView === "workbench" ? <PhaseStepper audit={activeAudit} /> : null}
 
+        {/* ── Demo Fixtures — workbench only ── */}
+        {activeView === "workbench" ? (
+          <FixtureStrip
+            fixtures={demoFixtures}
+            selectedId={selectedFixtureId}
+            isLoaded={isLoaded}
+            onSelect={(f) => {
+              setSubmissionMode("demo_fixture");
+              setSelectedFixtureId(f.id);
+              setContractAddress(f.address);
+              setEntryContract(f.entry_contract);
+              setProofUri(f.challenge_proof_uri);
+            }}
+          />
+        ) : null}
+
         {/* ── View-specific content ── */}
         {activeView === "workbench" ? (
           <>
@@ -441,21 +457,7 @@ export function AuditWorkbench() {
               </div>
             </section>
 
-            {/* Fixtures — at the bottom */}
-            <div id="fixture-strip">
-              <FixtureStrip
-                fixtures={demoFixtures}
-                selectedId={selectedFixtureId}
-                isLoaded={isLoaded}
-                onSelect={(f) => {
-                  setSubmissionMode("demo_fixture");
-                  setSelectedFixtureId(f.id);
-                  setContractAddress(f.address);
-                  setEntryContract(f.entry_contract);
-                  setProofUri(f.challenge_proof_uri);
-                }}
-              />
-            </div>
+
           </>
         ) : activeView === "published" ? (
           scopedActiveAudit ? (

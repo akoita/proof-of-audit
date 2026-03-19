@@ -1,11 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { AuditRecord } from "../lib/types";
 import {
   lifecycleLabel,
   statusTone,
   submissionTargetLabel,
-  titleCase,
   shortenHex,
   severityRankLabel,
 } from "../lib/format";
@@ -17,7 +17,13 @@ type RecentClaimsProps = {
   onSelect: (audit: AuditRecord) => void;
 };
 
+const PAGE_SIZE = 8;
+
 export function RecentClaims({ audits, activeId, isLoaded, onSelect }: RecentClaimsProps) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? audits : audits.slice(0, PAGE_SIZE);
+  const hasMore = audits.length > PAGE_SIZE;
+
   return (
     <div className="card">
       <div className="card-body">
@@ -46,14 +52,12 @@ export function RecentClaims({ audits, activeId, isLoaded, onSelect }: RecentCla
           </div>
         ) : (
           <div style={{ marginTop: 14 }}>
-            {audits.map((audit) => {
+            {visible.map((audit) => {
               const isActive = audit.id === activeId;
               const badgeClass = audit.status === "published" ? "badge-published"
                 : audit.status === "challenged" ? "badge-challenged"
                 : audit.status === "resolved" ? "badge-published"
                 : "badge-draft";
-              const maxSev = audit.report.max_severity;
-              const sevLabel = severityRankLabel(maxSev);
 
               return (
                 <button
@@ -96,11 +100,23 @@ export function RecentClaims({ audits, activeId, isLoaded, onSelect }: RecentCla
                     </span>
                   </div>
                   <div className="muted" style={{ flex: 1, textAlign: "right", fontSize: "0.65rem", whiteSpace: "nowrap" }}>
-                    {sevLabel} · {audit.report.finding_count} findings
+                    {severityRankLabel(audit.report.max_severity)} · {audit.report.finding_count} findings
                   </div>
                 </button>
               );
             })}
+
+            {/* Show more / less */}
+            {hasMore ? (
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setExpanded(!expanded)}
+                style={{ width: "100%", marginTop: 14, justifyContent: "center", fontSize: "0.72rem" }}
+              >
+                {expanded ? "Show Less" : `Show ${audits.length - PAGE_SIZE} More Claims`}
+              </button>
+            ) : null}
           </div>
         )}
       </div>
