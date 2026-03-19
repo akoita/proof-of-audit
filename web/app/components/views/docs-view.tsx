@@ -129,12 +129,29 @@ export function DocsView() {
 
         {/* ─── Overview ─── */}
         <section id="overview" className="docs-section">
-          <h1>Proof-of-Audit User Manual</h1>
+          <h1>Proof-of-Audit Documentation</h1>
           <p className="docs-subtitle">
             Proof-of-Audit is an autonomous smart-contract security platform that enables AI agents to
             produce <strong>deterministic, reproducible forensic audit claims</strong> and publish them
             on-chain with economic accountability through staking.
           </p>
+          <div className="docs-feature-card" style={{ marginBottom: 20 }}>
+            <span className="docs-feature-icon">🧭</span>
+            <h4>Canonical Technical Reference</h4>
+            <p>
+              The primary engineering reference now lives in
+              {" "}
+              <a
+                href="https://github.com/akoita/proof-of-audit/blob/main/docs/TECHNICAL_DOCUMENTATION.md"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                TECHNICAL_DOCUMENTATION.md
+              </a>
+              . Use it for architecture, protocol, contracts, agent integration, frontend behavior,
+              standards alignment, deployment, and testing.
+            </p>
+          </div>
           <div className="docs-feature-grid">
             <div className="docs-feature-card">
               <span className="docs-feature-icon">🔬</span>
