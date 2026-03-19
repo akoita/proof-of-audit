@@ -157,6 +157,9 @@ class ExecutableEvidenceRunner:
                     "--no-ffi",
                     "-vv",
                 ]
+                contract_selector = self._contract_selector_from_manifest(manifest)
+                if contract_selector is not None:
+                    command.extend(["--match-contract", contract_selector])
                 try:
                     result = self._executor(
                         command,
@@ -260,6 +263,17 @@ class ExecutableEvidenceRunner:
         ):
             env.pop(key, None)
         return env
+
+    def _contract_selector_from_manifest(
+        self, manifest: dict[str, object]
+    ) -> str | None:
+        test_contract = manifest.get("test_contract")
+        if isinstance(test_contract, str) and test_contract:
+            return f"^{test_contract}$"
+        match_contract = manifest.get("match_contract")
+        if isinstance(match_contract, str) and match_contract:
+            return match_contract
+        return None
 
     def _build_preexec_fn(self) -> Callable[[], None] | None:
         try:

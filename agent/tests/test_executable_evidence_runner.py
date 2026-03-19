@@ -1,5 +1,8 @@
+import io
+import json
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from proof_of_audit_agent.challenge_verifier import EvidenceContext
@@ -142,3 +145,89 @@ def test_runner_fetches_ipfs_evidence_before_execution() -> None:
     assert result.outcome == "passed"
     command = captured["command"]
     assert "--match-path" in command
+
+
+def test_runner_executes_wrapped_bundle_with_helper_contracts() -> None:
+    captured: dict[str, object] = {}
+    archive = io.BytesIO()
+    manifest = {
+        "bundle_format": "proof-of-audit-executable-evidence/v1",
+        "execution_env": "foundry",
+        "entrypoint": "test/ChallengeEvidence.t.sol",
+        "target_chain_id": 31337,
+        "test_contract": "ChallengeEvidenceTest",
+        "pinned_block_number": 42,
+    }
+    test_source = (
+        'import "../src/Helper.sol";\n'
+        "contract ChallengeEvidenceTest is Helper {}\n"
+    )
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("challenge-bundle/manifest.json", json.dumps(manifest))
+        bundle.writestr("challenge-bundle/test/ChallengeEvidence.t.sol", test_source)
+        bundle.writestr(
+            "challenge-bundle/src/Helper.sol",
+            "contract Helper {}\n",
+        )
+
+    class FakeResponse:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+            self.offset = 0
+
+        def read(self, size: int = -1) -> bytes:
+            if size < 0:
+                size = len(self.data) - self.offset
+            chunk = self.data[self.offset : self.offset + size]
+            self.offset += len(chunk)
+            return chunk
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            del exc_type, exc, tb
+
+    def urlopen(req, timeout):  # type: ignore[no-untyped-def]
+        assert req.full_url == "https://gateway.example/ipfs/QmBundle/challenge-bundle.zip"
+        assert timeout == 15
+        return FakeResponse(archive.getvalue())
+
+    def executor(command, **kwargs):  # type: ignore[no-untyped-def]
+        captured["command"] = command
+        root = Path(kwargs["cwd"])
+        local_test_path = Path(command[command.index("--match-path") + 1])
+        assert local_test_path == root / "test/ChallengeEvidence.t.sol"
+        assert local_test_path.read_text(encoding="utf-8") == test_source
+        assert (root / "src/Helper.sol").read_text(encoding="utf-8") == "contract Helper {}\n"
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    runner = ExecutableEvidenceRunner(
+        forge_bin="true",
+        executor=executor,
+        resolver=ExecutableEvidenceResolver(
+            ipfs_gateway="https://gateway.example/ipfs",
+            urlopen=urlopen,
+        ),
+    )
+
+    result = runner.run(
+        EvidenceContext(
+            proof_uri="ipfs://QmBundle/challenge-bundle.zip",
+            benchmark_id=None,
+            target_contract="0x1000000000000000000000000000000000000001",
+            published_report={},
+            evidence_type="executable_test",
+            execution_env="foundry",
+            evidence_manifest=manifest,
+            chain_id=31337,
+            rpc_url="http://127.0.0.1:8545",
+        )
+    )
+
+    assert result.outcome == "passed"
+    command = captured["command"]
+    assert "--match-path" in command
+    assert "--match-contract" in command
+    contract_index = command.index("--match-contract")
+    assert command[contract_index + 1] == "^ChallengeEvidenceTest$"
