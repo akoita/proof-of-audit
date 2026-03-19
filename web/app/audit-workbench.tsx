@@ -30,9 +30,48 @@ function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   return fixtures.find((f) => f.id === "clean-vault") ?? fixtures[0];
 }
 
+const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
+  workbench:  { eyebrow: "Workspace",       title: "Audit Workbench",    desc: "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine." },
+  published:  { eyebrow: "Published Claims", title: "Published",          desc: "Claims that have been staked and published on-chain. These can be challenged within the challenge window." },
+  disputed:   { eyebrow: "Disputed Claims",  title: "Disputed",           desc: "Claims that have been challenged and are awaiting resolution through deterministic or manual paths." },
+  reputation: { eyebrow: "Trust Network",    title: "Auditor Reputation", desc: "View trust scores, resolved challenges, and reputation metrics for auditor agents." },
+  archive:    { eyebrow: "Archive",          title: "Archive",            desc: "Completed and resolved audit claims that have exited the challenge window." },
+};
+
+const VIEW_STATUS_MAP: Record<string, string[]> = {
+  workbench:  [],
+  published:  ["published"],
+  disputed:   ["challenged"],
+  reputation: ["resolved"],
+  archive:    ["resolved"],
+};
+
 export function AuditWorkbench() {
   /* ── sidebar state ────────────────────────────────────── */
   const [activeView, setActiveView] = useState("workbench");
+
+  /* ── view filtering ──────────────────────────────────── */
+  function handleViewChange(view: string) {
+    setActiveView(view);
+    const statuses = VIEW_STATUS_MAP[view] ?? [];
+    if (statuses.length > 0) {
+      const match = recentAudits.find((a) => statuses.includes(a.status));
+      if (match) setActiveAudit(match);
+    }
+    // Scroll to top of content
+    document.querySelector(".page-shell")?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleNewClaim() {
+    setActiveView("workbench");
+    setTimeout(() => {
+      document.getElementById("submit-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
+  function handleScrollTo(sectionId: string) {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   /* ── form state ─────────────────────────────────────── */
   const [submissionMode, setSubmissionMode] = useState<InputKind>("demo_fixture");
@@ -65,6 +104,13 @@ export function AuditWorkbench() {
     undefined;
   const publishStake = contractConfig?.required_stake_wei ?? 10_000_000_000_000_000;
   const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
+
+  /* ── view-filtered audits ────────────────────────────── */
+  const filteredAudits = (() => {
+    const statuses = VIEW_STATUS_MAP[activeView] ?? [];
+    if (statuses.length === 0) return recentAudits;
+    return recentAudits.filter((a) => statuses.includes(a.status));
+  })();
 
   /* ── data loading ───────────────────────────────────── */
   useEffect(() => {
@@ -225,22 +271,22 @@ export function AuditWorkbench() {
   /* ── render ─────────────────────────────────────────── */
   return (
     <div className="app-shell">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
-      <Navbar config={contractConfig} />
+      <Sidebar activeView={activeView} onViewChange={handleViewChange} onNewClaim={handleNewClaim} />
+      <Navbar config={contractConfig} onScrollTo={handleScrollTo} />
 
       <main className="page-shell">
         {/* Page header */}
         <div className="page-header">
           <div className="page-header-left">
             <div className="page-eyebrow">
-              <span>Workspace</span>
+              <span>{VIEW_LABELS[activeView]?.eyebrow ?? "Workspace"}</span>
               <div className="health-badge">
                 <span className="health-dot" />
                 <span>System Healthy</span>
               </div>
             </div>
-            <h1>Audit Workbench</h1>
-            <p>Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine.</p>
+            <h1>{VIEW_LABELS[activeView]?.title ?? "Audit Workbench"}</h1>
+            <p>{VIEW_LABELS[activeView]?.desc ?? "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine."}</p>
           </div>
           <div className="page-meta-badge">
             ⏱ AUTO-SAVE: 2 MIN AGO
@@ -251,9 +297,9 @@ export function AuditWorkbench() {
         <PhaseStepper audit={activeAudit} />
 
         {/* Main workspace: submission + audit report */}
-        <section className="workspace-grid">
+        <section id="workspace-section" className="workspace-grid">
           {/* Left column: submit + meta */}
-          <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
+          <div id="submit-section" style={{ display: "grid", gap: 20, alignContent: "start" }}>
             <SubmitPanel
               submissionMode={submissionMode}
               contractAddress={contractAddress}
@@ -291,16 +337,18 @@ export function AuditWorkbench() {
             </div>
 
             {/* Agent sidebar cards */}
+            <div id="agent-info">
             <AgentSidebar
               config={contractConfig}
               auditorService={auditorService}
               publishStake={publishStake}
               challengeBond={challengeBond}
             />
+            </div>
           </div>
 
           {/* Right column: audit report */}
-          <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
+          <div id="audit-report" style={{ display: "grid", gap: 20, alignContent: "start" }}>
             {activeAudit ? (
               <>
                 <AuditCard audit={activeAudit} />
@@ -326,7 +374,7 @@ export function AuditWorkbench() {
                   onSelect={syncAudit}
                 />
                 <RecentClaims
-                  audits={recentAudits}
+                  audits={filteredAudits}
                   activeId={activeAudit?.id ?? null}
                   isLoaded={isLoaded}
                   onSelect={syncAudit}
@@ -346,6 +394,7 @@ export function AuditWorkbench() {
         </section>
 
         {/* Fixtures — at the bottom */}
+        <div id="fixture-strip">
         <FixtureStrip
           fixtures={demoFixtures}
           selectedId={selectedFixtureId}
@@ -358,6 +407,7 @@ export function AuditWorkbench() {
             setProofUri(f.challenge_proof_uri);
           }}
         />
+        </div>
 
         {/* Footer data */}
         <div className="footer-data">
