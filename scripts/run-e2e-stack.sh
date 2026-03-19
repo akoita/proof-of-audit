@@ -16,9 +16,14 @@ API_URL="http://${API_HOST}:${API_PORT}"
 WEB_URL="http://${WEB_HOST}:${WEB_PORT}"
 DATA_ROOT="${E2E_DATA_ROOT:-${ROOT_DIR}/.tmp/e2e-data}"
 LOG_DIR="${E2E_LOG_DIR:-${ROOT_DIR}/.tmp/e2e-logs}"
+CONFIG_DIR="${E2E_CONFIG_DIR:-${LOG_DIR}/config}"
+DEPLOYMENT_MANIFEST_FILE="${CONFIG_DIR}/localhost.json"
+API_ENV_FILE="${CONFIG_DIR}/api.env.local"
+WEB_ENV_FILE="${CONFIG_DIR}/web.env.local"
+FIXTURE_MANIFEST_FILE="${CONFIG_DIR}/demo-fixtures.localhost.json"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
-mkdir -p "${DATA_ROOT}" "${LOG_DIR}"
+mkdir -p "${DATA_ROOT}" "${LOG_DIR}" "${CONFIG_DIR}"
 rm -rf "${DATA_ROOT}"
 mkdir -p "${DATA_ROOT}"
 
@@ -78,24 +83,35 @@ ANVIL_CHAIN_ID="${ANVIL_CHAIN_ID}" \
 PROOF_OF_AUDIT_NETWORK="anvil-e2e" \
 PROOF_OF_AUDIT_EXPLORER_BASE_URL="${RPC_URL}" \
 NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL="${API_URL}" \
+LOCAL_DEPLOYMENT_MANIFEST_FILE="${DEPLOYMENT_MANIFEST_FILE}" \
+LOCAL_DEPLOYMENT_API_ENV_FILE="${API_ENV_FILE}" \
+LOCAL_DEPLOYMENT_WEB_ENV_FILE="${WEB_ENV_FILE}" \
 ./scripts/deploy-local.sh >"${LOG_DIR}/deploy-local.log" 2>&1
 
 ANVIL_RPC_URL="${RPC_URL}" \
 ANVIL_CHAIN_ID="${ANVIL_CHAIN_ID}" \
 PROOF_OF_AUDIT_NETWORK="anvil-e2e" \
+LOCAL_DEMO_FIXTURES_MANIFEST_FILE="${FIXTURE_MANIFEST_FILE}" \
+LOCAL_DEMO_FIXTURES_API_ENV_FILE="${API_ENV_FILE}" \
 ./scripts/deploy-demo-fixtures.sh >"${LOG_DIR}/deploy-fixtures.log" 2>&1
 
-PROOF_OF_AUDIT_HOST="${API_HOST}" \
-PROOF_OF_AUDIT_PORT="${API_PORT}" \
-PROOF_OF_AUDIT_DATA_ROOT="${DATA_ROOT}" \
-PYTHONPATH=agent:api \
-"${PYTHON_BIN}" -m proof_of_audit_api.app >"${LOG_DIR}/api.log" 2>&1 &
+( set -a
+  source "${API_ENV_FILE}"
+  set +a
+  PROOF_OF_AUDIT_HOST="${API_HOST}" \
+  PROOF_OF_AUDIT_PORT="${API_PORT}" \
+  PROOF_OF_AUDIT_DATA_ROOT="${DATA_ROOT}" \
+  PYTHONPATH=agent:api \
+  "${PYTHON_BIN}" -m proof_of_audit_api.app
+) >"${LOG_DIR}/api.log" 2>&1 &
 API_PID=$!
 wait_for_http "${API_URL}/health"
 
 (
   cd "${ROOT_DIR}/web"
-  NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL="${API_URL}" \
+  set -a
+  source "${WEB_ENV_FILE}"
+  set +a
   pnpm exec next dev --hostname "${WEB_HOST}" --port "${WEB_PORT}"
 ) >"${LOG_DIR}/web.log" 2>&1 &
 WEB_PID=$!

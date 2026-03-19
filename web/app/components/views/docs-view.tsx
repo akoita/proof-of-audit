@@ -189,7 +189,9 @@ export function DocsView() {
           <h3>Quick Start</h3>
           <Callout type="tip">
             The fastest way to run the full stack is the <code>run-e2e-stack.sh</code> script, which
-            starts Anvil, deploys contracts, seeds fixtures, and launches the web server.
+            starts Anvil, deploys contracts, seeds fixtures, and launches the web server. It uses
+            isolated temp config and does not overwrite your local <code>api/.env.local</code> or{" "}
+            <code>web/.env.local</code>.
           </Callout>
           <CodeBlock>{`# Clone and install
 git clone https://github.com/akoita/proof-of-audit.git

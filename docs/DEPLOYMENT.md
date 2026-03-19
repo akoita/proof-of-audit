@@ -10,6 +10,8 @@ The fastest local development loop is:
 4. let the deployment scripts write fresh local config for the API and web app
 5. run the API and frontend against those generated values
 
+The automated E2E and system-E2E stack scripts now generate their own isolated env files under `.tmp/...` and no longer overwrite `api/.env.local` or `web/.env.local`. Local dev config remains owned by the explicit localhost deployment flow below.
+
 ### Condensed local flow
 
 ```bash
