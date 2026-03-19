@@ -3,11 +3,11 @@ import { expect, Locator, Page, test } from "@playwright/test";
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Audit Workbench" })).toBeVisible();
-  await expect(page.getByText("Demo fixtures", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Demo Fixtures/i })).toBeVisible();
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByTestId("submit-audit").click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
-  await expect(page.getByText("Detailed Analysis Findings", { exact: true })).toBeVisible();
+  await expect(page.getByText("Findings", { exact: true })).toBeVisible();
 }
 
 async function publishActiveAudit(page: Page) {
@@ -19,27 +19,28 @@ function challengeInput(page: Page): Locator {
   return page.getByPlaceholder("ipfs://proof-uri...");
 }
 
-test("clean fixture challenge auto-resolves upheld", async ({ page }) => {
+test("clean fixture challenge stays open for manual review", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
 
   await expect(
     page.getByText(/No benchmark issue found across the supported checks/i).first(),
   ).toBeVisible();
-  await expect(page.getByText("Evidence Verification Hashes", { exact: true })).toBeVisible();
+  await expect(page.getByText("Target Comparison", { exact: true })).toBeVisible();
 
   await publishActiveAudit(page);
   await page.getByTestId("challenge-btn").click();
 
-  await expect(page.getByTestId("current-audit-status")).toHaveText("resolved");
-  await expect(page.getByTestId("challenge-status")).toHaveText("upheld");
-  await expect(page.getByText("Deterministic", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Resolution upheld by deterministic-verifier/i)).toBeVisible();
+  await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
+  await expect(page.getByText("Challenge & Resolution", { exact: true })).toBeVisible();
+  await expect(page.getByText("OPENED", { exact: true })).toBeVisible();
+  await expect(page.getByText("Manual Fallback", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Plain proof-URI challenges require manual review/i)).toBeVisible();
   await expect(
-    page.getByText(/verified: The submitted PoC demonstrates a missed issue/i),
+    page.getByText(/deterministic benchmark verifier has been retired/i),
   ).toBeVisible();
 });
 
-test("invalid challenge evidence stays open for manual review", async ({ page }) => {
+test("plain proof URI challenge evidence stays open for manual review", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
   await publishActiveAudit(page);
 
@@ -47,27 +48,26 @@ test("invalid challenge evidence stays open for manual review", async ({ page })
   await page.getByTestId("challenge-btn").click();
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
-  await expect(page.getByTestId("challenge-status")).toHaveText("opened");
+  await expect(page.getByText("OPENED", { exact: true })).toBeVisible();
   await expect(page.getByText("Manual Fallback", { exact: true })).toBeVisible();
   await expect(
-    page.getByText(/invalid_evidence: The submitted PoC does not match/i),
+    page.getByText(/Plain proof-URI challenges require manual review/i),
   ).toBeVisible();
   await expect(
-    page.getByText(/Provide the curated artifact ipfs:\/\/clean-vault\/missed-reentrancy/i),
+    page.getByText(/ipfs:\/\/wrong-proof/i),
   ).toBeVisible();
 });
 
 test("dual risk vault renders the richer multi-finding report", async ({ page }) => {
   await createAuditFromFixture(page, /Dual Risk Vault/i);
 
-  await expect(page.getByText("Detailed Analysis Findings", { exact: true })).toBeVisible();
   await expect(page.getByText("Findings", { exact: true })).toBeVisible();
   await expect(page.getByText("Missing access control on rotateOwner()")).toBeVisible();
   await expect(page.getByText("Unchecked external call in emergencyPayout()")).toBeVisible();
+  await page.getByRole("button", { name: /Missing access control on rotateOwner\(\)/i }).click();
+  await page.getByRole("button", { name: /Unchecked external call in emergencyPayout\(\)/i }).click();
   await expect(page.getByText(/Access Control · High confidence · rotateOwner\(address\)/i)).toBeVisible();
-  await expect(
-    page.getByText(/Unchecked External Call · Medium confidence · emergencyPayout\(uint256\)/i),
-  ).toBeVisible();
+  await expect(page.getByText(/Unchecked External Call · Medium confidence · emergencyPayout\(uint256\)/i)).toBeVisible();
   await expect(
     page.getByText(/Ownership can be reassigned by any caller without authorization/i),
   ).toBeVisible();
@@ -91,14 +91,14 @@ test("dual risk vault renders the richer multi-finding report", async ({ page })
 
 test("target comparison groups multiple claims for one contract", async ({ page }) => {
   await createAuditFromFixture(page, /Clean Vault/i);
-  const initialComparisonCount = await page.locator(".comparison-item").count();
+  const initialComparisonCount = await page.locator(".related-claim-card").count();
   await page.getByTestId("submit-audit").click();
 
-  await expect(page.getByText("Target comparison", { exact: true })).toBeVisible();
+  await expect(page.getByText("Target Comparison", { exact: true })).toBeVisible();
   await expect
-    .poll(async () => page.locator(".comparison-item").count())
+    .poll(async () => page.locator(".related-claim-card").count())
     .toBeGreaterThanOrEqual(initialComparisonCount + 1);
-  await expect(page.getByText(/published · .*challenged · .*resolved/i)).toBeVisible();
+  await expect(page.getByText(/published/i)).toBeVisible();
 });
 
 test("source bundle mode can submit without a deployed address", async ({ page }) => {
@@ -159,15 +159,13 @@ test("archive view excludes live published claims", async ({ page }) => {
   await page.getByTestId("submit-audit").click();
   await publishActiveAudit(page);
   await page.getByTestId("challenge-btn").click();
-  await expect(page.getByTestId("current-audit-status")).toHaveText("resolved");
+  await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
 
   const sidebarNav = page.locator(".sidebar-nav");
   await sidebarNav.getByRole("button", { name: "Archive" }).click();
 
   await expect(page.getByText("Audit History Archive", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/Withdraw updates balance after the external call, enabling recursive drains/i),
-  ).toBeVisible();
+  await expect(page.getByText("No archived audits", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/The vault exposes both unrestricted role rotation and unchecked emergency payouts/i),
   ).toHaveCount(0);
@@ -213,10 +211,10 @@ test("redesigned dashboards only show real state or explicit unavailable labels"
 test("redesigned controls are wired to real links and stateful actions", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("link", { name: /Documentation/i })).toHaveAttribute(
-    "href",
-    "https://github.com/akoita/proof-of-audit/blob/main/README.md",
-  );
+  await page.getByRole("button", { name: /Technical Docs/i }).click();
+  await expect(page.getByRole("heading", { name: /Proof-of-Audit Documentation/i })).toBeVisible();
+  await page.getByRole("button", { name: "Workbench" }).click();
+
   await expect(page.getByRole("link", { name: /Support/i })).toHaveAttribute(
     "href",
     "https://github.com/akoita/proof-of-audit/issues",
