@@ -16,7 +16,8 @@ Request body:
 - `memory_limit_bytes`
 - `working_directory`
 - `archive_format = "zip"`
-- `archive_base64`
+- `archive_base64` or `archive_gcs_uri`
+- optional `archive_generation`
 
 Response body:
 
@@ -28,5 +29,6 @@ Response body:
 
 - build and deploy with [cloudbuild.yaml](/home/koita/dev/hackatons/proof-of-audit/infra/evidence-runner/cloudbuild.yaml)
 - the service is intended to run one request per instance with authenticated invocation
-- the runner image contains `forge` plus a small Python HTTP wrapper
-- the backend archives the validated evidence root locally and posts it to the service for one-shot execution
+- the runner image contains `forge`, `google-cloud-storage`, and a small Python HTTP wrapper
+- the backend can either post the validated evidence root inline or stage it to GCS first and send a `gs://` reference
+- if GCS staging is used, the runner service account needs object read access on the staging bucket

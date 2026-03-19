@@ -65,6 +65,7 @@ class ExecutableEvidenceRunner:
         which: object | None = None,
         urlopen: object | None = None,
         metadata_urlopen: object | None = None,
+        storage_client_factory: object | None = None,
     ) -> None:
         self.forge_bin = forge_bin
         self.timeout_seconds = timeout_seconds
@@ -78,6 +79,7 @@ class ExecutableEvidenceRunner:
             which=which,
             urlopen=urlopen,
             metadata_urlopen=metadata_urlopen,
+            storage_client_factory=storage_client_factory,
         )
 
     def run(self, context: EvidenceContext) -> ExecutableEvidenceRunResult:

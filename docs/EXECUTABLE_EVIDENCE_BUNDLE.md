@@ -146,6 +146,7 @@ Supported today:
 - the advisory runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed hash
 - deployments can switch the advisory runner from `local_subprocess` to `docker` with environment configuration
 - deployments can also switch the advisory runner to `gcp_cloud_run` with a dedicated runner service URL and auth configuration
+- Cloud Run deployments can optionally stage evidence archives through GCS to avoid sending large inline archive payloads to the runner service
 
 Not supported yet:
 
@@ -221,4 +222,11 @@ Cloud Run auth options:
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_AUDIENCE`
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_ALLOW_UNAUTHENTICATED=1`
 
+Optional GCS staging:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_BUCKET`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_GCP_CLOUD_RUN_GCS_PREFIX`
+
 If `..._AUDIENCE` is configured, the backend fetches an identity token from the GCP metadata server before calling the runner service. That is the intended path when the API itself runs on GCP with a service account allowed to invoke the Cloud Run runner.
+
+If `..._GCS_BUCKET` is configured, the backend uploads the prepared evidence archive to that bucket before invoking the runner and sends a `gs://bucket/object` reference plus the uploaded object generation. The runner then downloads the staged archive before executing Foundry.
