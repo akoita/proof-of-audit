@@ -1,6 +1,5 @@
 "use client";
 
-import type { FormEvent } from "react";
 import type { DemoFixture, InputKind, PublicContractConfig } from "../lib/types";
 
 type SubmitPanelProps = {
@@ -10,22 +9,22 @@ type SubmitPanelProps = {
   entryContract: string;
   sourceBundleUri: string;
   sourceBundleLabel: string;
-  selectedFixture: DemoFixture | null;
+  selectedFixture: DemoFixture | undefined;
   isPending: boolean;
   activeAction: string | null;
   config: PublicContractConfig | null;
   onModeChange: (mode: InputKind) => void;
-  onContractAddressChange: (value: string) => void;
-  onEntryContractChange: (value: string) => void;
-  onSourceBundleUriChange: (value: string) => void;
-  onSourceBundleLabelChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onContractAddressChange: (v: string) => void;
+  onEntryContractChange: (v: string) => void;
+  onSourceBundleUriChange: (v: string) => void;
+  onSourceBundleLabelChange: (v: string) => void;
+  onSubmit: () => void;
 };
 
-const MODES: { mode: InputKind; label: string }[] = [
-  { mode: "demo_fixture", label: "Demo fixture" },
-  { mode: "deployed_address", label: "Deployed address" },
-  { mode: "source_bundle", label: "Source bundle" },
+const MODES: { id: InputKind; label: string }[] = [
+  { id: "demo_fixture",     label: "Demo fixture" },
+  { id: "deployed_address", label: "Deployed address" },
+  { id: "source_bundle",    label: "Source bundle" },
 ];
 
 export function SubmitPanel({
@@ -45,88 +44,98 @@ export function SubmitPanel({
   onSubmit,
 }: SubmitPanelProps) {
   return (
-    <form className="submit-card" onSubmit={onSubmit}>
-      <div className="submit-card-heading">
-        <div>
-          <label htmlFor="contractAddress">Audit target</label>
-          <p>
-            Choose how the target code is provided, then generate an audit claim.
-          </p>
-        </div>
-        {selectedFixture ? (
-          <span className="fixture-pill">{selectedFixture.label}</span>
-        ) : null}
-      </div>
+    <div className="card">
+      <div className="card-body submit-panel">
+        <h3 style={{ fontSize: "0.88rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+          <span>📤</span>
+          Artifact Submission
+        </h3>
 
-      <div className="mode-switch" role="tablist" aria-label="Audit input mode">
-        {MODES.map(({ mode, label }) => (
-          <button
-            key={mode}
-            className="mode-chip"
-            data-selected={submissionMode === mode}
-            type="button"
-            onClick={() => onModeChange(mode)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {submissionMode === "source_bundle" ? (
-        <div className="submission-fields">
-          <input
-            id="sourceBundleUri"
-            placeholder="ipfs://uploads/dual-risk-vault.zip"
-            value={sourceBundleUri}
-            onChange={(e) => onSourceBundleUriChange(e.target.value)}
-          />
-          <input
-            id="entryContract"
-            placeholder="Entry contract (optional)"
-            value={entryContract}
-            onChange={(e) => onEntryContractChange(e.target.value)}
-          />
-          <input
-            id="sourceBundleLabel"
-            placeholder="Bundle label (optional)"
-            value={sourceBundleLabel}
-            onChange={(e) => onSourceBundleLabelChange(e.target.value)}
-          />
+        {/* Mode tabs */}
+        <div style={{ display: "flex", gap: 8 }}>
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="badge"
+              style={{
+                cursor: "pointer",
+                padding: "6px 14px",
+                background: submissionMode === m.id ? "var(--primary-container)" : "var(--surface-container-high)",
+                color: submissionMode === m.id ? "var(--on-primary-container)" : "var(--on-surface-variant)",
+                border: "1px solid rgba(67,70,85,0.2)",
+              }}
+              onClick={() => onModeChange(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="submission-fields">
-          <input
-            id="contractAddress"
-            placeholder="0x..."
-            value={contractAddress}
-            onChange={(e) => onContractAddressChange(e.target.value)}
-            disabled={submissionMode === "demo_fixture"}
-          />
-          <input
-            id="entryContract"
-            placeholder="Entry contract (optional)"
-            value={entryContract}
-            onChange={(e) => onEntryContractChange(e.target.value)}
-          />
-        </div>
-      )}
 
-      <div className="submit-card-footer">
-        <p className="helper-copy">
-          {submissionMode === "demo_fixture"
-            ? selectedFixture
-              ? `${selectedFixture.contract_name} selected for a reproducible demo.`
-              : "Pick a demo fixture below to populate the address."
-            : submissionMode === "source_bundle"
-              ? "Provide a bundle URI for source-level audit."
-              : "Paste a deployed contract address."}
-        </p>
-        <button type="submit" disabled={isPending}>
-          {isPending && activeAction?.includes("Generating")
-            ? "Working…"
-            : "Generate claim"}
+        {submissionMode === "source_bundle" ? (
+          <>
+            <div className="drop-zone">
+              <div className="icon">☁️</div>
+              <p>Drop .zip or .sol files here</p>
+            </div>
+            <div className="or-divider"><span>Or</span></div>
+            <div>
+              <label className="section-label">Bundle URI</label>
+              <input
+                className="input-field mono"
+                placeholder="ipfs://... or https://..."
+                value={sourceBundleUri}
+                onChange={(e) => onSourceBundleUriChange(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="section-label">Bundle label</label>
+              <input
+                className="input-field"
+                placeholder="e.g. my-vault-v3"
+                value={sourceBundleLabel}
+                onChange={(e) => onSourceBundleLabelChange(e.target.value)}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="section-label">Deployed Address</label>
+              <input
+                className="input-field mono"
+                placeholder="0x..."
+                value={contractAddress}
+                onChange={(e) => onContractAddressChange(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="section-label">Entry Contract</label>
+              <input
+                className="input-field"
+                value={entryContract}
+                onChange={(e) => onEntryContractChange(e.target.value)}
+              />
+            </div>
+            {selectedFixture ? (
+              <p className="muted" style={{ fontSize: "0.78rem" }}>
+                {selectedFixture.label} selected for a reproducible demo.
+              </p>
+            ) : null}
+          </>
+        )}
+
+        <button
+          type="button"
+          className="cta-primary"
+          disabled={isPending || !contractAddress}
+          onClick={onSubmit}
+          data-testid="submit-audit"
+        >
+          <span>🔬</span>
+          {activeAction ?? "Run Security Analysis"}
         </button>
       </div>
-    </form>
+    </div>
   );
 }

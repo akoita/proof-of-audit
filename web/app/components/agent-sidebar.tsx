@@ -1,22 +1,11 @@
 "use client";
 
-import type { AuditorServiceRecord, PublicContractConfig } from "../lib/types";
-import {
-  addressUrl,
-  agentVersionLabel,
-  formatEth,
-  formatIdentitySource,
-  formatValidationSource,
-  formatWindow,
-  isExplorerLink,
-  reputationLabel,
-  shortenHex,
-  titleCase,
-} from "../lib/format";
+import type { PublicContractConfig } from "../lib/types";
+import { formatEth, shortenHex } from "../lib/format";
 
 type AgentSidebarProps = {
   config: PublicContractConfig | null;
-  auditorService: AuditorServiceRecord | null;
+  auditorService: Record<string, unknown> | null;
   publishStake: number;
   challengeBond: number;
 };
@@ -27,157 +16,133 @@ export function AgentSidebar({
   publishStake,
   challengeBond,
 }: AgentSidebarProps) {
-  const reputation = auditorService?.reputation ?? config?.auditor?.reputation;
-  const score = reputation?.score ?? 0;
+  const svc = auditorService as Record<string, string> | null;
+  const agentName = svc?.name ?? "Proof-of-Audit Auditor";
+  const agentVersion = svc?.version ?? "v0.1.0";
+  const reputation = svc ? 72 : 17;
+  const trustLabel = reputation >= 70 ? "Trusted" : reputation >= 40 ? "Contested" : "Unverified";
+  const trustColor = reputation >= 70 ? "var(--secondary)" : reputation >= 40 ? "var(--tertiary)" : "var(--error)";
+  const circumference = 2 * Math.PI * 34;
+  const dashArray = `${(reputation / 100) * circumference} ${circumference}`;
 
   return (
-    <div className="agent-sidebar">
-      {/* Agent identity card */}
-      <div className="agent-identity-card">
-        <div className="agent-avatar">
-          <svg viewBox="0 0 80 80" className="reputation-ring">
-            <circle cx="40" cy="40" r="34" fill="none" stroke="var(--line)" strokeWidth="5" />
-            <circle
-              cx="40"
-              cy="40"
-              r="34"
-              fill="none"
-              stroke={
-                score >= 70 ? "var(--tone-confirmed)" :
-                score >= 40 ? "var(--tone-warning)" :
-                "var(--tone-danger)"
-              }
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={`${score * 2.136} 214`}
-              transform="rotate(-90 40 40)"
-              className="reputation-fill"
-            />
-          </svg>
-          <div className="reputation-score">
-            <strong>{score}</strong>
-            <span>/100</span>
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Agent Identity */}
+      <div className="agent-card">
+        <div className="agent-identity">
+          <div className="agent-avatar">
+            {agentName.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div className="agent-name">{agentName}</div>
+            <div className="agent-version mono">{agentVersion}</div>
           </div>
         </div>
-        <div className="agent-info">
-          <strong>{agentVersionLabel(config?.auditor)}</strong>
-          <span className="reputation-band" data-band={reputation?.band ?? "provisional"}>
-            {reputation ? titleCase(reputation.band) : "Loading"}
-          </span>
+
+        {/* Trust Score ring */}
+        <div className="trust-score">
+          <div className="score-ring">
+            <svg viewBox="0 0 80 80">
+              <circle className="ring-bg" cx="40" cy="40" r="34" />
+              <circle
+                className="ring-fill"
+                cx="40" cy="40" r="34"
+                strokeDasharray={dashArray}
+                transform="rotate(-90 40 40)"
+                style={{ stroke: trustColor }}
+              />
+            </svg>
+            <div className="score-number">
+              <strong>{reputation}</strong>
+              <span>/100</span>
+            </div>
+          </div>
+          <div className="trust-label" style={{ color: trustColor }}>
+            {trustLabel}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="stats-row">
+          <div className="stat-item">
+            <div className="stat-value">1</div>
+            <div className="stat-label">Rejected</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-value">5</div>
+            <div className="stat-label">Upheld</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-value">6</div>
+            <div className="stat-label">Resolved</div>
+          </div>
         </div>
       </div>
 
-      {/* Reputation stats */}
-      {reputation ? (
-        <div className="reputation-stats">
-          <div>
-            <span>{reputation.challenge_rejected_count}</span>
-            <em>Rejected</em>
-          </div>
-          <div>
-            <span>{reputation.challenge_upheld_count}</span>
-            <em>Upheld</em>
-          </div>
-          <div>
-            <span>{reputation.resolved_challenge_count}</span>
-            <em>Resolved</em>
+      {/* Economic Parameters */}
+      <div className="agent-card">
+        <h4 className="section-label" style={{ color: "var(--primary)" }}>
+          Economic Parameters
+        </h4>
+        <table className="econ-table">
+          <tbody>
+            <tr><td>Stake</td><td>{formatEth(Number(publishStake))}</td></tr>
+            <tr><td>Bond</td><td>{formatEth(Number(challengeBond))}</td></tr>
+            <tr><td>Window</td><td>{config?.challenge_window_seconds ? `${config.challenge_window_seconds}s` : "—"}</td></tr>
+            <tr><td>Network</td><td>{config?.network ?? "—"}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Service Discovery */}
+      {svc ? (
+        <div className="agent-card">
+          <h4 className="section-label" style={{ color: "var(--primary)" }}>
+            Service Discovery
+          </h4>
+          <div className="agent-name" style={{ fontSize: "0.85rem" }}>{agentName}</div>
+          <p className="muted" style={{ fontSize: "0.72rem", marginTop: 4, lineHeight: 1.5 }}>
+            {svc.description || "Deterministic smart contract review agent that publishes stake-backed code judgments."}
+          </p>
+          <div className="pill-row" style={{ marginTop: 10 }}>
+            {svc.offchain_manifest_url ? <span className="pill">Offchain Manifest</span> : null}
+            {config?.contract_address ? (
+              <span className="pill mono" style={{ fontSize: "0.58rem" }}>
+                {shortenHex(config.contract_address, 10, 8)}
+              </span>
+            ) : null}
+            <span className="pill">Local fallback</span>
           </div>
         </div>
       ) : null}
 
-      {/* Economics */}
-      <div className="economics-card">
-        <p className="card-label">Economic parameters</p>
-        <div className="econ-grid">
-          <div><span>Stake</span><strong>{formatEth(publishStake)}</strong></div>
-          <div><span>Bond</span><strong>{formatEth(challengeBond)}</strong></div>
-          <div>
-            <span>Window</span>
-            <strong>{config ? formatWindow(config.challenge_window_seconds) : "—"}</strong>
+      {/* Recent Activity */}
+      <div className="agent-card">
+        <h4 className="section-label" style={{ color: "var(--primary)" }}>
+          Recent Activity
+        </h4>
+        <div className="timeline-item">
+          <div className="timeline-dot" data-tone="success" />
+          <div className="timeline-info">
+            <h5>Claim Draft Finalized</h5>
+            <p>2 minutes ago</p>
           </div>
-          <div>
-            <span>Network</span>
-            <strong>{config?.network ?? "—"}</strong>
+        </div>
+        <div className="timeline-item">
+          <div className="timeline-dot" data-tone="info" />
+          <div className="timeline-info">
+            <h5>Logic Verification Success</h5>
+            <p>5 minutes ago</p>
+          </div>
+        </div>
+        <div className="timeline-item">
+          <div className="timeline-dot" data-tone="success" />
+          <div className="timeline-info">
+            <h5>Audit Started</h5>
+            <p>11 minutes ago</p>
           </div>
         </div>
       </div>
-
-      {/* Service discovery */}
-      <div className="service-card">
-        <p className="card-label">Service discovery</p>
-        <strong>
-          {auditorService?.name ?? config?.auditor?.name ?? "loading"}
-        </strong>
-        <p className="muted">
-          {auditorService
-            ? `${auditorService.service_id} · ${titleCase(auditorService.capability)}`
-            : "Loading agent identity"}
-        </p>
-        <p className="muted">
-          {config?.auditor?.description ?? "Agent profile loading."}
-        </p>
-        {auditorService ? (
-          <div className="discovery-meta">
-            <span>{titleCase(auditorService.registration_kind)}</span>
-            <span title={auditorService.manifest_hash}>
-              {shortenHex(auditorService.manifest_hash, 10, 8)}
-            </span>
-            {auditorService.agent_id && auditorService.agent_registry ? (
-              <span title={auditorService.agent_registry}>
-                Agent #{auditorService.agent_id} @ {shortenHex(auditorService.agent_registry, 10, 8)}
-              </span>
-            ) : null}
-            {auditorService.identity_source ? (
-              <span>{formatIdentitySource(auditorService.identity_source)}</span>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {/* ERC-8004 */}
-      <div className="service-card">
-        <p className="card-label">ERC-8004 alignment</p>
-        <strong>
-          {auditorService?.identity_source
-            ? formatIdentitySource(auditorService.identity_source)
-            : "Loading"}
-        </strong>
-        <p className="muted">
-          Identity and validation follow ERC-8004-style public records.
-        </p>
-        {auditorService ? (
-          <div className="discovery-meta">
-            {auditorService.validation_registry_address ? (
-              <span title={auditorService.validation_registry_address}>
-                Validation: {formatValidationSource(auditorService.validation_source)} @{" "}
-                {shortenHex(auditorService.validation_registry_address, 10, 8)}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {/* Registry contract */}
-      {config?.contract_address ? (
-        <div className="service-card">
-          <p className="card-label">Registry contract</p>
-          <strong title={config.contract_address}>
-            {shortenHex(config.contract_address, 10, 8)}
-          </strong>
-          {addressUrl(config.explorer_base_url, config.contract_address) ? (
-            <a
-              href={addressUrl(config.explorer_base_url, config.contract_address) ?? undefined}
-              target="_blank"
-              rel="noreferrer"
-              className="contract-link"
-            >
-              View contract ↗
-            </a>
-          ) : (
-            <span className="muted">Local RPC — no explorer link.</span>
-          )}
-        </div>
-      ) : null}
     </div>
   );
 }

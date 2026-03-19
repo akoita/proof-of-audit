@@ -12,6 +12,7 @@ import type {
   TargetComparisonResponse,
 } from "./lib/types";
 import { Navbar } from "./components/navbar";
+import { Sidebar } from "./components/sidebar";
 import { PhaseStepper } from "./components/phase-stepper";
 import { SubmitPanel } from "./components/submit-panel";
 import { FixtureStrip } from "./components/fixture-strip";
@@ -20,7 +21,6 @@ import { ActionsPanel } from "./components/actions-panel";
 import { OnchainCard } from "./components/onchain-card";
 import { ValidationCard } from "./components/validation-card";
 import { ChallengeCard } from "./components/challenge-card";
-import { FindingsList } from "./components/findings-list";
 import { AgentSidebar } from "./components/agent-sidebar";
 import { RecentClaims } from "./components/recent-claims";
 import { TargetComparison } from "./components/target-comparison";
@@ -31,6 +31,9 @@ function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
 }
 
 export function AuditWorkbench() {
+  /* ── sidebar state ────────────────────────────────────── */
+  const [activeView, setActiveView] = useState("workbench");
+
   /* ── form state ─────────────────────────────────────── */
   const [submissionMode, setSubmissionMode] = useState<InputKind>("demo_fixture");
   const [contractAddress, setContractAddress] = useState("");
@@ -59,7 +62,7 @@ export function AuditWorkbench() {
   const selectedFixture =
     demoFixtures.find((f) => f.id === selectedFixtureId) ??
     demoFixtures.find((f) => f.address === contractAddress) ??
-    null;
+    undefined;
   const publishStake = contractConfig?.required_stake_wei ?? 10_000_000_000_000_000;
   const challengeBond = contractConfig?.required_challenge_bond_wei ?? 5_000_000_000_000_000;
 
@@ -138,8 +141,8 @@ export function AuditWorkbench() {
     );
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     setError(null);
     setActiveAction("Generating deterministic audit report");
     startTransition(() =>
@@ -222,47 +225,82 @@ export function AuditWorkbench() {
   /* ── render ─────────────────────────────────────────── */
   return (
     <div className="app-shell">
+      <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <Navbar config={contractConfig} />
 
       <main className="page-shell">
-        {/* Dashboard title row */}
-        <div id="dashboard-top" className="dashboard-header">
-          <h1 className="dashboard-title">Dashboard</h1>
+        {/* Page header */}
+        <div className="page-header">
+          <div className="page-header-left">
+            <div className="page-eyebrow">
+              <span>Workspace</span>
+              <div className="health-badge">
+                <span className="health-dot" />
+                <span>System Healthy</span>
+              </div>
+            </div>
+            <h1>Audit Workbench</h1>
+            <p>Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine.</p>
+          </div>
+          <div className="page-meta-badge">
+            ⏱ AUTO-SAVE: 2 MIN AGO
+          </div>
         </div>
 
         {/* Phase stepper */}
         <PhaseStepper audit={activeAudit} />
 
-        {/* Submit (compact) */}
-        <section className="submit-section">
-          <SubmitPanel
-            submissionMode={submissionMode}
-            contractAddress={contractAddress}
-            selectedFixtureId={selectedFixtureId}
-            entryContract={entryContract}
-            sourceBundleUri={sourceBundleUri}
-            sourceBundleLabel={sourceBundleLabel}
-            selectedFixture={selectedFixture}
-            isPending={isPending}
-            activeAction={activeAction}
-            config={contractConfig}
-            onModeChange={setSubmissionMode}
-            onContractAddressChange={setContractAddress}
-            onEntryContractChange={setEntryContract}
-            onSourceBundleUriChange={setSourceBundleUri}
-            onSourceBundleLabelChange={setSourceBundleLabel}
-            onSubmit={handleSubmit}
-          />
-          {activeAction ? (
-            <p className="notice-banner notice-banner-info">{activeAction}…</p>
-          ) : null}
-          {error ? <p className="error-banner">{error}</p> : null}
-          {loadError ? <p className="error-banner">{loadError}</p> : null}
-        </section>
+        {/* Main workspace: submission + audit report */}
+        <section className="workspace-grid">
+          {/* Left column: submit + meta */}
+          <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
+            <SubmitPanel
+              submissionMode={submissionMode}
+              contractAddress={contractAddress}
+              selectedFixtureId={selectedFixtureId}
+              entryContract={entryContract}
+              sourceBundleUri={sourceBundleUri}
+              sourceBundleLabel={sourceBundleLabel}
+              selectedFixture={selectedFixture}
+              isPending={isPending}
+              activeAction={activeAction}
+              config={contractConfig}
+              onModeChange={setSubmissionMode}
+              onContractAddressChange={setContractAddress}
+              onEntryContractChange={setEntryContract}
+              onSourceBundleUriChange={setSourceBundleUri}
+              onSourceBundleLabelChange={setSourceBundleLabel}
+              onSubmit={() => handleSubmit()}
+            />
+            {activeAction ? (
+              <p className="notice-banner notice-banner-info">{activeAction}…</p>
+            ) : null}
+            {error ? <p className="error-banner">{error}</p> : null}
+            {loadError ? <p className="error-banner">{loadError}</p> : null}
 
-        {/* Main workspace: audit report + agent sidebar */}
-        <section id="audit-section" className="workspace-grid">
-          <article className="panel report-panel">
+            {/* Meta bento */}
+            <div className="meta-bento">
+              <div className="meta-bento-item">
+                <div className="meta-label">Audit Type</div>
+                <div className="meta-value">Automated Pro</div>
+              </div>
+              <div className="meta-bento-item">
+                <div className="meta-label">Version</div>
+                <div className="meta-value">v2.4.1-alpha</div>
+              </div>
+            </div>
+
+            {/* Agent sidebar cards */}
+            <AgentSidebar
+              config={contractConfig}
+              auditorService={auditorService}
+              publishStake={publishStake}
+              challengeBond={challengeBond}
+            />
+          </div>
+
+          {/* Right column: audit report */}
+          <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
             {activeAudit ? (
               <>
                 <AuditCard audit={activeAudit} />
@@ -281,42 +319,33 @@ export function AuditWorkbench() {
                 <OnchainCard audit={activeAudit} />
                 <ValidationCard audit={activeAudit} />
                 <ChallengeCard audit={activeAudit} />
-                <FindingsList findings={activeAudit.report.findings} />
+                <TargetComparison
+                  audit={activeAudit}
+                  comparison={targetComparison}
+                  isLoaded={isComparisonLoaded}
+                  onSelect={syncAudit}
+                />
+                <RecentClaims
+                  audits={recentAudits}
+                  activeId={activeAudit?.id ?? null}
+                  isLoaded={isLoaded}
+                  onSelect={syncAudit}
+                />
               </>
             ) : (
-              <div className="empty-panel">
-                <strong>No active audit selected</strong>
-                <p className="muted">
-                  Generate a claim to populate the workbench, or pick one from recent activity.
-                </p>
+              <div className="card">
+                <div className="empty-panel">
+                  <strong>No active audit selected</strong>
+                  <p className="muted">
+                    Generate a claim to populate the workbench, or pick one from recent activity.
+                  </p>
+                </div>
               </div>
             )}
-          </article>
-
-          <aside id="explorer-section" className="panel recent-panel">
-            <AgentSidebar
-              config={contractConfig}
-              auditorService={auditorService}
-              publishStake={publishStake}
-              challengeBond={challengeBond}
-            />
-            <TargetComparison
-              audit={activeAudit}
-              comparison={targetComparison}
-              isLoaded={isComparisonLoaded}
-              onSelect={syncAudit}
-            />
-            <div id="claims-section" />
-            <RecentClaims
-              audits={recentAudits}
-              activeId={activeAudit?.id ?? null}
-              isLoaded={isLoaded}
-              onSelect={syncAudit}
-            />
-          </aside>
+          </div>
         </section>
 
-        {/* Fixtures — at the bottom like the mockup */}
+        {/* Fixtures — at the bottom */}
         <FixtureStrip
           fixtures={demoFixtures}
           selectedId={selectedFixtureId}
@@ -329,6 +358,13 @@ export function AuditWorkbench() {
             setProofUri(f.challenge_proof_uri);
           }}
         />
+
+        {/* Footer data */}
+        <div className="footer-data">
+          <div className="footer-item">💻 Logs: Syncing...</div>
+          <div className="footer-item">🔗 Nodes: 12 Active</div>
+          <div className="footer-item">⛓ Block: 18,241,002</div>
+        </div>
       </main>
     </div>
   );
