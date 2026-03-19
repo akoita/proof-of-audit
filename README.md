@@ -156,6 +156,7 @@ make install-git-hooks
 
 | Doc                                               | What it covers                      |
 | ------------------------------------------------- | ----------------------------------- |
+| [Technical documentation](./docs/TECHNICAL_DOCUMENTATION.md) | Canonical end-to-end technical reference |
 | [Demo script](./docs/DEMO_SCRIPT.md)              | 60-second live walkthrough          |
 | [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
 | [Agent API](./docs/AGENT_API.md)                  | Integration guide for agent callers |

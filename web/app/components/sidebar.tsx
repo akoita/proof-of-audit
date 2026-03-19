@@ -53,7 +53,7 @@ export function Sidebar({ activeView, onViewChange, onNewClaim }: SidebarProps) 
           onClick={() => onViewChange("docs")}
         >
           <span className="icon">📖</span>
-          <span>Documentation</span>
+          <span>Technical Docs</span>
         </button>
         <a
           className="sidebar-nav-item"
