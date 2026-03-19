@@ -88,7 +88,6 @@ def test_gcp_cloud_run_backend_posts_archived_evidence_and_returns_result(
             "42",
             "--gas-limit",
             "30000000",
-            "--no-ffi",
             "-vv",
         ],
         cwd=tmp_path,

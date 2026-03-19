@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -38,6 +41,12 @@ class SystemStack:
         raise KeyError(fixture_id)
 
 
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as handle:
+        handle.bind(("127.0.0.1", 0))
+        return int(handle.getsockname()[1])
+
+
 def _collect_logs(log_dir: Path) -> str:
     sections: list[str] = []
     for log_file in sorted(log_dir.glob("*.log")):
@@ -49,12 +58,19 @@ def _collect_logs(log_dir: Path) -> str:
     return "\n".join(sections).strip()
 
 
-@pytest.fixture(scope="session")
-def system_stack(tmp_path_factory: pytest.TempPathFactory) -> SystemStack:
-    tmp_root = tmp_path_factory.mktemp("system-e2e")
+def _start_system_stack(
+    tmp_root: Path,
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> tuple[SystemStack, Callable[[], None]]:
+    tmp_root.mkdir(parents=True, exist_ok=True)
     log_dir = tmp_root / "logs"
     data_root = tmp_root / "data"
     log_dir.mkdir()
+    anvil_port = _find_free_port()
+    api_port = _find_free_port()
+    api_url = f"http://127.0.0.1:{api_port}"
+    rpc_url = f"http://127.0.0.1:{anvil_port}"
     stack_log_path = log_dir / "stack.log"
     stack_log_handle = stack_log_path.open("w", encoding="utf-8")
 
@@ -65,14 +81,15 @@ def system_stack(tmp_path_factory: pytest.TempPathFactory) -> SystemStack:
             "E2E_DATA_ROOT": str(data_root),
             "E2E_LOG_DIR": str(log_dir),
             "E2E_ANVIL_HOST": "127.0.0.1",
-            "E2E_ANVIL_PORT": "9546",
+            "E2E_ANVIL_PORT": str(anvil_port),
             "E2E_ANVIL_CHAIN_ID": "31339",
             "E2E_API_HOST": "127.0.0.1",
-            "E2E_API_PORT": "18081",
+            "E2E_API_PORT": str(api_port),
+            "PROOF_OF_AUDIT_RPC_URL": rpc_url,
         }
     )
-    api_url = "http://127.0.0.1:18081"
-    rpc_url = "http://127.0.0.1:9546"
+    if env_overrides:
+        env.update(env_overrides)
     process = subprocess.Popen(
         [str(STACK_SCRIPT)],
         cwd=ROOT_DIR,
@@ -83,9 +100,19 @@ def system_stack(tmp_path_factory: pytest.TempPathFactory) -> SystemStack:
     )
 
     client = httpx.Client(base_url=api_url, timeout=10.0)
-    deadline = time.monotonic() + 120
-    started = False
+    def close() -> None:
+        client.close()
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=20)
+        stack_log_handle.close()
     try:
+        deadline = time.monotonic() + 120
+        started = False
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise RuntimeError(
@@ -117,7 +144,12 @@ def system_stack(tmp_path_factory: pytest.TempPathFactory) -> SystemStack:
             address=Web3.to_checksum_address(config_payload["contract_address"]),
             abi=load_contract_abi(),
         )
-        yield SystemStack(
+    except Exception:
+        close()
+        raise
+
+    return (
+        SystemStack(
             api_url=api_url,
             rpc_url=rpc_url,
             client=client,
@@ -126,14 +158,40 @@ def system_stack(tmp_path_factory: pytest.TempPathFactory) -> SystemStack:
             config=config_payload,
             fixtures=fixtures_payload,
             log_dir=log_dir,
-        )
+        ),
+        close,
+    )
+
+
+@pytest.fixture(scope="session")
+def system_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[SystemStack]:
+    stack, close = _start_system_stack(tmp_path_factory.mktemp("system-e2e"))
+    try:
+        yield stack
     finally:
-        client.close()
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=20)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=20)
-        stack_log_handle.close()
+        close()
+
+
+@pytest.fixture
+def system_stack_factory(tmp_path: Path) -> Iterator[Callable[..., SystemStack]]:
+    closers: list[Callable[[], None]] = []
+
+    def start(*, env_overrides: dict[str, str] | None = None) -> SystemStack:
+        stack_index = len(closers)
+        stack, close = _start_system_stack(
+            tmp_path / f"stack-{stack_index}",
+            env_overrides=env_overrides,
+        )
+        closers.append(close)
+        return stack
+
+    try:
+        yield start
+    finally:
+        for close in reversed(closers):
+            close()
+
+
+@pytest.fixture(scope="session")
+def forge_available() -> bool:
+    return shutil.which("forge") is not None

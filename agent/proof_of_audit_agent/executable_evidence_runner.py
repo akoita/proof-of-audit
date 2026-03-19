@@ -23,7 +23,7 @@ from proof_of_audit_agent.executable_evidence_resolver import (
 
 RUNNER_NAME = "foundry-executable-evidence-v1"
 DEFAULT_TIMEOUT_SECONDS = 60
-DEFAULT_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
+DEFAULT_MEMORY_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
 DEFAULT_GAS_LIMIT = 30_000_000
 
 
@@ -182,7 +182,6 @@ class ExecutableEvidenceRunner:
                     str(block_number),
                     "--gas-limit",
                     str(self.gas_limit),
-                    "--no-ffi",
                     "-vv",
                 ]
                 contract_selector = self._contract_selector_from_manifest(manifest)
