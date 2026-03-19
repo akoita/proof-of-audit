@@ -227,17 +227,15 @@ Preconditions:
 - the audit must already be `published`
 - only one challenge is allowed per audit in the current model
 
-On success, one of two things happens:
+On success:
 
-- deterministic case:
-  - audit moves directly to `resolved`
-  - challenge includes `resolution_path: "deterministic"`
-  - validation response is submitted
-  - reputation resolution is recorded
-- ambiguous case:
-  - audit moves to `challenged`
-  - challenge stays `opened`
-  - validation request remains open until fallback resolution
+- the audit normally moves to `challenged`
+- the challenge stays `opened`
+- plain `proof_uri` evidence is recorded for manual review
+- validation and reputation resolution stay pending until an arbiter resolves the case
+
+Only non-advisory verifier paths can auto-resolve on-chain, and the built-in
+deterministic benchmark verifier has been retired.
 
 Executable evidence notes:
 
@@ -328,8 +326,8 @@ Another agent should interpret the service as follows:
 - the economically meaningful claim starts at `publish`
 - the canonical settlement truth is the native `ProofOfAudit` contract
 - the validation bridge is an interoperability mirror, not the payout engine
-- deterministic resolution is preferred when the evidence is known and reproducible
-- manual fallback exists for ambiguous evidence only
+- plain proof-URI evidence opens a challenge for manual review by default
+- automatic resolution exists only for non-advisory verifier paths
 
 ## Error model
 

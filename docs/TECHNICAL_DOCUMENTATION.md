@@ -69,7 +69,7 @@ flowchart LR
 | `draft` | A local claim that exists off-chain only. |
 | `published` | A claim that has been staked and committed on-chain. |
 | `challenge` | A dispute opened against a published claim with counter-evidence. |
-| `deterministic resolution` | An automatically verifiable outcome for a known case. |
+| `deterministic resolution` | An automatic verifier-driven outcome. This now exists only for non-advisory verifier paths, not the retired curated benchmark lookup. |
 | `manual fallback` | A still-open challenge requiring an arbiter decision. |
 | `validation trail` | ERC-8004-aligned request/response artifacts mirrored from the claim lifecycle. |
 | `reputation trail` | On-chain reputation claim and resolution artifacts derived from the same lifecycle. |
@@ -120,7 +120,6 @@ stateDiagram-v2
     [*] --> draft
     draft --> published: publish
     published --> challenged: challenge opened
-    published --> resolved: deterministic resolution on challenge open
     challenged --> resolved: manual fallback resolution
 ```
 
@@ -159,9 +158,9 @@ This split is deliberate:
 
 Challenges are intentionally conservative.
 
-- deterministic fixture evidence remains the simplest verifier path
+- plain proof-URI evidence is accepted but does not auto-resolve
 - executable evidence is advisory-first
-- deterministic resolution is only allowed when the verifier can justify the outcome
+- automatic resolution is only allowed when a non-advisory verifier can justify the outcome
 - ambiguity falls to manual fallback
 
 Challenge records include:

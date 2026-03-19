@@ -9,12 +9,14 @@ if TYPE_CHECKING:
     from api.tests.testnet.conftest import TestnetContext
 
 
+AUDIT_STATUS_CHALLENGED = 2
 AUDIT_STATUS_RESOLVED = 3
+CHALLENGE_RESOLUTION_NONE = 0
 CHALLENGE_RESOLUTION_UPHELD = 1
 
 
 @pytest.mark.testnet_smoke
-def test_base_sepolia_deterministic_workflow_resolves_onchain(
+def test_base_sepolia_plain_proof_uri_workflow_stays_open_onchain(
     testnet_context: TestnetContext,
 ) -> None:
     fixture = testnet_context.smoke_fixture
@@ -36,29 +38,29 @@ def test_base_sepolia_deterministic_workflow_resolves_onchain(
         challenger=f"testnet-challenger-{uuid4().hex[:6]}",
         gas_action="deterministic_challenge",
     )
-    assert challenged["status"] == "resolved"
-    assert challenged["challenge"]["status"] == "upheld"
-    assert challenged["challenge"]["resolution_path"] == "deterministic"
+    assert challenged["status"] == "challenged"
+    assert challenged["challenge"]["status"] == "opened"
+    assert challenged["challenge"]["resolution_path"] == "manual_fallback"
 
     fetched = testnet_context.get_audit(created["id"])
-    assert fetched["status"] == "resolved"
-    assert fetched["challenge"]["resolve_tx_hash"].startswith("0x")
+    assert fetched["status"] == "challenged"
+    assert fetched["challenge"]["resolve_tx_hash"] is None
 
     validation_response = testnet_context.client.get(
         f"/audits/{created['id']}/validation/response"
     )
-    assert validation_response.status_code == 200
+    assert validation_response.status_code == 404
 
     reputation_resolution = testnet_context.client.get(
         f"/audits/{created['id']}/reputation/resolution"
     )
-    assert reputation_resolution.status_code == 200
+    assert reputation_resolution.status_code == 404
 
     audit_record = testnet_context.contract.functions.getAudit(
         fetched["onchain"]["audit_id"]
     ).call()
-    assert int(audit_record[10]) == AUDIT_STATUS_RESOLVED
-    assert int(audit_record[11]) == CHALLENGE_RESOLUTION_UPHELD
+    assert int(audit_record[10]) == AUDIT_STATUS_CHALLENGED
+    assert int(audit_record[11]) == CHALLENGE_RESOLUTION_NONE
 
 
 @pytest.mark.testnet_smoke

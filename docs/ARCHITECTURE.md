@@ -45,7 +45,7 @@ Key file:
 - exposes whether the current identity path is the official ERC-8004 registry or a local fallback
 - emits ERC-8004-aligned validation request and response documents for published and resolved audits
 - submits publish and challenge transactions
-- auto-resolves curated deterministic cases
+- preserves plain proof-URI challenges for manual review
 - leaves ambiguous cases on the manual fallback path
 
 Key files:
@@ -65,7 +65,7 @@ Key files:
 ### Challenge verifier
 
 - evaluates curated proof URIs against benchmark expectations
-- chooses deterministic resolution when the evidence matches a known case
+- can only auto-resolve when a non-advisory verifier produces a concrete upheld or rejected outcome
 - otherwise leaves the dispute on the manual fallback path
 
 Key file:
@@ -112,7 +112,7 @@ The trust model is intentionally narrow:
 - the auditor is explicitly named
 - the claim is recorded on-chain with stake
 - challengers can dispute the claim with evidence
-- deterministic verification is the default path for curated benchmark cases
+- plain proof-URI evidence no longer auto-resolves from a curated benchmark lookup
 - manual arbitration only exists for evidence the verifier cannot confirm
 
 This means the product is strongest as trust and enforcement infrastructure for agent-made judgments, not as a general-purpose audit engine.

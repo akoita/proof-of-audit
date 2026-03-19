@@ -115,7 +115,7 @@ If the goal is to maximize competitive positioning, the next priorities should b
 
 1. Reframe the product and demo around trust and cooperation, not "AI auditor" novelty.
 2. Add a minimal manifest or registry flow so the auditor reads more clearly as an agent service.
-3. Make deterministic resolution the obvious default demo path, with human arbitration positioned as fallback only.
+3. Make manual-review and executable-evidence challenge flows clear in the demo, without promising curated auto-resolution.
 4. Tighten the submission assets: screenshots, demo script, short pitch, and public-facing explanation.
 
 ## Bottom line

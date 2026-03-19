@@ -620,6 +620,14 @@ class AuditApiAppTest(unittest.TestCase):
                 },
             )
             self.assertEqual(challenged.status_code, 200)
+            resolved = client.post(
+                f"/audits/{audit_id}/resolve",
+                json={
+                    "upheld": False,
+                    "resolved_by": "arbiter-operator",
+                },
+            )
+            self.assertEqual(resolved.status_code, 200)
             response_doc = client.get(f"/audits/{audit_id}/validation/response")
             self.assertEqual(response_doc.status_code, 200)
             response_payload = response_doc.json()
@@ -1004,27 +1012,27 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         )
         self.assertEqual(challenged.status_code, 200)
         challenge_payload = challenged.json()
-        self.assertEqual(challenge_payload["status"], "resolved")
-        self.assertEqual(challenge_payload["challenge"]["status"], "rejected")
-        self.assertEqual(challenge_payload["challenge"]["resolution"], "rejected")
+        self.assertEqual(challenge_payload["status"], "challenged")
+        self.assertEqual(challenge_payload["challenge"]["status"], "opened")
+        self.assertIsNone(challenge_payload["challenge"].get("resolution"))
         self.assertEqual(
             challenge_payload["challenge"]["verification_status"],
-            "verified",
+            "verifier_unavailable",
         )
         self.assertEqual(
             challenge_payload["challenge"]["resolution_path"],
-            "deterministic",
+            "manual_fallback",
         )
         self.assertEqual(
             challenge_payload["challenge"]["challenger_address"],
             self.client.app.state.audit_service.publisher.account.address,
         )
         self.assertTrue(challenge_payload["challenge"]["challenge_tx_hash"].startswith("0x"))
-        self.assertTrue(challenge_payload["challenge"]["resolve_tx_hash"].startswith("0x"))
+        self.assertIsNone(challenge_payload["challenge"]["resolve_tx_hash"])
 
         audit_record = self.onchain.contract.functions.getAudit(1).call()
-        self.assertEqual(int(audit_record[10]), 3)
-        self.assertEqual(int(audit_record[11]), 2)
+        self.assertEqual(int(audit_record[10]), 2)
+        self.assertEqual(int(audit_record[11]), 0)
 
     def test_invalid_challenge_evidence_stays_open(self) -> None:
         created = self.client.post(
@@ -1053,7 +1061,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(challenge_payload["challenge"]["status"], "opened")
         self.assertEqual(
             challenge_payload["challenge"]["verification_status"],
-            "invalid_evidence",
+            "verifier_unavailable",
         )
         self.assertEqual(
             challenge_payload["challenge"]["resolution_path"],

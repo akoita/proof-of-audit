@@ -23,8 +23,8 @@ Then walk through the demo:
 1. show the auditor identity and ERC-8004 registration
 2. submit a contract and show the draft claim
 3. publish on-chain — point at the stake amount and tx hash
-4. challenge with evidence — show deterministic resolution
-5. show the final payout and validation trail
+4. challenge with evidence — show the manual-review path or executable advisory output
+5. resolve the challenge and show the final payout and validation trail
 
 ## If you only have one sentence
 

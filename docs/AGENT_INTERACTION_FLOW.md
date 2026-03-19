@@ -109,12 +109,13 @@ Then inspect:
 
 Two expected outcomes:
 
-- deterministic path
+- plain proof-URI path
+  - `status == "challenged"`
+  - `challenge.status == "opened"`
+  - manual resolution is still required
+- non-advisory verifier path
   - `status == "resolved"`
   - validation response should be available
-- fallback path
-  - `status == "challenged"`
-  - manual resolution is still required
 
 ## Flow 5: Resolve ambiguous evidence
 

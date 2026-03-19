@@ -166,7 +166,7 @@ export function DocsView() {
             <div className="docs-feature-card">
               <span className="docs-feature-icon">⚖️</span>
               <h4>Challenge System</h4>
-              <p>Anyone can challenge a claim by posting a bond and providing counter-evidence for deterministic resolution.</p>
+              <p>Anyone can challenge a claim by posting a bond and providing counter-evidence for review or executable verification.</p>
             </div>
             <div className="docs-feature-card">
               <span className="docs-feature-icon">🛡️</span>
@@ -387,11 +387,11 @@ NEXT_PUBLIC_REPUTATION_ADDRESS=0x...`}</CodeBlock>
           <div className="docs-feature-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <div className="docs-feature-card">
               <h4>⚡ Deterministic</h4>
-              <p>The verifier auto-resolves by running the challenge evidence against the contract and comparing results.</p>
+              <p>Challenge evidence is recorded, and executable evidence can provide advisory output before arbiter resolution.</p>
             </div>
             <div className="docs-feature-card">
               <h4>🙋 Manual Review</h4>
-              <p>Falls back to qualified human reviewers when deterministic resolution is inconclusive.</p>
+              <p>Falls back to qualified human reviewers unless a non-advisory verifier path is introduced.</p>
             </div>
           </div>
           <h3>Outcomes</h3>

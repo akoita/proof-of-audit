@@ -145,24 +145,12 @@ export function relativeTimeLabel(timestamp: string): string {
 }
 
 export function suggestedProofUriForBenchmark(benchmarkId: string): string {
-  switch (benchmarkId) {
-    case "clean-vault":
-      return "ipfs://clean-vault/missed-reentrancy";
-    case "reentrancy-bank":
-      return "ipfs://reentrancy-bank/withdraw-drain";
-    case "admin-setter":
-      return "ipfs://admin-setter/unauthorized-admin-change";
-    case "dual-risk-vault":
-      return "ipfs://dual-risk-vault/owner-takeover";
-    case "unchecked-treasury":
-      return "ipfs://unchecked-treasury/unchecked-call-failure";
-    default:
-      return "ipfs://benchmark-proof";
-  }
+  void benchmarkId;
+  return "ipfs://challenge-evidence";
 }
 
 export function challengePathLabel(audit: AuditRecord): string {
-  if (!audit.challenge) return "Deterministic path ready";
+  if (!audit.challenge) return "Manual review path";
   return audit.challenge.resolution_path === "deterministic"
     ? "Deterministic path"
     : "Manual fallback";
@@ -170,10 +158,10 @@ export function challengePathLabel(audit: AuditRecord): string {
 
 export function challengePathSummary(audit: AuditRecord): string {
   if (!audit.challenge) {
-    return "Curated fixture evidence auto-resolves known benchmark cases on-chain.";
+    return "Plain proof-URI challenges are recorded for manual review unless executable evidence provides an advisory signal.";
   }
   if (audit.challenge.resolution_path === "deterministic") {
-    return "The verifier matched curated benchmark evidence and completed on-chain resolution automatically.";
+    return "This record predates deterministic-verifier removal and was resolved automatically.";
   }
-  return "The verifier could not confirm a curated case. Challenge is on the manual fallback path.";
+  return "The verifier did not auto-resolve this challenge. It remains on the manual fallback path unless an arbiter resolves it.";
 }
