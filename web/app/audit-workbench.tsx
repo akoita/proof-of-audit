@@ -17,6 +17,7 @@ import { PhaseStepper } from "./components/phase-stepper";
 import { SubmitPanel } from "./components/submit-panel";
 import { FixtureStrip } from "./components/fixture-strip";
 import { AuditCard } from "./components/audit-card";
+import { FindingsList } from "./components/findings-list";
 import { ActionsPanel } from "./components/actions-panel";
 import { OnchainCard } from "./components/onchain-card";
 import { ValidationCard } from "./components/validation-card";
@@ -381,6 +382,7 @@ export function AuditWorkbench() {
                 {activeAudit ? (
                   <>
                     <AuditCard audit={activeAudit} />
+                    <FindingsList findings={activeAudit.report.findings} />
                     <ActionsPanel
                       audit={activeAudit}
                       config={contractConfig}
