@@ -61,13 +61,31 @@ test("dual risk vault renders the richer multi-finding report", async ({ page })
   await createAuditFromFixture(page, /Dual Risk Vault/i);
 
   await expect(page.getByText("Detailed Analysis Findings", { exact: true })).toBeVisible();
+  await expect(page.getByText("Findings", { exact: true })).toBeVisible();
   await expect(page.getByText("Missing access control on rotateOwner()")).toBeVisible();
   await expect(page.getByText("Unchecked external call in emergencyPayout()")).toBeVisible();
+  await expect(page.getByText(/Access Control · High confidence · rotateOwner\(address\)/i)).toBeVisible();
+  await expect(
+    page.getByText(/Unchecked External Call · Medium confidence · emergencyPayout\(uint256\)/i),
+  ).toBeVisible();
   await expect(
     page.getByText(/Ownership can be reassigned by any caller without authorization/i),
   ).toBeVisible();
   await expect(
     page.getByText(/The emergency payout path ignores the success flag from a low-level call/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/An attacker can seize control of privileged payout operations/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Restrict ownership changes to the current owner or a governed admin path/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Source: demo\/contracts\/DualRiskVault\.sol:15-17/i),
+  ).toBeVisible();
+  await expect(page.getByText(/Evidence: ipfs:\/\/dual-risk-vault\/owner-takeover/i)).toBeVisible();
+  await expect(
+    page.getByText(/Evidence: ipfs:\/\/dual-risk-vault\/emergency-payout-failure/i),
   ).toBeVisible();
 });
 
