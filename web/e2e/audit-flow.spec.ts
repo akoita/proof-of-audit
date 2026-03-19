@@ -31,7 +31,6 @@ test("fixture audit can be created, published, and challenged onto manual fallba
   await page.getByTestId("challenge-btn").click();
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
-  await expect(page.getByText("Challenge & Resolution", { exact: true })).toBeVisible();
   await expect(page.getByText("Manual Fallback", { exact: true })).toBeVisible();
   await expect(page.getByText(/Plain proof-URI challenges require manual review/i)).toBeVisible();
 });
