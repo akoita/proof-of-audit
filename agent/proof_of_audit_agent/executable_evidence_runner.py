@@ -3,13 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+import subprocess
 from pathlib import Path
 import shutil
-import subprocess
 import tempfile
-from typing import Callable
 from urllib import error, request
 
+from proof_of_audit_agent.backends import (
+    EvidenceExecutionBackend,
+    LocalSubprocessBackend,
+)
 from proof_of_audit_agent.challenge_verifier import EvidenceContext
 from proof_of_audit_agent.executable_evidence_resolver import (
     EvidenceResolutionError,
@@ -30,6 +33,8 @@ class ExecutableEvidenceRunResult:
     detail: str
     stdout: str = ""
     stderr: str = ""
+    backend: str | None = None
+    isolation_level: str | None = None
     source_path: str | None = None
     source_text: str | None = None
     fork_block_number: int | None = None
@@ -44,9 +49,6 @@ class ExecutableEvidenceRunResult:
         return "\n".join(parts).strip()
 
 
-Executor = Callable[..., subprocess.CompletedProcess[str]]
-
-
 class ExecutableEvidenceRunner:
     def __init__(
         self,
@@ -55,15 +57,19 @@ class ExecutableEvidenceRunner:
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
         gas_limit: int = DEFAULT_GAS_LIMIT,
-        executor: Executor | None = None,
         resolver: ExecutableEvidenceResolver | None = None,
+        backend: EvidenceExecutionBackend | None = None,
+        executor: object | None = None,
     ) -> None:
         self.forge_bin = forge_bin
         self.timeout_seconds = timeout_seconds
         self.memory_limit_bytes = memory_limit_bytes
         self.gas_limit = gas_limit
-        self._executor = executor or subprocess.run
         self.resolver = resolver or ExecutableEvidenceResolver()
+        self.backend = backend or LocalSubprocessBackend(
+            executable_name=forge_bin,
+            executor=executor,
+        )
 
     def run(self, context: EvidenceContext) -> ExecutableEvidenceRunResult:
         if context.execution_env != "foundry":
@@ -101,11 +107,11 @@ class ExecutableEvidenceRunner:
                     source_path=str(source_path),
                     source_text=source_text,
                 )
-            if shutil.which(self.forge_bin) is None:
+            if not self.backend.is_available():
                 return ExecutableEvidenceRunResult(
                     outcome="runner_error",
-                    summary="Foundry is not installed on this API host.",
-                    detail="Install forge before enabling executable evidence verification.",
+                    summary="No executable evidence backend is available on this API host.",
+                    detail="Configure an available evidence execution backend before enabling executable evidence verification.",
                     source_path=str(source_path),
                     source_text=source_text,
                 )
@@ -172,15 +178,12 @@ class ExecutableEvidenceRunner:
                 if contract_selector is not None:
                     command.extend(["--match-contract", contract_selector])
                 try:
-                    result = self._executor(
-                        command,
+                    result = self.backend.execute(
+                        command=command,
                         cwd=root,
                         env=env,
-                        text=True,
-                        capture_output=True,
-                        timeout=self.timeout_seconds,
-                        preexec_fn=self._build_preexec_fn(),
-                        check=False,
+                        timeout_seconds=self.timeout_seconds,
+                        memory_limit_bytes=self.memory_limit_bytes,
                     )
                 except subprocess.TimeoutExpired as exc:
                     return ExecutableEvidenceRunResult(
@@ -218,6 +221,8 @@ class ExecutableEvidenceRunner:
             ),
             stdout=result.stdout,
             stderr=result.stderr,
+            backend=result.backend,
+            isolation_level=result.isolation_level,
             source_path=str(source_path),
             source_text=source_text,
             fork_block_number=block_number,
@@ -285,17 +290,3 @@ class ExecutableEvidenceRunner:
         if isinstance(match_contract, str) and match_contract:
             return match_contract
         return None
-
-    def _build_preexec_fn(self) -> Callable[[], None] | None:
-        try:
-            import resource
-        except ImportError:
-            return None
-
-        def configure_limits() -> None:
-            resource.setrlimit(
-                resource.RLIMIT_AS,
-                (self.memory_limit_bytes, self.memory_limit_bytes),
-            )
-
-        return configure_limits
