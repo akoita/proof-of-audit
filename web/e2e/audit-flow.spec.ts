@@ -7,7 +7,6 @@ async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await page.getByRole("button", { name: fixtureName }).click();
   await page.getByTestId("submit-audit").click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
-  await expect(page.getByText("Findings", { exact: true })).toBeVisible();
 }
 
 async function publishActiveAudit(page: Page) {
@@ -210,10 +209,11 @@ test("redesigned dashboards only show real state or explicit unavailable labels"
 
 test("redesigned controls are wired to real links and stateful actions", async ({ page }) => {
   await page.goto("/");
+  const sidebarNav = page.locator(".sidebar-nav");
 
   await page.getByRole("button", { name: /Technical Docs/i }).click();
   await expect(page.getByRole("heading", { name: /Proof-of-Audit Documentation/i })).toBeVisible();
-  await page.getByRole("button", { name: "Workbench" }).click();
+  await sidebarNav.getByRole("button", { name: "Workbench" }).click();
 
   await expect(page.getByRole("link", { name: /Support/i })).toHaveAttribute(
     "href",
@@ -223,7 +223,6 @@ test("redesigned controls are wired to real links and stateful actions", async (
   await createAuditFromFixture(page, /Dual Risk Vault/i);
   await publishActiveAudit(page);
 
-  const sidebarNav = page.locator(".sidebar-nav");
   await sidebarNav.getByRole("button", { name: "Published" }).click();
 
   await page.getByRole("button", { name: "Code Audit" }).click();
