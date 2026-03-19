@@ -239,6 +239,22 @@ The API can target the deployed contract with:
 - `PROOF_OF_AUDIT_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY`
 
+For executable evidence hardening, the API can also switch advisory Foundry execution to Docker:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_IMAGE`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_BIN`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_NETWORK`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_CPUS`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_PIDS_LIMIT`
+
+Recommended Docker backend notes:
+
+- pre-pull and pin a specific Foundry image tag instead of relying on `latest`
+- make sure `PROOF_OF_AUDIT_RPC_URL` resolves from inside the container, not only from the host
+- the Docker backend mounts validated evidence read-only and writes compiler cache / artifacts only to container tmpfs
+- plain local Docker can make network usage explicit with `--network`, but it does not enforce single-endpoint egress policy by itself
+
 ## Dry run
 
 ```bash

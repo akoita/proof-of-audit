@@ -15,6 +15,7 @@ That means:
 - the API can carry manifest-shaped metadata for executable evidence
 - the advisory runner can fetch and validate remote evidence into a temp directory before execution
 - validated bundles can be executed from an isolated temp root with manifest-driven entrypoint selection
+- the API host can optionally execute advisory Foundry evidence in a hardened local Docker container instead of directly on the host subprocess path
 
 ## Bundle version
 
@@ -142,6 +143,7 @@ Supported today:
 - archive extraction is guarded by size, file-count, path, symlink, and extension checks
 - executable challenges commit a canonical `evidenceHash` on-chain instead of only hashing the locator URI
 - the advisory runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed hash
+- deployments can switch the advisory runner from `local_subprocess` to `docker` with environment configuration
 
 Not supported yet:
 
@@ -187,3 +189,21 @@ This allows later issues to add:
 - canonical on-chain bundle hash commitments
 
 without redefining the bundle shape again.
+
+## Execution backend configuration
+
+The advisory runner defaults to the local subprocess backend.
+
+To use the hardened local Docker backend instead, configure:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND=docker`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_IMAGE=<foundry-image>`
+
+Optional Docker backend overrides:
+
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_BIN`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_NETWORK`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_CPUS`
+- `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_DOCKER_PIDS_LIMIT`
+
+The Docker backend mounts the validated evidence root read-only at `/evidence`, uses a writable tmpfs at `/tmp` for cache and artifact output, drops all Linux capabilities, and disables new privileges.

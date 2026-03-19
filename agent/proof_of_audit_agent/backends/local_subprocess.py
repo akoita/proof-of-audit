@@ -12,6 +12,7 @@ from proof_of_audit_agent.backends.base import (
 
 
 Executor = Callable[..., subprocess.CompletedProcess[str]]
+Which = Callable[[str], str | None]
 
 
 class LocalSubprocessBackend(EvidenceExecutionBackend):
@@ -20,9 +21,11 @@ class LocalSubprocessBackend(EvidenceExecutionBackend):
         *,
         executable_name: str = "forge",
         executor: Executor | None = None,
+        which: Which | None = None,
     ) -> None:
         self.executable_name = executable_name
         self._executor = executor or subprocess.run
+        self._which = which or shutil.which
 
     @property
     def backend_name(self) -> str:
@@ -33,7 +36,7 @@ class LocalSubprocessBackend(EvidenceExecutionBackend):
         return "process"
 
     def is_available(self) -> bool:
-        return shutil.which(self.executable_name) is not None
+        return self._which(self.executable_name) is not None
 
     def execute(
         self,

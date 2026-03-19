@@ -226,6 +226,8 @@ Executable evidence notes:
 - the runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed on-chain hash
 - `ipfs://` is the primary remote URI path for executable evidence
 - archive extraction is guarded by size, file-count, extension, symlink, and path-traversal checks
+- the API host may execute advisory Foundry evidence either through the local subprocess backend or an explicitly configured Docker backend
+- the Docker backend runs with a read-only evidence mount, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, explicit `--network`, and bounded CPU / memory / PID limits
 
 See [Executable evidence bundle format](./EXECUTABLE_EVIDENCE_BUNDLE.md) for the manifest shape and backward-compatibility rules.
 
