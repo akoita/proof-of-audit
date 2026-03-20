@@ -567,6 +567,7 @@ The topics from the previously scattered docs are covered here as follows:
 | `SEQUENCE_DIAGRAM.md` | [Audit Lifecycle](#audit-lifecycle), [Claim State Machine](#claim-state-machine) |
 | `SECURITY_AUDIT_WORKFLOW.md` | [Security Audit Workflow](#security-audit-workflow) |
 | `EXECUTABLE_EVIDENCE_BUNDLE.md` | [Evidence Bundles](#evidence-bundles) |
+| `CHALLENGE_VERIFIER_V2.md` | [Challenge Resolution](#challenge-resolution), [Challenge Feed](#challenge-feed), [Roadmap Status](#roadmap-status) |
 | `REPUTATION_MODEL.md` | [Reputation Model](#reputation-model) |
 | `ERC8004_ALIGNMENT.md` | [ERC-8004 Positioning](#erc-8004-positioning) |
 | `ERC8004_REGISTRATION.md` | [Registration](#registration) |
@@ -592,5 +593,6 @@ you need implementation detail or presentation material:
 - [Agent API](./AGENT_API.md)
 - [Deployment](./DEPLOYMENT.md)
 - [Executable evidence bundle](./EXECUTABLE_EVIDENCE_BUNDLE.md)
+- [Challenge Verifier V2](./CHALLENGE_VERIFIER_V2.md)
 - [Pluggable auditor integration](./PLUGGABLE_AUDITOR_INTEGRATION.md)
 - [Challenger feed](./CHALLENGER_FEED.md)

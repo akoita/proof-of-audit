@@ -157,6 +157,7 @@ make install-git-hooks
 | Doc                                               | What it covers                      |
 | ------------------------------------------------- | ----------------------------------- |
 | [Technical documentation](./docs/TECHNICAL_DOCUMENTATION.md) | Canonical end-to-end technical reference |
+| [Challenge Verifier V2](./docs/CHALLENGE_VERIFIER_V2.md) | Design for the next-generation challenge adjudication pipeline |
 | [TEE evidence RFC](./docs/TEE_EVIDENCE_RFC.md)    | Research note on TEE-backed evidence execution |
 | [Demo script](./docs/DEMO_SCRIPT.md)              | 60-second live walkthrough          |
 | [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
