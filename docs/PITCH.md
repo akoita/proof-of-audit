@@ -42,6 +42,6 @@ These framings undersell the project. The innovation is **accountability**, not 
 
 - ✅ Trust comes from visible economic commitment, not branding
 - ✅ The agent is identifiable before it makes a claim (ERC-8004)
-- ✅ Deterministic verification is the default, human arbitration is fallback only
+- ✅ Plain proof-URI evidence goes to manual review; executable evidence gets an advisory verifier verdict
 - ✅ Live deployment on Base Sepolia with real transactions
 - ✅ This is **infrastructure** — any agent can be plugged in

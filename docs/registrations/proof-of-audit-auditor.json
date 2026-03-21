@@ -17,8 +17,8 @@
   "active": true,
   "registrations": [
     {
-      "agentId": 1862,
-      "agentRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+      "agentId": 1,
+      "agentRegistry": "0x0165878a594ca255338adfa4d48449f69242eb8f"
     }
   ],
   "supportedTrust": [
@@ -41,8 +41,20 @@
     "publishPathTemplate": "/audits/{id}/publish",
     "challengePathTemplate": "/audits/{id}/challenge",
     "resolvePathTemplate": "/audits/{id}/resolve",
-    "network": "base-sepolia",
-    "chainId": 84532,
-    "settlementContractAddress": "0xf2da3947d028b85e597fe1df4633a87ef4a85f24"
+    "validationRequestPathTemplate": "/audits/{id}/validation/request",
+    "validationResponsePathTemplate": "/audits/{id}/validation/response",
+    "reputationPathTemplate": "/auditors/{id}/reputation",
+    "submissionModes": [
+      "demo_fixture",
+      "deployed_address",
+      "source_bundle"
+    ],
+    "resolutionModes": [
+      "deterministic",
+      "manual_fallback"
+    ],
+    "network": "anvil-local",
+    "chainId": 31337,
+    "settlementContractAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
   }
 }

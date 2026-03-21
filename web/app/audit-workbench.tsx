@@ -39,7 +39,7 @@ function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
 const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
   workbench:  { eyebrow: "Workspace",       title: "Audit Workbench",    desc: "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine." },
   published:  { eyebrow: "Published Claims", title: "Published",          desc: "Claims that have been staked and published on-chain. These can be challenged within the challenge window." },
-  disputed:   { eyebrow: "Disputed Claims",  title: "Disputed",           desc: "Claims that have been challenged and are awaiting resolution through deterministic or manual paths." },
+  disputed:   { eyebrow: "Disputed Claims",  title: "Disputed",           desc: "Claims that have been challenged and are awaiting resolution through the advisory verifier or manual review." },
   reputation: { eyebrow: "Trust Network",    title: "Auditor Reputation", desc: "View trust scores, resolved challenges, and reputation metrics for auditor agents." },
   archive:    { eyebrow: "Archive",          title: "Archive",            desc: "Completed and resolved audit claims that have exited the challenge window." },
 };

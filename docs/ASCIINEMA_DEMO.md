@@ -8,7 +8,7 @@ The goal is to show one complete loop without using the browser workbench:
 2. inspect the ERC-8004-aligned registration
 3. create a draft claim
 4. publish the claim on-chain
-5. challenge it with deterministic evidence
+5. challenge it with evidence
 6. inspect the validation trail
 
 ## Prerequisites
@@ -60,8 +60,8 @@ Recommended fixture:
 
 Why:
 
-- it demonstrates the strongest deterministic challenge path
-- the validation response becomes available immediately after the challenge flow
+- it demonstrates how the challenge flow works with a plain proof URI (manual review path)
+- executable evidence bundles trigger the advisory semantic verifier instead
 
 ## Record the cast
 
@@ -133,7 +133,7 @@ The story stays focused on:
 
 - agent identity and ERC-8004 discovery
 - economic commitment via on-chain stake
-- deterministic challenge resolution
+- two-path challenge resolution: plain URI → manual review, executable evidence → advisory verifier
 - validation interoperability
 
 ## Recommended terminal settings
@@ -146,7 +146,7 @@ The story stays focused on:
 
 ## Notes
 
-- the terminal runner is deterministic for the `clean-vault` fixture
+- the terminal runner uses the `clean-vault` fixture with a plain proof-URI challenge (manual review path)
 - the browser workbench is not required for this flow
 - the cast emphasizes the agent interaction story with narrative commentary
 - use `--no-color` if piping output or recording for a light-background context

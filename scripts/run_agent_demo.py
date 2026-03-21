@@ -138,7 +138,9 @@ def _mini_json(payload: dict[str, Any], keys: list[str], *, indent: int = 4) -> 
         _field(display_key, str(val), indent=indent)
 
 
-def _wei_to_eth(wei: int | str) -> str:
+def _wei_to_eth(wei: int | str | None) -> str:
+    if wei is None:
+        return "—"
     return f"{int(wei) / 1e18:.4f} ETH"
 
 
@@ -444,10 +446,10 @@ def main() -> int:
         "Pick a known contract to audit.",
     )
     _narrative(
-        "The demo uses a curated fixture. The strongest path is"
+        "The demo uses a curated fixture. Plain proof-URI evidence goes"
     )
     _narrative(
-        f"'{args.fixture_id}' — it shows deterministic challenge resolution."
+        f"to manual review; executable evidence gets an advisory verifier verdict."
     )
     _pause(0.3)
 
@@ -474,10 +476,10 @@ def main() -> int:
         "The agent produces a review judgment.",
     )
     _narrative(
-        "The auditor analyzes the contract and produces a deterministic"
+        "The auditor analyzes the contract and produces a review claim."
     )
     _narrative(
-        "review claim. At this stage it is only an uncommitted draft."
+        "At this stage it is only an uncommitted draft."
     )
     _pause(0.3)
 
@@ -590,10 +592,10 @@ def main() -> int:
         "Submit evidence that the judgment is wrong.",
     )
     _narrative(
-        "A challenger submits curated evidence against the claim."
+        "A challenger submits evidence against the claim."
     )
     _narrative(
-        "Known benchmark evidence resolves deterministically on-chain."
+        "Plain proof-URI evidence goes to manual review. Executable evidence gets an advisory verifier verdict."
     )
     _pause(0.3)
 
@@ -623,9 +625,9 @@ def main() -> int:
     _field("Challenger", ch.get("challenger", "—"))
     _field("Challenge tx", _short_hash(ch.get("challenge_tx_hash")))
     _field("Resolve tx", _short_hash(ch.get("resolve_tx_hash")))
-    _field("Payout", _wei_to_eth(ch.get("payout_wei", 0)))
+    _field("Payout", _wei_to_eth(ch.get("payout_wei")))
     _blank()
-    _status_badge("Challenge resolved deterministically")
+    _status_badge("Challenge opened")
     _pause()
 
     # ── Phase 7: Validation response ─────────────────────────────────────
@@ -646,22 +648,28 @@ def main() -> int:
     status_code, val_resp = api_request(
         base_url, "GET", f"/audits/{audit_id}/validation/response"
     )
-    if status_code != 200:
-        raise RuntimeError(f"validation/response returned {status_code}")
-
     _blank()
-    _field("Type", val_resp.get("type", "—"))
-    _field("Response", val_resp.get("response", "—"))
-    _field("Tag", c(str(val_resp.get("tag", "—")), C.RED, C.BOLD))
-    outcome = val_resp.get("outcome", {})
-    _field("Audit status", outcome.get("auditStatus", "—"))
-    _field("Challenge status", outcome.get("challengeStatus", "—"))
-    _field("Resolution path", outcome.get("resolutionPath", "—"))
-    evidence = val_resp.get("evidence", {})
-    _field("Proof URI", evidence.get("proofUri", "—"))
-    _field("Verification", evidence.get("verificationSummary", "—"))
-    _blank()
-    _status_badge("Validation response recorded")
+    if status_code == 404:
+        _field("Status", c("PENDING MANUAL REVIEW", C.YELLOW, C.BOLD))
+        _field("Note", "Validation response is published after the challenge is manually resolved.")
+        _field("Verifier", "manual-proof-review-v1")
+        _blank()
+        _status_badge("Manual review pending — response will be published after arbitration", ok=False)
+    else:
+        if status_code != 200:
+            raise RuntimeError(f"validation/response returned {status_code}")
+        _field("Type", val_resp.get("type", "—"))
+        _field("Response", val_resp.get("response", "—"))
+        _field("Tag", c(str(val_resp.get("tag", "—")), C.RED, C.BOLD))
+        outcome = val_resp.get("outcome", {})
+        _field("Audit status", outcome.get("auditStatus", "—"))
+        _field("Challenge status", outcome.get("challengeStatus", "—"))
+        _field("Resolution path", outcome.get("resolutionPath", "—"))
+        evidence = val_resp.get("evidence", {})
+        _field("Proof URI", evidence.get("proofUri", "—"))
+        _field("Verification", evidence.get("verificationSummary", "—"))
+        _blank()
+        _status_badge("Validation response recorded")
     _pause()
 
     # ── Phase 8: Final record ────────────────────────────────────────────
