@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-testnet-smoke test-ui-e2e test-e2e
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-testnet-smoke test-ui-e2e test-e2e benchmark-challenge-verifier
 
 PYTHON ?= python3
 
@@ -46,3 +46,6 @@ test-ui-e2e:
 	cd web && CI=1 PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} pnpm exec playwright test
 
 test-e2e: test-system-e2e test-ui-e2e
+
+benchmark-challenge-verifier:
+	PYTHONPATH=agent:api $(PYTHON) scripts/run_challenge_verifier_benchmark.py --pretty
