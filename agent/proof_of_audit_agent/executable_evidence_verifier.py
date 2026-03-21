@@ -6,6 +6,8 @@ import re
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerificationResult,
     EvidenceContext,
+    StructuredChallengeClaim,
+    VerificationDossier,
 )
 from proof_of_audit_agent.executable_evidence_runner import (
     ExecutableEvidenceRunResult,
@@ -47,6 +49,7 @@ class ExecutableEvidenceVerifier:
 
     def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
         run_result = self.runner.run(context)
+        claim, signals = self._build_challenge_claim(run_result)
         if run_result.outcome == "invalid_evidence":
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
@@ -56,6 +59,18 @@ class ExecutableEvidenceVerifier:
                 resolution="rejected",
                 advisory_only=True,
                 execution_log=run_result.execution_log or None,
+                challenge_claim=claim,
+                verification_dossier=self._build_dossier(
+                    context=context,
+                    run_result=run_result,
+                    claim=claim,
+                    comparison_status="not_assessed",
+                    policy_status="rejected",
+                    recommended_resolution="rejected",
+                    matched_findings=[],
+                    unmatched_signals=signals,
+                    advisory_only=True,
+                ),
             )
         if run_result.outcome == "runner_error":
             return ChallengeVerificationResult(
@@ -65,6 +80,19 @@ class ExecutableEvidenceVerifier:
                 detail=run_result.detail,
                 advisory_only=True,
                 execution_log=run_result.execution_log or None,
+                challenge_claim=claim,
+                verification_dossier=self._build_dossier(
+                    context=context,
+                    run_result=run_result,
+                    claim=claim,
+                    comparison_status="not_assessed",
+                    policy_status="manual_review_required",
+                    recommended_resolution="manual_review_required",
+                    matched_findings=[],
+                    unmatched_signals=signals,
+                    advisory_only=True,
+                    abstained=True,
+                ),
             )
 
         analysis = self._match_findings(context, run_result)
@@ -79,6 +107,18 @@ class ExecutableEvidenceVerifier:
                 execution_log=run_result.execution_log or None,
                 matched_findings=analysis.matched_findings,
                 unmatched_findings=analysis.unmatched_findings,
+                challenge_claim=claim,
+                verification_dossier=self._build_dossier(
+                    context=context,
+                    run_result=run_result,
+                    claim=claim,
+                    comparison_status="not_assessed",
+                    policy_status="rejected",
+                    recommended_resolution="rejected",
+                    matched_findings=analysis.matched_findings,
+                    unmatched_signals=analysis.unmatched_findings,
+                    advisory_only=True,
+                ),
             )
         if analysis.matched_findings:
             return ChallengeVerificationResult(
@@ -91,6 +131,18 @@ class ExecutableEvidenceVerifier:
                 execution_log=run_result.execution_log or None,
                 matched_findings=analysis.matched_findings,
                 unmatched_findings=analysis.unmatched_findings,
+                challenge_claim=claim,
+                verification_dossier=self._build_dossier(
+                    context=context,
+                    run_result=run_result,
+                    claim=claim,
+                    comparison_status="already_covered",
+                    policy_status="rejected",
+                    recommended_resolution="rejected",
+                    matched_findings=analysis.matched_findings,
+                    unmatched_signals=analysis.unmatched_findings,
+                    advisory_only=True,
+                ),
             )
         if analysis.unmatched_findings:
             return ChallengeVerificationResult(
@@ -103,6 +155,19 @@ class ExecutableEvidenceVerifier:
                 execution_log=run_result.execution_log or None,
                 matched_findings=analysis.matched_findings,
                 unmatched_findings=analysis.unmatched_findings,
+                challenge_claim=claim,
+                verification_dossier=self._build_dossier(
+                    context=context,
+                    run_result=run_result,
+                    claim=claim,
+                    comparison_status="likely_new_issue",
+                    policy_status="manual_review_required",
+                    recommended_resolution="upheld",
+                    matched_findings=analysis.matched_findings,
+                    unmatched_signals=analysis.unmatched_findings,
+                    advisory_only=True,
+                    abstained=True,
+                ),
             )
         return ChallengeVerificationResult(
             verifier=VERIFIER_NAME,
@@ -111,6 +176,121 @@ class ExecutableEvidenceVerifier:
             detail="Manual review is required because the advisory runner could not confidently determine whether the test demonstrates a new issue or one the audit already covered.",
             advisory_only=True,
             execution_log=run_result.execution_log or None,
+            challenge_claim=claim,
+            verification_dossier=self._build_dossier(
+                context=context,
+                run_result=run_result,
+                claim=claim,
+                comparison_status="ambiguous",
+                policy_status="manual_review_required",
+                recommended_resolution="manual_review_required",
+                matched_findings=[],
+                unmatched_signals=signals,
+                advisory_only=True,
+                abstained=True,
+            ),
+        )
+
+    def _build_challenge_claim(
+        self, run_result: ExecutableEvidenceRunResult
+    ) -> tuple[StructuredChallengeClaim | None, list[str]]:
+        signals = sorted(self._extract_issue_signals(run_result))
+        if not signals:
+            if not run_result.source_path and not run_result.source_text:
+                return None, []
+            return (
+                StructuredChallengeClaim(
+                    claim_type="generic_executable_claim",
+                    basis="executable-evidence-runner",
+                    confidence="low",
+                    demonstrated_effect=run_result.summary,
+                    claimed_impact=run_result.detail,
+                ),
+                [],
+            )
+
+        if "reentrancy" in signals:
+            claim_type = "reentrancy"
+            preconditions = ["attacker can trigger a re-entrant call path"]
+            impact = "Potential balance drain or broken accounting through re-entry."
+        elif {"rotateowner", "owner", "admin", "unauthorized"} & set(signals):
+            claim_type = "access_control"
+            preconditions = ["attacker can invoke a privileged code path without authorization"]
+            impact = "Potential privilege escalation or unauthorized configuration changes."
+        elif {"unchecked", "external-call"} & set(signals):
+            claim_type = "unchecked_external_call"
+            preconditions = ["the affected low-level call can fail during execution"]
+            impact = "Potential silent failure or inconsistent accounting after an external call."
+        else:
+            claim_type = "generic_executable_claim"
+            preconditions = []
+            impact = run_result.detail
+
+        affected_surfaces = [
+            signal
+            for signal in signals
+            if signal not in {"reentrancy", "admin", "owner", "unauthorized", "unchecked", "external-call"}
+        ]
+        return (
+            StructuredChallengeClaim(
+                claim_type=claim_type,
+                basis="executable-evidence-runner",
+                confidence="medium",
+                affected_surfaces=affected_surfaces,
+                preconditions=preconditions,
+                demonstrated_effect=run_result.summary,
+                claimed_impact=impact,
+                supporting_signals=signals,
+            ),
+            signals,
+        )
+
+    def _build_dossier(
+        self,
+        *,
+        context: EvidenceContext,
+        run_result: ExecutableEvidenceRunResult,
+        claim: StructuredChallengeClaim | None,
+        comparison_status: str,
+        policy_status: str,
+        recommended_resolution: str,
+        matched_findings: list[str],
+        unmatched_signals: list[str],
+        advisory_only: bool,
+        abstained: bool = False,
+    ) -> VerificationDossier:
+        integrity_status = "valid"
+        if run_result.outcome == "invalid_evidence":
+            integrity_status = "invalid"
+        elif run_result.outcome == "runner_error":
+            integrity_status = "unknown"
+
+        execution_status = {
+            "passed": "passed",
+            "failed": "failed",
+            "invalid_evidence": "not_executed",
+            "runner_error": "runner_error",
+        }.get(run_result.outcome, "unknown")
+
+        return VerificationDossier(
+            verifier_version=VERIFIER_NAME,
+            evidence_type=context.evidence_type,
+            integrity_status=integrity_status,
+            execution_status=execution_status,
+            comparison_status=comparison_status,
+            policy_status=policy_status,
+            advisory_only=advisory_only,
+            challenge_claim=claim,
+            matched_finding_ids=matched_findings,
+            unmatched_signals=unmatched_signals,
+            committed_evidence_hash=context.committed_evidence_hash,
+            execution_env=context.execution_env,
+            backend=run_result.backend,
+            isolation_level=run_result.isolation_level,
+            source_path=run_result.source_path,
+            fork_block_number=run_result.fork_block_number,
+            recommended_resolution=recommended_resolution,
+            abstained=abstained,
         )
 
     def _match_findings(

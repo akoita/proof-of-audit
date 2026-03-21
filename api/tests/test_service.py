@@ -97,6 +97,14 @@ class AuditServiceTest(unittest.TestCase):
             self.assertIsNotNone(hydrated)
             self.assertIn("submission", hydrated)
             self.assertEqual(hydrated["report"]["severity_breakdown"]["high"], 1)
+            self.assertEqual(
+                hydrated["report"]["normalized_findings"][0]["schema_version"],
+                "normalized-audit-finding/v1",
+            )
+            self.assertIn(
+                "reentrancy",
+                hydrated["report"]["normalized_findings"][0]["vulnerability_classes"],
+            )
 
     def test_list_audits_returns_newest_first(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -500,6 +508,14 @@ class AuditServiceTest(unittest.TestCase):
                 "verifier_unavailable",
             )
             self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["schema_version"],
+                "challenge-verifier-dossier/v1",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"]["status"],
+                "manual_review_required",
+            )
+            self.assertEqual(
                 challenged["challenge"]["resolution_path"],
                 "manual_fallback",
             )
@@ -690,6 +706,14 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(challenged["challenge"]["advisory_verdict"], "upheld")
             self.assertEqual(challenged["challenge"]["execution_log"], "forge output")
             self.assertEqual(challenged["challenge"]["unmatched_findings"], ["rotateowner"])
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["comparison"]["status"],
+                "likely_new_issue",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"]["recommended_resolution"],
+                "upheld",
+            )
             hydrated = service.get_audit(created["id"])
             self.assertIsNotNone(hydrated)
             self.assertEqual(hydrated["challenge"]["evidence_type"], "executable_test")
@@ -701,6 +725,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 hydrated["challenge"]["evidence_hash"],
                 challenged["challenge"]["evidence_hash"],
+            )
+            self.assertEqual(
+                hydrated["challenge"]["verification_dossier"]["execution"]["execution_env"],
+                "foundry",
             )
             self.assertEqual(hydrated["challenge"]["advisory_verdict"], "upheld")
             self.assertIsNotNone(executable_verifier.last_context)
