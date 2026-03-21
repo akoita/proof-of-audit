@@ -349,6 +349,10 @@ Build the benchmark before expanding trust.
 
 - issue [#173](https://github.com/akoita/proof-of-audit/issues/173)
 - evaluation corpus and replayable verifier benchmark
+- command: `make benchmark-challenge-verifier`
+- corpus: `agent/benchmarks/challenge_verifier_v2_cases.json`
+- output: structured JSON with per-case verdicts, mismatch reporting, model metadata,
+  schema versions, and classification metrics for covered/new/variant/ambiguous cases
 
 ### Phase 5
 
