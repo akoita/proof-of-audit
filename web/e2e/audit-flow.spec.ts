@@ -47,7 +47,7 @@ test("source bundle mode can submit without a deployed address", async ({ page }
   await expect(submitButton).toBeDisabled();
 
   await page
-    .getByPlaceholder("ipfs://... or https://...")
+    .getByTestId("source-bundle-uri")
     .fill("https://example.com/bundles/reentrancy-bank.zip");
   await expect(submitButton).toBeEnabled();
 
