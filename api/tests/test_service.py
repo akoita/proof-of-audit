@@ -743,6 +743,14 @@ class AuditServiceTest(unittest.TestCase):
                 "foundry",
             )
             self.assertEqual(hydrated["challenge"]["advisory_verdict"], "upheld")
+            self.assertEqual(
+                hydrated["challenge"]["verification_dossier_path"],
+                f"/audits/{created['id']}/challenge/dossier",
+            )
+            self.assertEqual(
+                service.get_challenge_verification_dossier(created["id"])["schema_version"],
+                "challenge-verifier-dossier/v1",
+            )
             self.assertIsNotNone(executable_verifier.last_context)
             self.assertEqual(
                 executable_verifier.last_context.target_contract,

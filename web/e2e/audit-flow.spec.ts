@@ -32,6 +32,11 @@ test("fixture audit can be created, published, and challenged onto manual fallba
 
   await expect(page.getByTestId("current-audit-status")).toHaveText("challenged");
   await expect(page.getByText(/Plain proof-URI challenges require manual review/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /Disputed/i }).click();
+  await expect(page.getByRole("heading", { name: /Verifier Dossier/i })).toBeVisible();
+  await expect(page.getByText(/Machine-Readable Dossier/i)).toBeVisible();
+  await expect(page.getByText(/STRUCTURED CLAIM/i)).toBeVisible();
 });
 
 test("source bundle mode can submit without a deployed address", async ({ page }) => {

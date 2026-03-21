@@ -198,6 +198,7 @@ class ChallengeModel(BaseModel):
     matched_findings: list[str] = Field(default_factory=list)
     unmatched_findings: list[str] = Field(default_factory=list)
     verification_dossier: "VerificationDossierModel | None" = None
+    verification_dossier_path: str | None = None
     resolution: str | None = None
     resolved_at: str | None = None
     resolved_by: str | None = None
@@ -433,6 +434,8 @@ class ChallengerFeedItemModel(BaseModel):
     publish_tx_url: str | None = None
     challenge_tx_hash: str | None = None
     challenge_tx_url: str | None = None
+    verification_status: str | None = None
+    verification_dossier_path: str | None = None
     resolve_tx_hash: str | None = None
     resolve_tx_url: str | None = None
     resolution: str | None = None

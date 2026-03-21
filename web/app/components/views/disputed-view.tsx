@@ -21,6 +21,29 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
   const resolutionMeta = audit.challenge?.verification_status
     ? titleCase(audit.challenge.verification_status)
     : audit.challenge?.verifier ?? "Verifier unavailable";
+  const dossier = audit.challenge?.verification_dossier;
+  const stageRows = dossier
+    ? [
+        ["Integrity", dossier.integrity.status, dossier.integrity.committed_evidence_hash ?? "No evidence hash recorded"],
+        [
+          "Execution",
+          dossier.execution.status,
+          [dossier.execution.execution_env, dossier.execution.backend, dossier.execution.isolation_level]
+            .filter(Boolean)
+            .join(" · ") || "Execution metadata unavailable",
+        ],
+        [
+          "Comparison",
+          dossier.comparison.status,
+          dossier.comparison.rationale ?? "No semantic comparison rationale recorded",
+        ],
+        [
+          "Policy",
+          dossier.policy.status,
+          dossier.policy.rationale ?? "No policy rationale recorded",
+        ],
+      ]
+    : [];
 
   return (
     <div className="view-disputed">
@@ -60,6 +83,16 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               style={{ padding: "10px 20px", fontSize: "0.78rem", textDecoration: "none" }}
             >
               🔐 View Evidence
+            </a>
+          ) : null}
+          {audit.challenge?.verification_dossier_path ? (
+            <a
+              href={audit.challenge.verification_dossier_path}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-outline"
+            >
+              ↗ Machine-Readable Dossier
             </a>
           ) : null}
         </div>
@@ -171,6 +204,73 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               </div>
             </div>
           ) : null}
+
+          {dossier ? (
+            <div className="card">
+              <div className="card-body">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div>
+                    <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Verifier Dossier</h2>
+                    <p className="muted" style={{ fontSize: "0.72rem", marginTop: 4 }}>
+                      {dossier.verifier_version} · schema {dossier.schema_version}
+                    </p>
+                  </div>
+                  <span className={`badge ${dossier.policy.abstained ? "badge-challenged" : "badge-published"}`}>
+                    {dossier.policy.abstained ? "ABSTAINED" : "DECISIVE"}
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+                  {stageRows.map(([label, status, detail]) => (
+                    <div
+                      key={label}
+                      style={{
+                        display: "grid",
+                        gap: 6,
+                        padding: 14,
+                        background: "var(--surface-container-low)",
+                        borderRadius: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                        <span className="hash-label">{label.toUpperCase()}</span>
+                        <span className="badge badge-published" style={{ fontSize: "0.55rem" }}>
+                          {titleCase(String(status))}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.78rem", lineHeight: 1.6 }}>{detail}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {dossier.claim ? (
+                  <div style={{ marginTop: 18 }}>
+                    <div className="hash-label">STRUCTURED CLAIM</div>
+                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <span className="pill">{dossier.claim.claim_type}</span>
+                      <span className="pill">{titleCase(dossier.claim.confidence)} confidence</span>
+                      <span className="pill">{dossier.claim.basis}</span>
+                    </div>
+                    {dossier.claim.demonstrated_effect ? (
+                      <p style={{ fontSize: "0.78rem", lineHeight: 1.6, marginTop: 10 }}>
+                        {dossier.claim.demonstrated_effect}
+                      </p>
+                    ) : null}
+                    {dossier.claim.affected_surfaces.length > 0 ? (
+                      <div style={{ marginTop: 10 }}>
+                        <div className="hash-label">AFFECTED SURFACES</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                          {dossier.claim.affected_surfaces.map((surface) => (
+                            <span key={surface} className="pill mono">{surface}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Right: On-Chain Details + Related Claims */}
@@ -225,6 +325,79 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               </div>
             </div>
           </div>
+
+          {dossier ? (
+            <div className="card">
+              <div className="card-body">
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 700 }}>Uncertainty & Evidence Mapping</h3>
+
+                <div style={{ marginTop: 14 }}>
+                  <div className="hash-label">POLICY CONFIDENCE</div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 600, marginTop: 6 }}>
+                    {titleCase(dossier.policy.confidence)}
+                  </div>
+                  <p className="muted" style={{ fontSize: "0.72rem", lineHeight: 1.6, marginTop: 6 }}>
+                    {dossier.policy.rationale ?? "No policy rationale recorded."}
+                  </p>
+                </div>
+
+                {dossier.comparison.matched_findings.length > 0 ? (
+                  <div style={{ marginTop: 18 }}>
+                    <div className="hash-label">MATCHED FINDINGS</div>
+                    <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                      {dossier.comparison.matched_findings.map((finding) => (
+                        <div
+                          key={`${finding.finding_id}-${finding.relationship}`}
+                          style={{
+                            padding: 12,
+                            borderRadius: 10,
+                            background: "var(--surface-container-low)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                            <code className="mono" style={{ fontSize: "0.7rem" }}>{finding.finding_id}</code>
+                            <span className="badge badge-published" style={{ fontSize: "0.55rem" }}>
+                              {titleCase(finding.relationship.replaceAll("_", " "))}
+                            </span>
+                          </div>
+                          {finding.rationale ? (
+                            <p className="muted" style={{ fontSize: "0.72rem", lineHeight: 1.5, marginTop: 8 }}>
+                              {finding.rationale}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {dossier.comparison.unmatched_signals.length > 0 ? (
+                  <div style={{ marginTop: 18 }}>
+                    <div className="hash-label">UNMATCHED SIGNALS</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {dossier.comparison.unmatched_signals.slice(0, 12).map((signal) => (
+                        <span key={signal} className="pill mono">{signal}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {Object.keys(dossier.model_metadata).length > 0 ? (
+                  <div style={{ marginTop: 18 }}>
+                    <div className="hash-label">MODEL METADATA</div>
+                    <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                      {Object.entries(dossier.model_metadata).map(([key, value]) => (
+                        <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                          <span className="muted" style={{ fontSize: "0.72rem" }}>{key}</span>
+                          <span className="mono" style={{ fontSize: "0.72rem" }}>{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {/* Related Claims */}
           <div className="card">

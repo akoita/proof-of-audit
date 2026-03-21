@@ -15,6 +15,64 @@ export type Finding = {
   evidence_uri?: string | null;
 };
 
+export type ChallengeClaim = {
+  schema_version: string;
+  claim_type: string;
+  basis: string;
+  confidence: string;
+  affected_surfaces: string[];
+  preconditions: string[];
+  demonstrated_effect?: string | null;
+  claimed_impact?: string | null;
+  supporting_signals: string[];
+};
+
+export type VerificationFindingMatch = {
+  finding_id: string;
+  relationship: string;
+  confidence: string;
+  rationale?: string | null;
+  score?: number | null;
+};
+
+export type VerificationDossier = {
+  schema_version: string;
+  verifier_version: string;
+  evidence_type: string;
+  integrity: {
+    status: string;
+    committed_evidence_hash?: string | null;
+  };
+  execution: {
+    status: string;
+    execution_env?: string | null;
+    backend?: string | null;
+    isolation_level?: string | null;
+    source_path?: string | null;
+    fork_block_number?: number | null;
+  };
+  claim?: ChallengeClaim | null;
+  comparison: {
+    status: string;
+    confidence: string;
+    rationale?: string | null;
+    matched_finding_ids: string[];
+    matched_findings: VerificationFindingMatch[];
+    unmatched_signals: string[];
+    disagreement_status: string;
+    disagreement_detail?: string | null;
+  };
+  policy: {
+    status: string;
+    advisory_only: boolean;
+    recommended_resolution?: string | null;
+    abstained: boolean;
+    confidence: string;
+    rationale?: string | null;
+  };
+  model_metadata: Record<string, string | number | boolean | null>;
+};
+
 export type AuditorReputation = {
   score: number;
   band: "provisional" | "trusted" | "mixed" | "contested";
@@ -161,6 +219,10 @@ export type AuditRecord = {
     challenger: string;
     challenger_address?: string | null;
     proof_uri: string;
+    evidence_hash?: string | null;
+    evidence_type?: "deterministic_fixture" | "executable_test";
+    execution_env?: "foundry" | null;
+    evidence_manifest?: Record<string, string | number | boolean | null> | null;
     submitted_at: string;
     verifier: string;
     status: string;
@@ -169,6 +231,12 @@ export type AuditRecord = {
     verification_summary?: string | null;
     verification_detail?: string | null;
     verification_case_id?: string | null;
+    advisory_verdict?: "upheld" | "rejected" | null;
+    execution_log?: string | null;
+    matched_findings: string[];
+    unmatched_findings: string[];
+    verification_dossier?: VerificationDossier | null;
+    verification_dossier_path?: string | null;
     resolution?: string | null;
     resolved_at?: string | null;
     resolved_by?: string | null;

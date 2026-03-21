@@ -471,6 +471,53 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(payload["items"][0]["publish_tx_hash"].startswith("0x"))
         self.assertTrue(payload["items"][0]["challenge_tx_hash"].startswith("0x"))
         self.assertIsNotNone(payload["items"][0]["challenge_window_end"])
+        self.assertEqual(
+            payload["items"][0]["verification_dossier_path"],
+            f"/audits/{created['id']}/challenge/dossier",
+        )
+        self.assertEqual(payload["items"][0]["verification_status"], "verifier_unavailable")
+
+    def test_challenge_verification_dossier_endpoint_returns_machine_readable_payload(self) -> None:
+        onchain = build_onchain_test_context()
+        service = AuditService(
+            Path(self.tempdir.name) / "dossier-endpoint-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        created = client.post(
+            "/audits",
+            json={
+                "contract_address": onchain.web3.eth.accounts[2],
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+        published = client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+        challenged = client.post(
+            f"/audits/{audit_id}/challenge",
+            json={"proof_uri": "ipfs://demo-poc", "challenger": "whitehat-demo"},
+        )
+        self.assertEqual(challenged.status_code, 200)
+        self.assertEqual(
+            challenged.json()["challenge"]["verification_dossier_path"],
+            f"/audits/{audit_id}/challenge/dossier",
+        )
+
+        response = client.get(f"/audits/{audit_id}/challenge/dossier")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "challenge-verifier-dossier/v1")
+        self.assertEqual(payload["policy"]["status"], "manual_review_required")
+        self.assertEqual(payload["comparison"]["status"], "not_assessed")
 
     def test_default_auditor_reputation_endpoint_returns_summary(self) -> None:
         response = self.client.get("/auditor/reputation")
@@ -1156,6 +1203,10 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(payload["challenge"]["advisory_verdict"], "rejected")
         self.assertEqual(payload["challenge"]["execution_log"], "forge output")
         self.assertEqual(payload["challenge"]["matched_findings"], ["finding-1"])
+        self.assertEqual(
+            payload["challenge"]["verification_dossier_path"],
+            f"/audits/{audit_id}/challenge/dossier",
+        )
         self.assertEqual(
             payload["challenge"]["verification_dossier"]["policy"]["status"],
             "rejected",
