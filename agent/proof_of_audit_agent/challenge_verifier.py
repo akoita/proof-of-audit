@@ -55,6 +55,24 @@ class StructuredChallengeClaim:
 
 
 @dataclass(frozen=True)
+class VerificationFindingMatch:
+    finding_id: str
+    relationship: str
+    confidence: str = "unknown"
+    rationale: str | None = None
+    score: float | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "finding_id": self.finding_id,
+            "relationship": self.relationship,
+            "confidence": self.confidence,
+            "rationale": self.rationale,
+            "score": self.score,
+        }
+
+
+@dataclass(frozen=True)
 class VerificationDossier:
     verifier_version: str
     evidence_type: str
@@ -65,7 +83,12 @@ class VerificationDossier:
     advisory_only: bool
     challenge_claim: StructuredChallengeClaim | None = None
     matched_finding_ids: list[str] = field(default_factory=list)
+    matched_findings: list[VerificationFindingMatch] = field(default_factory=list)
     unmatched_signals: list[str] = field(default_factory=list)
+    comparison_confidence: str = "unknown"
+    comparison_rationale: str | None = None
+    disagreement_status: str = "not_checked"
+    disagreement_detail: str | None = None
     committed_evidence_hash: str | None = None
     execution_env: str | None = None
     backend: str | None = None
@@ -74,6 +97,8 @@ class VerificationDossier:
     fork_block_number: int | None = None
     recommended_resolution: str | None = None
     abstained: bool = False
+    policy_confidence: str = "unknown"
+    policy_rationale: str | None = None
     model_metadata: dict[str, Any] = field(default_factory=dict)
     schema_version: str = VERIFICATION_DOSSIER_SCHEMA_VERSION
 
@@ -101,14 +126,23 @@ class VerificationDossier:
             ),
             "comparison": {
                 "status": self.comparison_status,
+                "confidence": self.comparison_confidence,
+                "rationale": self.comparison_rationale,
                 "matched_finding_ids": list(self.matched_finding_ids),
+                "matched_findings": [
+                    finding.to_payload() for finding in self.matched_findings
+                ],
                 "unmatched_signals": list(self.unmatched_signals),
+                "disagreement_status": self.disagreement_status,
+                "disagreement_detail": self.disagreement_detail,
             },
             "policy": {
                 "status": self.policy_status,
                 "advisory_only": self.advisory_only,
                 "recommended_resolution": self.recommended_resolution,
                 "abstained": self.abstained,
+                "confidence": self.policy_confidence,
+                "rationale": self.policy_rationale,
             },
             "model_metadata": dict(self.model_metadata),
         }

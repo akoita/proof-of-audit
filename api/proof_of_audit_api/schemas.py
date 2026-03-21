@@ -296,10 +296,23 @@ class VerificationExecutionModel(BaseModel):
     fork_block_number: int | None = None
 
 
+class VerificationFindingMatchModel(BaseModel):
+    finding_id: str
+    relationship: str
+    confidence: str = "unknown"
+    rationale: str | None = None
+    score: float | None = None
+
+
 class VerificationComparisonModel(BaseModel):
     status: str
+    confidence: str = "unknown"
+    rationale: str | None = None
     matched_finding_ids: list[str] = Field(default_factory=list)
+    matched_findings: list[VerificationFindingMatchModel] = Field(default_factory=list)
     unmatched_signals: list[str] = Field(default_factory=list)
+    disagreement_status: str = "not_checked"
+    disagreement_detail: str | None = None
 
 
 class VerificationPolicyModel(BaseModel):
@@ -307,6 +320,8 @@ class VerificationPolicyModel(BaseModel):
     advisory_only: bool = False
     recommended_resolution: str | None = None
     abstained: bool = False
+    confidence: str = "unknown"
+    rationale: str | None = None
 
 
 class VerificationDossierModel(BaseModel):

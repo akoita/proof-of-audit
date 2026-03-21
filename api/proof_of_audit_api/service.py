@@ -1742,13 +1742,31 @@ class AuditService:
                             else "not_assessed"
                         )
                     ),
+                    "confidence": "unknown",
+                    "rationale": None,
                     "matched_finding_ids": challenge_defaults.get("matched_findings") or [],
+                    "matched_findings": [
+                        {
+                            "finding_id": str(item),
+                            "relationship": (
+                                "already_covered"
+                                if advisory_verdict == "rejected"
+                                else "supporting_context"
+                            ),
+                            "confidence": "unknown",
+                            "rationale": None,
+                            "score": None,
+                        }
+                        for item in (challenge_defaults.get("matched_findings") or [])
+                    ],
                     "unmatched_signals": challenge_defaults.get("unmatched_findings") or [],
+                    "disagreement_status": "not_checked",
+                    "disagreement_detail": None,
                 },
                 "policy": {
                     "status": (
-                        str(advisory_verdict)
-                        if isinstance(advisory_verdict, str) and advisory_verdict
+                        "rejected"
+                        if advisory_verdict == "rejected"
                         else "manual_review_required"
                     ),
                     "advisory_only": bool(
@@ -1756,6 +1774,8 @@ class AuditService:
                     ),
                     "recommended_resolution": recommended_resolution,
                     "abstained": advisory_verdict is None,
+                    "confidence": "unknown",
+                    "rationale": None,
                 },
                 "model_metadata": {},
             },
@@ -1837,6 +1857,12 @@ class AuditService:
             comparison = {}
         payload["comparison"] = {
             "status": str(comparison.get("status") or "unknown"),
+            "confidence": str(comparison.get("confidence") or "unknown"),
+            "rationale": (
+                str(comparison.get("rationale"))
+                if comparison.get("rationale") is not None
+                else None
+            ),
             "matched_finding_ids": [
                 str(item)
                 for item in (
@@ -1844,6 +1870,29 @@ class AuditService:
                     if isinstance(comparison.get("matched_finding_ids"), list)
                     else challenge.get("matched_findings") or []
                 )
+            ],
+            "matched_findings": [
+                {
+                    "finding_id": str(item.get("finding_id") or "finding"),
+                    "relationship": str(item.get("relationship") or "unknown"),
+                    "confidence": str(item.get("confidence") or "unknown"),
+                    "rationale": (
+                        str(item.get("rationale"))
+                        if item.get("rationale") is not None
+                        else None
+                    ),
+                    "score": (
+                        float(item.get("score"))
+                        if item.get("score") is not None
+                        else None
+                    ),
+                }
+                for item in (
+                    comparison.get("matched_findings")
+                    if isinstance(comparison.get("matched_findings"), list)
+                    else []
+                )
+                if isinstance(item, dict)
             ],
             "unmatched_signals": [
                 str(item)
@@ -1853,6 +1902,14 @@ class AuditService:
                     else challenge.get("unmatched_findings") or []
                 )
             ],
+            "disagreement_status": str(
+                comparison.get("disagreement_status") or "not_checked"
+            ),
+            "disagreement_detail": (
+                str(comparison.get("disagreement_detail"))
+                if comparison.get("disagreement_detail") is not None
+                else None
+            ),
         }
 
         policy = payload.get("policy")
@@ -1876,6 +1933,12 @@ class AuditService:
                 )
             ),
             "abstained": bool(policy.get("abstained", advisory_verdict is None)),
+            "confidence": str(policy.get("confidence") or "unknown"),
+            "rationale": (
+                str(policy.get("rationale"))
+                if policy.get("rationale") is not None
+                else None
+            ),
         }
         model_metadata = payload.get("model_metadata")
         payload["model_metadata"] = (

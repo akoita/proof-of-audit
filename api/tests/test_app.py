@@ -1161,6 +1161,14 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             "rejected",
         )
         self.assertEqual(
+            payload["challenge"]["verification_dossier"]["comparison"]["status"],
+            "already_covered",
+        )
+        self.assertGreaterEqual(
+            len(payload["challenge"]["verification_dossier"]["comparison"]["matched_findings"]),
+            1,
+        )
+        self.assertEqual(
             payload["challenge"]["verification_dossier"]["execution"]["execution_env"],
             "foundry",
         )
