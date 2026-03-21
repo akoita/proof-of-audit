@@ -82,23 +82,22 @@ Say:
 
 > Now the agent is economically committed to its judgment. The claim is visible and portable because it is recorded on-chain.
 
-### 4. Challenge with curated evidence
+### 4. Challenge with evidence
 
 Leave the suggested `clean-vault` proof URI in place and click:
 
-- `Open challenge`
+- `Open Challenge`
 
 Point to:
 
-- `Deterministic path`
+- resolution path (`manual_fallback` for a plain proof URI, advisory verifier for executable evidence)
+- verifier name
 - challenge tx
-- resolution tx
-- final resolution status
-- validation response reference
+- verification summary
 
 Say:
 
-> The challenge uses curated evidence for a known benchmark case, so the verifier resolves it automatically on-chain. Human review is only the fallback path for ambiguous evidence.
+> The challenge submits evidence against the claim. A plain proof-URI challenge goes to manual review. Submit an executable evidence bundle instead and the verifier produces an advisory verdict on the code — the outcome is then recorded on-chain by the arbiter.
 
 ### 5. Close with the trust model
 

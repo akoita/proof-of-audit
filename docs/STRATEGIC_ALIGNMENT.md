@@ -52,7 +52,8 @@ These are already true in the repo today:
 - live `ProofOfAudit` contract deployed and verified on Base Sepolia
 - real on-chain publish flow from the API
 - real on-chain challenge flow from the API
-- deterministic challenge verification path
+- advisory semantic verifier for executable evidence challenges
+- manual review path for plain proof-URI challenges
 - first-class auditor identity across API and web
 - canonical public identity anchored in the official ERC-8004 Base Sepolia registry
 - local Anvil demo flow with deployable fixtures

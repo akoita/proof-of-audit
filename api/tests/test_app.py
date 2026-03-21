@@ -167,9 +167,9 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(
             payload["auditor_service"]["resolution_modes"],
-            ["deterministic", "manual_fallback"],
+            ["advisory_verifier", "manual_fallback"],
         )
-        self.assertTrue(payload["auditor_service"]["deterministic_resolution_supported"])
+        self.assertFalse(payload["auditor_service"]["deterministic_resolution_supported"])
         self.assertTrue(payload["auditor_service"]["manual_fallback_supported"])
         self.assertEqual(payload["auditor_service"]["discovery_path"], "/auditor")
         self.assertEqual(payload["auditor_service"]["execution_mode"], "local_worker")
@@ -233,9 +233,9 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(
             payload["resolution_modes"],
-            ["deterministic", "manual_fallback"],
+            ["advisory_verifier", "manual_fallback"],
         )
-        self.assertTrue(payload["deterministic_resolution_supported"])
+        self.assertFalse(payload["deterministic_resolution_supported"])
         self.assertTrue(payload["manual_fallback_supported"])
         self.assertEqual(payload["submit_path"], "/audits")
         self.assertEqual(payload["execution_mode"], "local_worker")

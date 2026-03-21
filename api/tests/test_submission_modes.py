@@ -105,14 +105,14 @@ def catalog_client(tmp_path: Path, demo_fixtures_file: Path) -> TestClient:
                             "reputation_source": None,
                             "reputation_path_template": "/auditors/{id}/reputation",
                             "submission_modes": ["demo_fixture", "deployed_address", "source_bundle"],
-                            "resolution_modes": ["deterministic", "manual_fallback"],
-                            "deterministic_resolution_supported": True,
+                            "resolution_modes": ["advisory_verifier", "manual_fallback"],
+                            "deterministic_resolution_supported": False,
                             "manual_fallback_supported": True,
                         },
                         "registration_document": {
                             "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
                             "name": "Shadow Auditor",
-                            "description": "Secondary deterministic auditor.",
+                            "description": "Secondary stake-backed auditor.",
                             "image": "https://example.invalid/shadow-auditor.png",
                             "services": [
                                 {
@@ -135,7 +135,7 @@ def catalog_client(tmp_path: Path, demo_fixtures_file: Path) -> TestClient:
                                 "serviceType": "audit_contract",
                                 "capabilities": ["audit_contract"],
                                 "operator": "Shadow Labs",
-                                "resolutionPolicy": "deterministic-first-with-human-fallback",
+                                "resolutionPolicy": "manual-review-with-executable-advisory-verifier",
                             },
                         },
                     }

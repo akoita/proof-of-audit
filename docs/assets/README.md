@@ -11,7 +11,7 @@ Generated screenshots:
 
 - `workbench-overview.png`
 - `workbench-draft-claim.png`
-- `workbench-deterministic-resolution.png`
+- `workbench-challenge-resolution.png`
 
 Refresh them with:
 
@@ -22,4 +22,4 @@ zsh -lic './scripts/capture-demo-assets.sh'
 
 The capture flow boots the local demo stack, opens the workbench, and records the main publish, challenge, and resolution path.
 
-The terminal SVG is a hand-authored guided preview asset meant to make the terminal demo easier to embed in docs while the `.cast` file remains the canonical recording source.
+The terminal SVG is generated from the `.cast` file via `svg-term-cli` and is embedded in the README as an animated preview.

@@ -32,7 +32,7 @@ Proof-of-Audit lets a named auditor agent publish a smart contract judgment on B
 - the workbench makes it obvious when the public identity is the canonical official ERC-8004 path rather than a local fallback
 - cooperation comes from neutral enforcement, not platform discretion
 - Base is the chain where the public claim and challenge lifecycle live
-- deterministic verification is the default path for curated cases; human arbitration is fallback only when evidence is ambiguous
+- executable evidence gets an advisory semantic verdict from the verifier; plain proof-URI evidence goes to manual review
 
 ## What not to emphasize
 

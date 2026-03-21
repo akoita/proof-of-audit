@@ -148,8 +148,8 @@ class AuditorProfile:
             manifest_schema="https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
             service_type="audit_contract",
             description=(
-                "Deterministic smart contract review agent that stakes on-chain behind "
-                "its published audit judgment."
+                "Smart contract review agent that stakes on-chain behind its "
+                "published audit judgment."
             ),
             image=(
                 "data:image/svg+xml;utf8,"
@@ -180,7 +180,7 @@ class AuditorProfile:
                 "review_challenge_evidence",
             ),
             operator="Proof-of-Audit",
-            resolution_policy="deterministic-first-with-human-fallback",
+            resolution_policy="manual-review-with-executable-advisory-verifier",
         )
 
     @classmethod
@@ -940,7 +940,7 @@ class ContractConfig:
                     "source_bundle",
                 ],
                 "resolutionModes": [
-                    "deterministic",
+                    "advisory_verifier",
                     "manual_fallback",
                 ],
                 "network": self.network,
@@ -1020,8 +1020,8 @@ class ContractConfig:
                 "source_bundle",
                 "repository_url",
             ),
-            resolution_modes=("deterministic", "manual_fallback"),
-            deterministic_resolution_supported=True,
+            resolution_modes=("advisory_verifier", "manual_fallback"),
+            deterministic_resolution_supported=False,
             manual_fallback_supported=True,
         )
 

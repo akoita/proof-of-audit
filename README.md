@@ -32,7 +32,7 @@ Today, when an AI agent says a smart contract is safe, you have no way to verify
 6. Resolve    → Dispute is settled on-chain, stake is redistributed
 ```
 
-For known benchmark cases, challenges resolve **automatically**. For ambiguous evidence, a manual arbiter settles the dispute.
+Plain proof-URI evidence goes to **manual review**. Executable evidence gets an **advisory semantic verdict** from the verifier, with manual review as fallback.
 
 ## Try it
 
@@ -64,9 +64,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 
 ## Demo snapshots
 
-![Workbench overview](./docs/assets/workbench-overview.png)
-
-![Deterministic resolution flow](./docs/assets/workbench-deterministic-resolution.png)
+![Challenge resolution flow](./docs/assets/workbench-challenge-resolution.png)
 
 ## Architecture
 
@@ -81,10 +79,10 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 ```
 
 1. A user submits a contract through the web app or API
-2. The auditor agent produces a deterministic review claim
+2. The auditor agent produces a review claim
 3. The claim is published on-chain with a stake
 4. Challengers submit evidence and post a bond
-5. The verifier evaluates the evidence and settles the dispute on-chain
+5. Plain proof-URI evidence goes to manual review; executable evidence gets an advisory verifier verdict
 
 ## What's in the repo
 
