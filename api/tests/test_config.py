@@ -92,9 +92,9 @@ class ContractConfigTest(unittest.TestCase):
         )
         self.assertEqual(
             config.auditor_service.resolution_modes,
-            ("deterministic", "manual_fallback"),
+            ("advisory_verifier", "manual_fallback"),
         )
-        self.assertTrue(config.auditor_service.deterministic_resolution_supported)
+        self.assertFalse(config.auditor_service.deterministic_resolution_supported)
         self.assertTrue(config.auditor_service.manual_fallback_supported)
         self.assertTrue(config.auditor_service.manifest_hash)
         self.assertEqual(len(config.auditor_services), 1)

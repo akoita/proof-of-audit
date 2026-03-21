@@ -77,9 +77,9 @@ sequenceDiagram
         API->>API: build EvidenceContext from audit record
 
         alt evidence_type = deterministic_fixture
-            API->>DV: verify(EvidenceContext)
-            DV-->>API: verdict: upheld | rejected
-            Note over DV: Curated lookup table<br/>for benchmark fixtures
+            API-->>Web: challenged audit + manual review status
+            Web-->>User: ⏳ Awaiting arbiter (plain proof URI)
+            Note over User,Contract: Plain proof-URI evidence goes to manual review
         else evidence_type = executable_test
             API->>EV: verify(EvidenceContext)
             EV->>Runner: resolve & execute evidence
@@ -93,24 +93,16 @@ sequenceDiagram
 
     rect rgb(50, 40, 20)
         note over User,Bridge: Phase 5 — Resolve
-        alt Deterministic verdict available
-            API->>Contract: resolveChallenge(auditId, outcome)
-            Note right of Contract: Stake + bond redistributed
-            Contract-->>API: resolve tx + payout
-            API->>Bridge: mirror → validation response
-            API-->>Web: resolved audit (payout, resolution path)
-            Web-->>User: ✓ Challenge resolved deterministically
-        else Advisory verdict or inconclusive
-            API-->>Web: challenged audit + advisory verdict
-            Web-->>User: ⏳ Awaiting arbiter (advisory: upheld | rejected | inconclusive)
-            Note over User,Contract: Manual fallback path
-            User->>API: POST /audits/{id}/resolve {outcome}
-            API->>Contract: resolveChallenge(auditId, outcome)
-            Contract-->>API: resolve tx + payout
-            API->>Bridge: mirror → validation response
-            API-->>Web: resolved audit
-            Web-->>User: ✓ Challenge resolved by arbiter
-        end
+        API-->>Web: challenged audit + manual review or advisory verdict
+        Web-->>User: ⏳ Awaiting arbiter (manual review or advisory input)
+        Note over User,Contract: Arbiter finalizes the on-chain resolution
+        User->>API: POST /audits/{id}/resolve {outcome}
+        API->>Contract: resolveChallenge(auditId, outcome)
+        Note right of Contract: Stake + bond redistributed
+        Contract-->>API: resolve tx + payout
+        API->>Bridge: mirror → validation response
+        API-->>Web: resolved audit
+        Web-->>User: ✓ Challenge resolved by arbiter
     end
 
     rect rgb(30, 50, 50)

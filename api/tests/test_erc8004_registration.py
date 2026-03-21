@@ -40,7 +40,7 @@ def test_contract_config_loads_erc8004_shaped_manifest(tmp_path: Path) -> None:
                 "serviceType": "audit_contract",
                 "capabilities": ["audit_contract", "review_challenge_evidence"],
                 "operator": "Proof-of-Audit",
-                "resolutionPolicy": "deterministic-first-with-human-fallback",
+                "resolutionPolicy": "manual-review-with-executable-advisory-verifier",
             },
         },
     )
@@ -93,7 +93,7 @@ def test_contract_config_backfills_erc8004_fields_from_legacy_manifest(tmp_path:
             "description": "Older manifest format.",
             "capabilities": ["audit_contract"],
             "operator": "Legacy Operator",
-            "resolution_policy": "deterministic-first-with-human-fallback",
+            "resolution_policy": "manual-review-with-executable-advisory-verifier",
         },
     )
 
@@ -136,7 +136,7 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
                 "serviceType": "audit_contract",
                 "capabilities": ["audit_contract"],
                 "operator": "Proof-of-Audit",
-                "resolutionPolicy": "deterministic-first-with-human-fallback",
+                "resolutionPolicy": "manual-review-with-executable-advisory-verifier",
             },
         },
     )
