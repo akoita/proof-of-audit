@@ -129,11 +129,25 @@ class FindingModel(BaseModel):
     evidence_uri: str | None = None
 
 
+class NormalizedFindingModel(BaseModel):
+    schema_version: str = "normalized-audit-finding/v1"
+    finding_id: str
+    vulnerability_classes: list[str] = Field(default_factory=list)
+    affected_surfaces: list[str] = Field(default_factory=list)
+    detector_families: list[str] = Field(default_factory=list)
+    severity: str
+    impact_summary: str
+    preconditions: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
 class AuditReportModel(BaseModel):
     benchmark_id: str
     contract_address: str
     summary: str
     findings: list[FindingModel]
+    normalized_findings: list[NormalizedFindingModel] = Field(default_factory=list)
     supported_checks: list[str]
     confidence: str
     report_hash: str
@@ -183,6 +197,7 @@ class ChallengeModel(BaseModel):
     execution_log: str | None = None
     matched_findings: list[str] = Field(default_factory=list)
     unmatched_findings: list[str] = Field(default_factory=list)
+    verification_dossier: "VerificationDossierModel | None" = None
     resolution: str | None = None
     resolved_at: str | None = None
     resolved_by: str | None = None
@@ -253,6 +268,57 @@ class ExecutionArtifactModel(BaseModel):
     provider: str | None = None
     model: str | None = None
     error: str | None = None
+
+
+class ChallengeClaimModel(BaseModel):
+    schema_version: str = "challenge-claim/v1"
+    claim_type: str
+    basis: str
+    confidence: str = "unknown"
+    affected_surfaces: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    demonstrated_effect: str | None = None
+    claimed_impact: str | None = None
+    supporting_signals: list[str] = Field(default_factory=list)
+
+
+class VerificationIntegrityModel(BaseModel):
+    status: str
+    committed_evidence_hash: str | None = None
+
+
+class VerificationExecutionModel(BaseModel):
+    status: str
+    execution_env: str | None = None
+    backend: str | None = None
+    isolation_level: str | None = None
+    source_path: str | None = None
+    fork_block_number: int | None = None
+
+
+class VerificationComparisonModel(BaseModel):
+    status: str
+    matched_finding_ids: list[str] = Field(default_factory=list)
+    unmatched_signals: list[str] = Field(default_factory=list)
+
+
+class VerificationPolicyModel(BaseModel):
+    status: str
+    advisory_only: bool = False
+    recommended_resolution: str | None = None
+    abstained: bool = False
+
+
+class VerificationDossierModel(BaseModel):
+    schema_version: str = "challenge-verifier-dossier/v1"
+    verifier_version: str
+    evidence_type: str
+    integrity: VerificationIntegrityModel
+    execution: VerificationExecutionModel
+    claim: ChallengeClaimModel | None = None
+    comparison: VerificationComparisonModel
+    policy: VerificationPolicyModel
+    model_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AuditRecordModel(BaseModel):

@@ -346,6 +346,24 @@ class AuditService:
             "execution_log": verification_result.execution_log,
             "matched_findings": verification_result.matched_findings,
             "unmatched_findings": verification_result.unmatched_findings,
+            "verification_dossier": self._verification_dossier_payload(
+                verification_result=verification_result,
+                challenge_defaults={
+                    "evidence_type": evidence_type,
+                    "execution_env": execution_env,
+                    "proof_uri": proof_uri,
+                    "evidence_hash": challenge_result.evidence_hash,
+                    "matched_findings": verification_result.matched_findings,
+                    "unmatched_findings": verification_result.unmatched_findings,
+                    "advisory_verdict": (
+                        verification_result.resolution
+                        if verification_result.advisory_only
+                        else None
+                    ),
+                    "verification_status": verification_result.status,
+                    "verifier": verification_result.verifier,
+                },
+            ),
             "challenge_hash": challenge_result.evidence_hash,
             "challenge_bond_wei": challenge_result.challenge_bond_wei,
             "chain_id": challenge_result.chain_id,
@@ -1297,6 +1315,10 @@ class AuditService:
             if isinstance(unmatched_findings, list)
             else []
         )
+        payload["verification_dossier"] = self._normalize_verification_dossier(
+            payload.get("verification_dossier"),
+            challenge=payload,
+        )
         if payload.get("resolution_path") in {"deterministic", "manual_fallback"}:
             return payload
 
@@ -1478,6 +1500,9 @@ class AuditService:
         payload["contract_address"] = str(payload.get("contract_address") or contract_address)
         payload["summary"] = str(payload.get("summary", "No summary available."))
         payload["findings"] = normalized_findings
+        payload["normalized_findings"] = [
+            self._normalize_finding_record(finding) for finding in normalized_findings
+        ]
         payload["supported_checks"] = self._normalize_supported_checks(
             payload.get("supported_checks")
         )
@@ -1525,6 +1550,54 @@ class AuditService:
             )
         )
         return payload
+
+    def _normalize_finding_record(self, finding: dict[str, Any]) -> dict[str, Any]:
+        affected_function = str(finding.get("affected_function") or "").strip()
+        affected_surface = affected_function.split("(", 1)[0] if affected_function else ""
+        category = str(finding.get("category") or "general").lower()
+        detector = str(finding.get("detector") or "deterministic.legacy")
+        vulnerability_classes = [category]
+        detector_family = detector.split(".")[-1].lower()
+        if detector_family and detector_family not in vulnerability_classes:
+            vulnerability_classes.append(detector_family)
+
+        preconditions: list[str] = []
+        if category == "reentrancy":
+            preconditions.append("attacker can trigger a re-entrant control flow")
+        elif category == "access_control":
+            preconditions.append("attacker can call the affected surface without authorization")
+        elif category == "unchecked_external_call":
+            preconditions.append("the affected low-level external call can fail")
+
+        evidence_refs: list[str] = []
+        evidence_uri = finding.get("evidence_uri")
+        if isinstance(evidence_uri, str) and evidence_uri.strip():
+            evidence_refs.append(evidence_uri.strip())
+
+        keywords = sorted(
+            self._tokenize_finding_text(
+                [
+                    str(finding.get("title") or ""),
+                    str(finding.get("description") or ""),
+                    category,
+                    detector_family,
+                    affected_surface,
+                ]
+            )
+        )
+
+        return {
+            "schema_version": "normalized-audit-finding/v1",
+            "finding_id": str(finding.get("finding_id") or "finding"),
+            "vulnerability_classes": vulnerability_classes,
+            "affected_surfaces": [affected_surface] if affected_surface else [],
+            "detector_families": [detector_family] if detector_family else [],
+            "severity": str(finding.get("severity") or "info").lower(),
+            "impact_summary": str(finding.get("impact") or ""),
+            "preconditions": preconditions,
+            "evidence_refs": evidence_refs,
+            "keywords": keywords,
+        }
 
     def _normalize_supported_checks(self, checks: Any) -> list[str]:
         if isinstance(checks, list) and checks:
@@ -1576,6 +1649,258 @@ class AuditService:
         normalized_detector = detector.split(".")[-1].lower()
         suffix = normalized_title or f"finding-{index + 1}"
         return f"{benchmark_id}.{normalized_detector}.{suffix}"
+
+    def _tokenize_finding_text(self, parts: list[str]) -> set[str]:
+        tokens: set[str] = set()
+        for part in parts:
+            normalized = re.sub(r"[^a-z0-9]+", " ", part.lower())
+            compact = normalized.replace(" ", "")
+            for token in normalized.split():
+                if len(token) >= 4:
+                    tokens.add(token)
+            if compact:
+                tokens.add(compact)
+        return tokens
+
+    def _verification_dossier_payload(
+        self,
+        *,
+        verification_result: Any,
+        challenge_defaults: dict[str, Any],
+    ) -> dict[str, Any]:
+        dossier = getattr(verification_result, "verification_dossier", None)
+        if dossier is not None and hasattr(dossier, "to_payload"):
+            return self._normalize_verification_dossier(
+                dossier.to_payload(),
+                challenge=challenge_defaults,
+            )
+
+        claim = getattr(verification_result, "challenge_claim", None)
+        claim_payload = claim.to_payload() if claim is not None and hasattr(claim, "to_payload") else None
+
+        advisory_verdict = challenge_defaults.get("advisory_verdict")
+        recommended_resolution = (
+            str(advisory_verdict)
+            if isinstance(advisory_verdict, str) and advisory_verdict
+            else (
+                "manual_review_required"
+                if str(challenge_defaults.get("verification_status") or "") != "verified"
+                else None
+            )
+        )
+        return self._normalize_verification_dossier(
+            {
+                "schema_version": "challenge-verifier-dossier/v1",
+                "verifier_version": str(challenge_defaults.get("verifier") or ""),
+                "evidence_type": str(
+                    challenge_defaults.get("evidence_type") or "deterministic_fixture"
+                ),
+                "integrity": {
+                    "status": (
+                        "invalid"
+                        if str(challenge_defaults.get("verification_status") or "")
+                        == "invalid_evidence"
+                        else "valid"
+                    ),
+                    "committed_evidence_hash": challenge_defaults.get("evidence_hash"),
+                },
+                "execution": {
+                    "status": (
+                        "not_executed"
+                        if challenge_defaults.get("evidence_type") == "deterministic_fixture"
+                        else "unknown"
+                    ),
+                    "execution_env": challenge_defaults.get("execution_env"),
+                },
+                "claim": claim_payload,
+                "comparison": {
+                    "status": (
+                        "already_covered"
+                        if advisory_verdict == "rejected"
+                        else (
+                            "likely_new_issue"
+                            if advisory_verdict == "upheld"
+                            else "not_assessed"
+                        )
+                    ),
+                    "matched_finding_ids": challenge_defaults.get("matched_findings") or [],
+                    "unmatched_signals": challenge_defaults.get("unmatched_findings") or [],
+                },
+                "policy": {
+                    "status": (
+                        str(advisory_verdict)
+                        if isinstance(advisory_verdict, str) and advisory_verdict
+                        else "manual_review_required"
+                    ),
+                    "advisory_only": bool(
+                        getattr(verification_result, "advisory_only", False)
+                    ),
+                    "recommended_resolution": recommended_resolution,
+                    "abstained": advisory_verdict is None,
+                },
+                "model_metadata": {},
+            },
+            challenge=challenge_defaults,
+        )
+
+    def _normalize_verification_dossier(
+        self,
+        dossier: Any,
+        *,
+        challenge: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload = deepcopy(dossier) if isinstance(dossier, dict) else {}
+        payload["schema_version"] = str(
+            payload.get("schema_version") or "challenge-verifier-dossier/v1"
+        )
+        payload["verifier_version"] = str(
+            payload.get("verifier_version") or challenge.get("verifier") or "unknown-verifier"
+        )
+        payload["evidence_type"] = str(
+            payload.get("evidence_type")
+            or challenge.get("evidence_type")
+            or "deterministic_fixture"
+        )
+
+        integrity = payload.get("integrity")
+        if not isinstance(integrity, dict):
+            integrity = {}
+        payload["integrity"] = {
+            "status": str(integrity.get("status") or "unknown"),
+            "committed_evidence_hash": (
+                str(integrity.get("committed_evidence_hash"))
+                if integrity.get("committed_evidence_hash") is not None
+                else challenge.get("evidence_hash")
+            ),
+        }
+
+        execution = payload.get("execution")
+        if not isinstance(execution, dict):
+            execution = {}
+        payload["execution"] = {
+            "status": str(execution.get("status") or "unknown"),
+            "execution_env": (
+                str(execution.get("execution_env"))
+                if execution.get("execution_env") is not None
+                else (
+                    str(challenge.get("execution_env"))
+                    if challenge.get("execution_env") is not None
+                    else None
+                )
+            ),
+            "backend": (
+                str(execution.get("backend"))
+                if execution.get("backend") is not None
+                else None
+            ),
+            "isolation_level": (
+                str(execution.get("isolation_level"))
+                if execution.get("isolation_level") is not None
+                else None
+            ),
+            "source_path": (
+                str(execution.get("source_path"))
+                if execution.get("source_path") is not None
+                else None
+            ),
+            "fork_block_number": (
+                int(execution.get("fork_block_number"))
+                if execution.get("fork_block_number") is not None
+                else None
+            ),
+        }
+
+        claim = payload.get("claim")
+        payload["claim"] = self._normalize_challenge_claim(claim)
+
+        comparison = payload.get("comparison")
+        if not isinstance(comparison, dict):
+            comparison = {}
+        payload["comparison"] = {
+            "status": str(comparison.get("status") or "unknown"),
+            "matched_finding_ids": [
+                str(item)
+                for item in (
+                    comparison.get("matched_finding_ids")
+                    if isinstance(comparison.get("matched_finding_ids"), list)
+                    else challenge.get("matched_findings") or []
+                )
+            ],
+            "unmatched_signals": [
+                str(item)
+                for item in (
+                    comparison.get("unmatched_signals")
+                    if isinstance(comparison.get("unmatched_signals"), list)
+                    else challenge.get("unmatched_findings") or []
+                )
+            ],
+        }
+
+        policy = payload.get("policy")
+        if not isinstance(policy, dict):
+            policy = {}
+        advisory_verdict = challenge.get("advisory_verdict")
+        payload["policy"] = {
+            "status": str(
+                policy.get("status")
+                or advisory_verdict
+                or "manual_review_required"
+            ),
+            "advisory_only": bool(policy.get("advisory_only", False)),
+            "recommended_resolution": (
+                str(policy.get("recommended_resolution"))
+                if policy.get("recommended_resolution") is not None
+                else (
+                    str(advisory_verdict)
+                    if advisory_verdict is not None
+                    else "manual_review_required"
+                )
+            ),
+            "abstained": bool(policy.get("abstained", advisory_verdict is None)),
+        }
+        model_metadata = payload.get("model_metadata")
+        payload["model_metadata"] = (
+            deepcopy(model_metadata) if isinstance(model_metadata, dict) else {}
+        )
+        return payload
+
+    def _normalize_challenge_claim(self, claim: Any) -> dict[str, Any] | None:
+        if claim is None:
+            return None
+        payload = deepcopy(claim) if isinstance(claim, dict) else {}
+        if not payload:
+            return None
+        return {
+            "schema_version": str(payload.get("schema_version") or "challenge-claim/v1"),
+            "claim_type": str(payload.get("claim_type") or "generic_claim"),
+            "basis": str(payload.get("basis") or "unknown"),
+            "confidence": str(payload.get("confidence") or "unknown"),
+            "affected_surfaces": [
+                str(item)
+                for item in payload.get("affected_surfaces", [])
+                if isinstance(item, str) and item
+            ],
+            "preconditions": [
+                str(item)
+                for item in payload.get("preconditions", [])
+                if isinstance(item, str) and item
+            ],
+            "demonstrated_effect": (
+                str(payload.get("demonstrated_effect"))
+                if payload.get("demonstrated_effect") is not None
+                else None
+            ),
+            "claimed_impact": (
+                str(payload.get("claimed_impact"))
+                if payload.get("claimed_impact") is not None
+                else None
+            ),
+            "supporting_signals": [
+                str(item)
+                for item in payload.get("supporting_signals", [])
+                if isinstance(item, str) and item
+            ],
+        }
 
     def _normalize_submission(self, submission: dict[str, Any]) -> dict[str, Any]:
         input_kind = submission.get("input_kind", "deployed_address")

@@ -21,6 +21,10 @@ def test_plain_proof_uri_challenges_require_manual_review() -> None:
     assert result.status == "verifier_unavailable"
     assert result.resolution is None
     assert result.upheld is None
+    assert result.challenge_claim is not None
+    assert result.challenge_claim.claim_type == "external_proof_reference"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.policy_status == "manual_review_required"
 
 
 def test_blank_proof_uri_is_invalid_evidence() -> None:
@@ -30,3 +34,5 @@ def test_blank_proof_uri_is_invalid_evidence() -> None:
 
     assert result.status == "invalid_evidence"
     assert result.resolution is None
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.integrity_status == "invalid"

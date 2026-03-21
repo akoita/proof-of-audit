@@ -59,6 +59,10 @@ def test_executable_evidence_matching_reported_issue_is_advisory_rejected() -> N
     assert result.resolution == "rejected"
     assert result.advisory_only is True
     assert result.matched_findings == ["finding-1"]
+    assert result.challenge_claim is not None
+    assert result.challenge_claim.claim_type == "reentrancy"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.comparison_status == "already_covered"
 
 
 def test_executable_evidence_new_issue_is_advisory_upheld() -> None:
@@ -80,6 +84,10 @@ def test_executable_evidence_new_issue_is_advisory_upheld() -> None:
     assert result.resolution == "upheld"
     assert result.advisory_only is True
     assert "rotateowner" in result.unmatched_findings
+    assert result.challenge_claim is not None
+    assert result.challenge_claim.claim_type == "access_control"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.policy_status == "manual_review_required"
 
 
 def test_executable_evidence_failed_run_is_invalid_evidence() -> None:
@@ -99,3 +107,5 @@ def test_executable_evidence_failed_run_is_invalid_evidence() -> None:
     assert result.status == "invalid_evidence"
     assert result.resolution == "rejected"
     assert result.advisory_only is True
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.execution_status == "failed"

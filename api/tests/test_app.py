@@ -996,6 +996,10 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         payload = published.json()
         self.assertEqual(payload["status"], "published")
         self.assertEqual(payload["agent"]["id"], "proof-of-audit-auditor")
+        self.assertEqual(
+            payload["report"]["normalized_findings"][0]["schema_version"],
+            "normalized-audit-finding/v1",
+        )
         self.assertEqual(payload["onchain"]["audit_id"], 1)
         self.assertEqual(payload["onchain"]["agent_identity"], "proof-of-audit-auditor")
         self.assertEqual(payload["onchain"]["agent_name"], "Proof-of-Audit Auditor")
@@ -1152,6 +1156,14 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(payload["challenge"]["advisory_verdict"], "rejected")
         self.assertEqual(payload["challenge"]["execution_log"], "forge output")
         self.assertEqual(payload["challenge"]["matched_findings"], ["finding-1"])
+        self.assertEqual(
+            payload["challenge"]["verification_dossier"]["policy"]["status"],
+            "rejected",
+        )
+        self.assertEqual(
+            payload["challenge"]["verification_dossier"]["execution"]["execution_env"],
+            "foundry",
+        )
 
         fetched = typed_client.get(f"/audits/{audit_id}")
         self.assertEqual(fetched.status_code, 200)
@@ -1161,6 +1173,10 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(
             fetched_payload["challenge"]["evidence_manifest"]["pinned_block_number"],
             42,
+        )
+        self.assertEqual(
+            fetched_payload["challenge"]["verification_dossier"]["comparison"]["matched_finding_ids"],
+            ["finding-1"],
         )
         self.assertIsNotNone(recording_verifier.last_context)
         self.assertEqual(recording_verifier.last_context.evidence_type, "executable_test")
