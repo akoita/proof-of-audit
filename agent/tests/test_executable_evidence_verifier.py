@@ -83,6 +83,9 @@ def test_executable_evidence_matching_reported_issue_is_advisory_rejected() -> N
     assert result.challenge_claim.claim_type == "reentrancy"
     assert result.verification_dossier is not None
     assert result.verification_dossier.comparison_status == "already_covered"
+    assert result.verification_dossier.comparison_confidence in {"medium", "high"}
+    assert result.verification_dossier.matched_findings[0].relationship == "already_covered"
+    assert result.verification_dossier.policy_rationale is not None
 
 
 def test_executable_evidence_new_issue_is_advisory_upheld() -> None:
@@ -107,7 +110,9 @@ def test_executable_evidence_new_issue_is_advisory_upheld() -> None:
     assert result.challenge_claim is not None
     assert result.challenge_claim.claim_type == "access_control"
     assert result.verification_dossier is not None
+    assert result.verification_dossier.comparison_status == "likely_new_issue"
     assert result.verification_dossier.policy_status == "manual_review_required"
+    assert result.verification_dossier.policy_confidence in {"medium", "high"}
 
 
 def test_executable_evidence_failed_run_is_invalid_evidence() -> None:
@@ -129,6 +134,71 @@ def test_executable_evidence_failed_run_is_invalid_evidence() -> None:
     assert result.advisory_only is True
     assert result.verification_dossier is not None
     assert result.verification_dossier.execution_status == "failed"
+
+
+def test_executable_evidence_clean_report_is_contradictory_upheld() -> None:
+    context = EvidenceContext(
+        proof_uri="file:///tmp/ChallengeEvidence.t.sol",
+        benchmark_id="clean-vault",
+        target_contract="0x1000000000000000000000000000000000000001",
+        published_report={
+            "summary": "Clean audit report with no findings.",
+            "findings": [],
+            "normalized_findings": [],
+        },
+        evidence_type="executable_test",
+        execution_env="foundry",
+        evidence_manifest={
+            "bundle_format": "proof-of-audit-executable-evidence/v1",
+            "execution_env": "foundry",
+            "entrypoint": "ChallengeEvidence.t.sol",
+            "target_chain_id": 31337,
+        },
+        chain_id=31337,
+        rpc_url="http://127.0.0.1:8545",
+    )
+    verifier = ExecutableEvidenceVerifier(
+        runner=StubRunner(
+            ExecutableEvidenceRunResult(
+                outcome="passed",
+                summary="ownership changes without authorization",
+                detail="passed",
+                source_text="contract ChallengeTest { function test_rotateOwner_takeover() public {} }",
+                stdout="rotateOwner owner takeover reproduced",
+            )
+        )
+    )
+
+    result = verifier.verify(context)
+
+    assert result.status == "verified"
+    assert result.resolution == "upheld"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.comparison_status == "contradicts_audit_claim"
+    assert result.verification_dossier.policy_status == "manual_review_required"
+
+
+def test_executable_evidence_same_root_cause_variant_abstains() -> None:
+    verifier = ExecutableEvidenceVerifier(
+        runner=StubRunner(
+            ExecutableEvidenceRunResult(
+                outcome="passed",
+                summary="passed",
+                detail="passed",
+                source_text="contract ChallengeTest { function test_deposit_reentrancy_variant() public {} }",
+                stdout="deposit reentrancy reproduced",
+            )
+        )
+    )
+
+    result = verifier.verify(_context())
+
+    assert result.status == "verifier_unavailable"
+    assert result.resolution is None
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.comparison_status == "same_root_cause_variant"
+    assert result.verification_dossier.policy_status == "manual_review_required"
+    assert result.verification_dossier.abstained is True
 
 
 def test_executable_evidence_uses_high_confidence_extractor_claim() -> None:
@@ -173,6 +243,7 @@ def test_executable_evidence_uses_high_confidence_extractor_claim() -> None:
     assert result.verification_dossier is not None
     assert result.verification_dossier.model_metadata["provider"] == "openai"
     assert result.verification_dossier.model_metadata["extraction_status"] == "complete"
+    assert result.verification_dossier.comparison_status == "likely_new_issue"
 
 
 def test_low_confidence_extractor_forces_manual_review() -> None:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 
 from proof_of_audit_agent.challenge_verifier import (
@@ -13,6 +12,12 @@ from proof_of_audit_agent.challenge_claim_extractor import ChallengeClaimExtract
 from proof_of_audit_agent.executable_evidence_runner import (
     ExecutableEvidenceRunResult,
     ExecutableEvidenceRunner,
+)
+from proof_of_audit_agent.semantic_comparison import (
+    AbstentionFirstPolicy,
+    SemanticChallengeComparator,
+    SemanticComparisonResult,
+    SemanticPolicyDecision,
 )
 
 
@@ -35,10 +40,18 @@ _COMMON_CALL_NAMES = {
 }
 
 
-@dataclass(frozen=True)
-class FindingMatchAnalysis:
-    matched_findings: list[str]
-    unmatched_findings: list[str]
+def _identifier_tokens(name: str) -> set[str]:
+    cleaned = re.sub(r"^test", "", name)
+    pieces = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", cleaned)
+    tokens = {
+        token.lower()
+        for token in re.split(r"[^A-Za-z0-9]+", pieces)
+        if token and len(token) >= 4
+    }
+    compact = cleaned.lower()
+    if compact:
+        tokens.add(compact)
+    return tokens
 
 
 class ExecutableEvidenceVerifier:
@@ -46,9 +59,13 @@ class ExecutableEvidenceVerifier:
         self,
         runner: ExecutableEvidenceRunner | None = None,
         extractor: ChallengeClaimExtractor | None = None,
+        comparator: SemanticChallengeComparator | None = None,
+        policy: AbstentionFirstPolicy | None = None,
     ) -> None:
         self.runner = runner or ExecutableEvidenceRunner()
         self.extractor = extractor
+        self.comparator = comparator or SemanticChallengeComparator()
+        self.policy = policy or AbstentionFirstPolicy()
 
     def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
         run_result = self.runner.run(context)
@@ -71,11 +88,21 @@ class ExecutableEvidenceVerifier:
                     context=context,
                     run_result=run_result,
                     claim=claim,
-                    comparison_status="not_assessed",
+                    comparison_result=SemanticComparisonResult(
+                        outcome="not_assessed",
+                        confidence="unknown",
+                        rationale="Evidence integrity validation failed before semantic comparison.",
+                        unmatched_signals=signals,
+                    ),
+                    policy_decision=SemanticPolicyDecision(
+                        status="rejected",
+                        recommended_resolution="rejected",
+                        abstained=False,
+                        confidence="high",
+                        rationale="Invalid executable evidence is rejected before semantic comparison.",
+                    ),
                     policy_status="rejected",
                     recommended_resolution="rejected",
-                    matched_findings=[],
-                    unmatched_signals=signals,
                     advisory_only=True,
                     model_metadata=model_metadata,
                 ),
@@ -93,11 +120,21 @@ class ExecutableEvidenceVerifier:
                     context=context,
                     run_result=run_result,
                     claim=claim,
-                    comparison_status="not_assessed",
+                    comparison_result=SemanticComparisonResult(
+                        outcome="not_assessed",
+                        confidence="unknown",
+                        rationale="Semantic comparison could not run because the evidence runner failed.",
+                        unmatched_signals=signals,
+                    ),
+                    policy_decision=SemanticPolicyDecision(
+                        status="manual_review_required",
+                        recommended_resolution="manual_review_required",
+                        abstained=True,
+                        confidence="unknown",
+                        rationale="Runner failures require manual review.",
+                    ),
                     policy_status="manual_review_required",
                     recommended_resolution="manual_review_required",
-                    matched_findings=[],
-                    unmatched_signals=signals,
                     advisory_only=True,
                     abstained=True,
                     model_metadata=model_metadata,
@@ -129,11 +166,21 @@ class ExecutableEvidenceVerifier:
                         context=context,
                         run_result=run_result,
                         claim=claim,
-                        comparison_status="not_assessed",
+                        comparison_result=SemanticComparisonResult(
+                            outcome="not_assessed",
+                            confidence="unknown",
+                            rationale="Semantic comparison was skipped because structured claim extraction did not produce a usable result.",
+                            unmatched_signals=signals,
+                        ),
+                        policy_decision=SemanticPolicyDecision(
+                            status="manual_review_required",
+                            recommended_resolution="manual_review_required",
+                            abstained=True,
+                            confidence="unknown",
+                            rationale=detail,
+                        ),
                         policy_status="manual_review_required",
                         recommended_resolution="manual_review_required",
-                        matched_findings=[],
-                        unmatched_signals=signals,
                         advisory_only=True,
                         abstained=True,
                         model_metadata=model_metadata,
@@ -142,7 +189,6 @@ class ExecutableEvidenceVerifier:
                     ),
                 )
 
-        analysis = self._match_findings(context, run_result, claim=claim)
         if run_result.outcome == "failed":
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
@@ -152,74 +198,94 @@ class ExecutableEvidenceVerifier:
                 resolution="rejected",
                 advisory_only=True,
                 execution_log=run_result.execution_log or None,
-                matched_findings=analysis.matched_findings,
-                unmatched_findings=analysis.unmatched_findings,
+                matched_findings=[],
+                unmatched_findings=signals,
                 challenge_claim=claim,
                 verification_dossier=self._build_dossier(
                     context=context,
                     run_result=run_result,
                     claim=claim,
-                    comparison_status="not_assessed",
+                    comparison_result=SemanticComparisonResult(
+                        outcome="not_assessed",
+                        confidence="unknown",
+                        rationale="The exploit did not reproduce, so semantic comparison was skipped.",
+                        unmatched_signals=signals,
+                    ),
+                    policy_decision=SemanticPolicyDecision(
+                        status="rejected",
+                        recommended_resolution="rejected",
+                        abstained=False,
+                        confidence="high",
+                        rationale="Failed executable evidence is rejected without semantic comparison.",
+                    ),
                     policy_status="rejected",
                     recommended_resolution="rejected",
-                    matched_findings=analysis.matched_findings,
-                    unmatched_signals=analysis.unmatched_findings,
                     advisory_only=True,
                     model_metadata=model_metadata,
                     extraction_status=extraction_status,
                     extraction_detail=extraction_detail,
                 ),
             )
-        if analysis.matched_findings:
+
+        comparison = self.comparator.compare(
+            claim=claim,
+            published_report=context.published_report,
+        )
+        policy = self.policy.decide(comparison)
+
+        if comparison.outcome == "already_covered" and not policy.abstained:
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
                 status="verified",
                 summary="Executable evidence reproduced behavior already covered by the published audit.",
-                detail="The submitted test passes, but its demonstrated issue overlaps with the auditor's recorded findings, so the challenge should be rejected absent stronger contrary evidence.",
+                detail=comparison.rationale,
                 resolution="rejected",
                 advisory_only=True,
                 execution_log=run_result.execution_log or None,
-                matched_findings=analysis.matched_findings,
-                unmatched_findings=analysis.unmatched_findings,
+                matched_findings=comparison.matched_finding_ids,
+                unmatched_findings=comparison.unmatched_signals,
                 challenge_claim=claim,
                 verification_dossier=self._build_dossier(
                     context=context,
                     run_result=run_result,
                     claim=claim,
-                    comparison_status="already_covered",
-                    policy_status="rejected",
-                    recommended_resolution="rejected",
-                    matched_findings=analysis.matched_findings,
-                    unmatched_signals=analysis.unmatched_findings,
+                    comparison_result=comparison,
+                    policy_decision=policy,
+                    policy_status=policy.status,
+                    recommended_resolution=policy.recommended_resolution,
                     advisory_only=True,
                     model_metadata=model_metadata,
                     extraction_status=extraction_status,
                     extraction_detail=extraction_detail,
                 ),
             )
-        if analysis.unmatched_findings:
+
+        if comparison.outcome in {"likely_new_issue", "contradicts_audit_claim"}:
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
                 status="verified",
-                summary="Executable evidence appears to demonstrate an issue not covered by the published audit.",
-                detail="The submitted test passes on the pinned fork and the extracted issue signals do not match any recorded finding, so the challenge should be treated as advisory-upheld pending manual review.",
+                summary=(
+                    "Executable evidence appears to demonstrate an issue not covered by the published audit."
+                    if comparison.outcome == "likely_new_issue"
+                    else "Executable evidence appears to contradict the published audit claim."
+                ),
+                detail=comparison.rationale,
                 resolution="upheld",
                 advisory_only=True,
                 execution_log=run_result.execution_log or None,
-                matched_findings=analysis.matched_findings,
-                unmatched_findings=analysis.unmatched_findings,
+                matched_findings=comparison.matched_finding_ids,
+                unmatched_findings=comparison.unmatched_signals,
                 challenge_claim=claim,
                 verification_dossier=self._build_dossier(
                     context=context,
                     run_result=run_result,
                     claim=claim,
-                    comparison_status="likely_new_issue",
-                    policy_status="manual_review_required",
-                    recommended_resolution="upheld",
-                    matched_findings=analysis.matched_findings,
-                    unmatched_signals=analysis.unmatched_findings,
+                    comparison_result=comparison,
+                    policy_decision=policy,
+                    policy_status=policy.status,
+                    recommended_resolution=policy.recommended_resolution,
                     advisory_only=True,
-                    abstained=True,
+                    abstained=policy.abstained,
                     model_metadata=model_metadata,
                     extraction_status=extraction_status,
                     extraction_detail=extraction_detail,
@@ -228,8 +294,10 @@ class ExecutableEvidenceVerifier:
         return ChallengeVerificationResult(
             verifier=VERIFIER_NAME,
             status="verifier_unavailable",
-            summary="Executable evidence ran successfully but could not be matched to the published claim.",
-            detail="Manual review is required because the advisory runner could not confidently determine whether the test demonstrates a new issue or one the audit already covered.",
+            summary=(
+                "Executable evidence ran successfully but requires manual semantic review."
+            ),
+            detail=policy.rationale,
             advisory_only=True,
             execution_log=run_result.execution_log or None,
             challenge_claim=claim,
@@ -237,13 +305,12 @@ class ExecutableEvidenceVerifier:
                 context=context,
                 run_result=run_result,
                 claim=claim,
-                comparison_status="ambiguous",
-                policy_status="manual_review_required",
-                recommended_resolution="manual_review_required",
-                matched_findings=[],
-                unmatched_signals=signals,
+                comparison_result=comparison,
+                policy_decision=policy,
+                policy_status=policy.status,
+                recommended_resolution=policy.recommended_resolution,
                 advisory_only=True,
-                abstained=True,
+                abstained=policy.abstained,
                 model_metadata=model_metadata,
                 extraction_status=extraction_status,
                 extraction_detail=extraction_detail,
@@ -272,7 +339,7 @@ class ExecutableEvidenceVerifier:
             claim_type = "reentrancy"
             preconditions = ["attacker can trigger a re-entrant call path"]
             impact = "Potential balance drain or broken accounting through re-entry."
-        elif {"rotateowner", "owner", "admin", "unauthorized"} & set(signals):
+        elif {"rotateowner", "owner", "admin", "unauthorized", "privilege", "takeover"} & set(signals):
             claim_type = "access_control"
             preconditions = ["attacker can invoke a privileged code path without authorization"]
             impact = "Potential privilege escalation or unauthorized configuration changes."
@@ -310,11 +377,10 @@ class ExecutableEvidenceVerifier:
         context: EvidenceContext,
         run_result: ExecutableEvidenceRunResult,
         claim: StructuredChallengeClaim | None,
-        comparison_status: str,
+        comparison_result: SemanticComparisonResult,
+        policy_decision: SemanticPolicyDecision,
         policy_status: str,
         recommended_resolution: str,
-        matched_findings: list[str],
-        unmatched_signals: list[str],
         advisory_only: bool,
         abstained: bool = False,
         model_metadata: dict[str, object] | None = None,
@@ -339,12 +405,17 @@ class ExecutableEvidenceVerifier:
             evidence_type=context.evidence_type,
             integrity_status=integrity_status,
             execution_status=execution_status,
-            comparison_status=comparison_status,
+            comparison_status=comparison_result.outcome,
             policy_status=policy_status,
             advisory_only=advisory_only,
             challenge_claim=claim,
-            matched_finding_ids=matched_findings,
-            unmatched_signals=unmatched_signals,
+            matched_finding_ids=comparison_result.matched_finding_ids,
+            matched_findings=comparison_result.matched_findings,
+            unmatched_signals=comparison_result.unmatched_signals,
+            comparison_confidence=comparison_result.confidence,
+            comparison_rationale=comparison_result.rationale,
+            disagreement_status=comparison_result.disagreement_status,
+            disagreement_detail=comparison_result.disagreement_detail,
             committed_evidence_hash=context.committed_evidence_hash,
             execution_env=context.execution_env,
             backend=run_result.backend,
@@ -353,6 +424,8 @@ class ExecutableEvidenceVerifier:
             fork_block_number=run_result.fork_block_number,
             recommended_resolution=recommended_resolution,
             abstained=abstained,
+            policy_confidence=policy_decision.confidence,
+            policy_rationale=policy_decision.rationale,
             model_metadata={
                 **(model_metadata or {}),
                 **(
@@ -366,49 +439,6 @@ class ExecutableEvidenceVerifier:
                     else {}
                 ),
             },
-        )
-
-    def _match_findings(
-        self,
-        context: EvidenceContext,
-        run_result: ExecutableEvidenceRunResult,
-        *,
-        claim: StructuredChallengeClaim | None = None,
-    ) -> FindingMatchAnalysis:
-        signals = self._extract_issue_signals(run_result)
-        if claim is not None:
-            signals.update(
-                item.lower()
-                for item in (
-                    [claim.claim_type, claim.basis]
-                    + claim.affected_surfaces
-                    + claim.preconditions
-                    + claim.supporting_signals
-                    + (
-                        [claim.demonstrated_effect]
-                        if claim.demonstrated_effect is not None
-                        else []
-                    )
-                    + ([claim.claimed_impact] if claim.claimed_impact is not None else [])
-                )
-                if isinstance(item, str) and item
-                for item in re.sub(r"[^a-z0-9]+", " ", item.lower()).split()
-            )
-        findings = context.published_report.get("findings")
-        if not isinstance(findings, list):
-            findings = []
-        matched: list[str] = []
-        remaining = set(signals)
-        for finding in findings:
-            if not isinstance(finding, dict):
-                continue
-            if self._finding_matches_signals(finding, signals):
-                finding_id = str(finding.get("finding_id") or finding.get("title") or "finding")
-                matched.append(finding_id)
-                remaining.difference_update(self._finding_tokens(finding))
-        return FindingMatchAnalysis(
-            matched_findings=matched,
-            unmatched_findings=sorted(remaining),
         )
 
     def _extract_issue_signals(self, run_result: ExecutableEvidenceRunResult) -> set[str]:
@@ -433,6 +463,8 @@ class ExecutableEvidenceVerifier:
             "unchecked": "unchecked",
             "external call": "external-call",
             "unauthorized": "unauthorized",
+            "privilege": "privilege",
+            "takeover": "takeover",
         }
         normalized = re.sub(r"[^a-z0-9]+", " ", corpus)
         compact = normalized.replace(" ", "")
@@ -441,26 +473,7 @@ class ExecutableEvidenceVerifier:
                 signals.add(label)
         source_text = run_result.source_text or ""
         for name in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", source_text):
-            if name in _COMMON_CALL_NAMES or name.startswith("test"):
+            if name in _COMMON_CALL_NAMES:
                 continue
-            signals.add(name.lower())
+            signals.update(_identifier_tokens(name))
         return signals
-
-    def _finding_matches_signals(self, finding: dict[str, object], signals: set[str]) -> bool:
-        finding_tokens = self._finding_tokens(finding)
-        return bool(finding_tokens & signals)
-
-    def _finding_tokens(self, finding: dict[str, object]) -> set[str]:
-        tokens: set[str] = set()
-        for key in ("title", "description", "category", "detector", "affected_function"):
-            value = finding.get(key)
-            if not isinstance(value, str) or not value:
-                continue
-            normalized = re.sub(r"[^a-z0-9]+", " ", value.lower())
-            compact = normalized.replace(" ", "")
-            for token in normalized.split():
-                if len(token) >= 4:
-                    tokens.add(token)
-            if compact:
-                tokens.add(compact)
-        return tokens

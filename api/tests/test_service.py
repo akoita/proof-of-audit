@@ -711,8 +711,20 @@ class AuditServiceTest(unittest.TestCase):
                 "likely_new_issue",
             )
             self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"]["status"],
+                "manual_review_required",
+            )
+            self.assertEqual(
                 challenged["challenge"]["verification_dossier"]["policy"]["recommended_resolution"],
                 "upheld",
+            )
+            self.assertIn(
+                "rationale",
+                challenged["challenge"]["verification_dossier"]["comparison"],
+            )
+            self.assertIn(
+                "confidence",
+                challenged["challenge"]["verification_dossier"]["policy"],
             )
             hydrated = service.get_audit(created["id"])
             self.assertIsNotNone(hydrated)
