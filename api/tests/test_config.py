@@ -128,6 +128,10 @@ class ContractConfigTest(unittest.TestCase):
                 "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:9999",
                 "PROOF_OF_AUDIT_WORKER_RUNTIME_MODE": "hybrid",
                 "PROOF_OF_AUDIT_AGENT_FORGE_COMMAND": "/tmp/agent-forge",
+                "PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_COMMAND": "/tmp/challenge-claim-extractor",
+                "PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_PROVIDER": "openai",
+                "PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_MODEL": "gpt-5.4-mini",
+                "PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_MIN_CONFIDENCE": "high",
             }
         )
 
@@ -161,6 +165,13 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.runtime_api_base_url, "http://127.0.0.1:9999")
         self.assertEqual(config.worker_runtime_mode, "hybrid")
         self.assertEqual(config.agent_forge_command, "/tmp/agent-forge")
+        self.assertEqual(
+            config.challenge_claim_extractor_command,
+            "/tmp/challenge-claim-extractor",
+        )
+        self.assertEqual(config.challenge_claim_extractor_provider, "openai")
+        self.assertEqual(config.challenge_claim_extractor_model, "gpt-5.4-mini")
+        self.assertEqual(config.challenge_claim_extractor_min_confidence, "high")
         self.assertTrue(config.deployment_ready)
         self.assertEqual(
             config.transaction_url("0x123"),

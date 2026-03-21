@@ -599,6 +599,10 @@ class ContractConfig:
     agent_forge_model: str | None
     agent_forge_max_iterations: int | None
     agent_forge_runs_home: Path | None
+    challenge_claim_extractor_command: str | None
+    challenge_claim_extractor_provider: str | None
+    challenge_claim_extractor_model: str | None
+    challenge_claim_extractor_min_confidence: str
 
     @classmethod
     def from_env(
@@ -855,6 +859,25 @@ class ContractConfig:
                 Path(source["PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME"])
                 if source.get("PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME")
                 else None
+            ),
+            challenge_claim_extractor_command=(
+                source.get("PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_COMMAND")
+                or None
+            ),
+            challenge_claim_extractor_provider=(
+                source.get("PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_PROVIDER")
+                or None
+            ),
+            challenge_claim_extractor_model=(
+                source.get("PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_MODEL")
+                or None
+            ),
+            challenge_claim_extractor_min_confidence=(
+                source.get(
+                    "PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_MIN_CONFIDENCE",
+                    "medium",
+                )
+                or "medium"
             ),
         )
 

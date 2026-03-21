@@ -9,6 +9,7 @@ from proof_of_audit_agent.challenge_verifier import (
     StructuredChallengeClaim,
     VerificationDossier,
 )
+from proof_of_audit_agent.challenge_claim_extractor import ChallengeClaimExtractor
 from proof_of_audit_agent.executable_evidence_runner import (
     ExecutableEvidenceRunResult,
     ExecutableEvidenceRunner,
@@ -44,12 +45,18 @@ class ExecutableEvidenceVerifier:
     def __init__(
         self,
         runner: ExecutableEvidenceRunner | None = None,
+        extractor: ChallengeClaimExtractor | None = None,
     ) -> None:
         self.runner = runner or ExecutableEvidenceRunner()
+        self.extractor = extractor
 
     def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
         run_result = self.runner.run(context)
-        claim, signals = self._build_challenge_claim(run_result)
+        heuristic_claim, signals = self._build_challenge_claim(run_result)
+        claim = heuristic_claim
+        extraction_status = "not_attempted"
+        extraction_detail: str | None = None
+        model_metadata: dict[str, object] = {}
         if run_result.outcome == "invalid_evidence":
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
@@ -70,6 +77,7 @@ class ExecutableEvidenceVerifier:
                     matched_findings=[],
                     unmatched_signals=signals,
                     advisory_only=True,
+                    model_metadata=model_metadata,
                 ),
             )
         if run_result.outcome == "runner_error":
@@ -92,10 +100,49 @@ class ExecutableEvidenceVerifier:
                     unmatched_signals=signals,
                     advisory_only=True,
                     abstained=True,
+                    model_metadata=model_metadata,
                 ),
             )
 
-        analysis = self._match_findings(context, run_result)
+        if run_result.outcome == "passed" and self.extractor is not None:
+            extraction = self.extractor.extract(context=context, run_result=run_result)
+            extraction_status = extraction.status
+            extraction_detail = extraction.detail
+            model_metadata = dict(extraction.model_metadata)
+            if extraction.claim is not None:
+                claim = extraction.claim
+
+            if extraction.status in {"invalid_output", "low_confidence", "extractor_error"}:
+                summary = "Structured challenge claim extraction requires manual review."
+                detail = extraction.detail or (
+                    "The configured challenge claim extractor did not produce a usable high-confidence structured claim."
+                )
+                return ChallengeVerificationResult(
+                    verifier=VERIFIER_NAME,
+                    status="verifier_unavailable",
+                    summary=summary,
+                    detail=detail,
+                    advisory_only=True,
+                    execution_log=run_result.execution_log or None,
+                    challenge_claim=claim,
+                    verification_dossier=self._build_dossier(
+                        context=context,
+                        run_result=run_result,
+                        claim=claim,
+                        comparison_status="not_assessed",
+                        policy_status="manual_review_required",
+                        recommended_resolution="manual_review_required",
+                        matched_findings=[],
+                        unmatched_signals=signals,
+                        advisory_only=True,
+                        abstained=True,
+                        model_metadata=model_metadata,
+                        extraction_status=extraction_status,
+                        extraction_detail=extraction_detail,
+                    ),
+                )
+
+        analysis = self._match_findings(context, run_result, claim=claim)
         if run_result.outcome == "failed":
             return ChallengeVerificationResult(
                 verifier=VERIFIER_NAME,
@@ -118,6 +165,9 @@ class ExecutableEvidenceVerifier:
                     matched_findings=analysis.matched_findings,
                     unmatched_signals=analysis.unmatched_findings,
                     advisory_only=True,
+                    model_metadata=model_metadata,
+                    extraction_status=extraction_status,
+                    extraction_detail=extraction_detail,
                 ),
             )
         if analysis.matched_findings:
@@ -142,6 +192,9 @@ class ExecutableEvidenceVerifier:
                     matched_findings=analysis.matched_findings,
                     unmatched_signals=analysis.unmatched_findings,
                     advisory_only=True,
+                    model_metadata=model_metadata,
+                    extraction_status=extraction_status,
+                    extraction_detail=extraction_detail,
                 ),
             )
         if analysis.unmatched_findings:
@@ -167,6 +220,9 @@ class ExecutableEvidenceVerifier:
                     unmatched_signals=analysis.unmatched_findings,
                     advisory_only=True,
                     abstained=True,
+                    model_metadata=model_metadata,
+                    extraction_status=extraction_status,
+                    extraction_detail=extraction_detail,
                 ),
             )
         return ChallengeVerificationResult(
@@ -188,6 +244,9 @@ class ExecutableEvidenceVerifier:
                 unmatched_signals=signals,
                 advisory_only=True,
                 abstained=True,
+                model_metadata=model_metadata,
+                extraction_status=extraction_status,
+                extraction_detail=extraction_detail,
             ),
         )
 
@@ -258,6 +317,9 @@ class ExecutableEvidenceVerifier:
         unmatched_signals: list[str],
         advisory_only: bool,
         abstained: bool = False,
+        model_metadata: dict[str, object] | None = None,
+        extraction_status: str | None = None,
+        extraction_detail: str | None = None,
     ) -> VerificationDossier:
         integrity_status = "valid"
         if run_result.outcome == "invalid_evidence":
@@ -291,12 +353,47 @@ class ExecutableEvidenceVerifier:
             fork_block_number=run_result.fork_block_number,
             recommended_resolution=recommended_resolution,
             abstained=abstained,
+            model_metadata={
+                **(model_metadata or {}),
+                **(
+                    {"extraction_status": extraction_status}
+                    if extraction_status is not None
+                    else {}
+                ),
+                **(
+                    {"extraction_detail": extraction_detail}
+                    if extraction_detail
+                    else {}
+                ),
+            },
         )
 
     def _match_findings(
-        self, context: EvidenceContext, run_result: ExecutableEvidenceRunResult
+        self,
+        context: EvidenceContext,
+        run_result: ExecutableEvidenceRunResult,
+        *,
+        claim: StructuredChallengeClaim | None = None,
     ) -> FindingMatchAnalysis:
         signals = self._extract_issue_signals(run_result)
+        if claim is not None:
+            signals.update(
+                item.lower()
+                for item in (
+                    [claim.claim_type, claim.basis]
+                    + claim.affected_surfaces
+                    + claim.preconditions
+                    + claim.supporting_signals
+                    + (
+                        [claim.demonstrated_effect]
+                        if claim.demonstrated_effect is not None
+                        else []
+                    )
+                    + ([claim.claimed_impact] if claim.claimed_impact is not None else [])
+                )
+                if isinstance(item, str) and item
+                for item in re.sub(r"[^a-z0-9]+", " ", item.lower()).split()
+            )
         findings = context.published_report.get("findings")
         if not isinstance(findings, list):
             findings = []

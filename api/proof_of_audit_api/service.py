@@ -25,6 +25,9 @@ from proof_of_audit_api.validation_bridge import (
     ValidationBridgeError,
     ValidationRegistryBridge,
 )
+from proof_of_audit_agent.challenge_claim_extractor import (
+    CommandBackedChallengeClaimExtractor,
+)
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerifierStrategy,
     EvidenceContext,
@@ -74,9 +77,12 @@ class AuditService:
             ),
             workspace_root=data_root,
         )
+        executable_verifier = ExecutableEvidenceVerifier(
+            extractor=self._build_challenge_claim_extractor()
+        )
         self.challenge_verifiers = challenge_verifiers or {
             "deterministic_fixture": ProofUriChallengeVerifier(),
-            "executable_test": ExecutableEvidenceVerifier(),
+            "executable_test": executable_verifier,
         }
         self.evidence_resolver = ExecutableEvidenceResolver()
         self.publisher = publisher or ProofOfAuditPublisher.from_config_if_ready(
@@ -91,6 +97,19 @@ class AuditService:
         )
         self.reputation_bridge = reputation_bridge or ReputationRegistryBridge.from_config_if_ready(
             self.contract_config
+        )
+
+    def _build_challenge_claim_extractor(
+        self,
+    ) -> CommandBackedChallengeClaimExtractor | None:
+        command = self.contract_config.challenge_claim_extractor_command
+        if not command:
+            return None
+        return CommandBackedChallengeClaimExtractor(
+            command=command,
+            provider=self.contract_config.challenge_claim_extractor_provider,
+            model=self.contract_config.challenge_claim_extractor_model,
+            min_confidence=self.contract_config.challenge_claim_extractor_min_confidence,
         )
 
     def create_audit(
