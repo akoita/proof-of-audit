@@ -1,6 +1,10 @@
 from proof_of_audit_agent.challenge_verifier import EvidenceContext
 from proof_of_audit_agent.executable_evidence_runner import ExecutableEvidenceRunResult
 from proof_of_audit_agent.executable_evidence_verifier import ExecutableEvidenceVerifier
+from proof_of_audit_agent.challenge_claim_extractor import (
+    ChallengeClaimExtractionResult,
+)
+from proof_of_audit_agent.challenge_verifier import StructuredChallengeClaim
 
 
 class StubRunner:
@@ -8,6 +12,22 @@ class StubRunner:
         self.result = result
 
     def run(self, context: EvidenceContext) -> ExecutableEvidenceRunResult:
+        return self.result
+
+
+class StubExtractor:
+    def __init__(self, result: ChallengeClaimExtractionResult) -> None:
+        self.result = result
+        self.calls = 0
+
+    def extract(
+        self,
+        *,
+        context: EvidenceContext,
+        run_result: ExecutableEvidenceRunResult,
+    ) -> ChallengeClaimExtractionResult:
+        del context, run_result
+        self.calls += 1
         return self.result
 
 
@@ -109,3 +129,82 @@ def test_executable_evidence_failed_run_is_invalid_evidence() -> None:
     assert result.advisory_only is True
     assert result.verification_dossier is not None
     assert result.verification_dossier.execution_status == "failed"
+
+
+def test_executable_evidence_uses_high_confidence_extractor_claim() -> None:
+    extractor = StubExtractor(
+        ChallengeClaimExtractionResult(
+            status="complete",
+            claim=StructuredChallengeClaim(
+                claim_type="access_control",
+                basis="llm_command_extractor",
+                confidence="high",
+                affected_surfaces=["rotateOwner"],
+                preconditions=["arbitrary caller"],
+                demonstrated_effect="ownership changes without authorization",
+                claimed_impact="privilege takeover",
+                supporting_signals=["rotateowner", "owner", "unauthorized"],
+            ),
+            model_metadata={
+                "provider": "openai",
+                "model": "gpt-5.4-mini",
+                "prompt_version": "challenge-claim-extractor/v1",
+            },
+        )
+    )
+    verifier = ExecutableEvidenceVerifier(
+        runner=StubRunner(
+            ExecutableEvidenceRunResult(
+                outcome="passed",
+                summary="passed",
+                detail="passed",
+                source_text="contract ChallengeTest { function test_rotateOwner_takeover() public {} }",
+                stdout="rotateOwner owner takeover reproduced",
+            )
+        ),
+        extractor=extractor,
+    )
+
+    result = verifier.verify(_context())
+
+    assert extractor.calls == 1
+    assert result.challenge_claim is not None
+    assert result.challenge_claim.basis == "llm_command_extractor"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.model_metadata["provider"] == "openai"
+    assert result.verification_dossier.model_metadata["extraction_status"] == "complete"
+
+
+def test_low_confidence_extractor_forces_manual_review() -> None:
+    verifier = ExecutableEvidenceVerifier(
+        runner=StubRunner(
+            ExecutableEvidenceRunResult(
+                outcome="passed",
+                summary="passed",
+                detail="passed",
+                source_text="contract ChallengeTest { function test_rotateOwner_takeover() public {} }",
+                stdout="rotateOwner owner takeover reproduced",
+            )
+        ),
+        extractor=StubExtractor(
+            ChallengeClaimExtractionResult(
+                status="low_confidence",
+                claim=StructuredChallengeClaim(
+                    claim_type="access_control",
+                    basis="llm_command_extractor",
+                    confidence="low",
+                ),
+                detail="low confidence",
+                model_metadata={"provider": "openai", "model": "gpt-5.4-mini"},
+            )
+        ),
+    )
+
+    result = verifier.verify(_context())
+
+    assert result.status == "verifier_unavailable"
+    assert result.challenge_claim is not None
+    assert result.challenge_claim.confidence == "low"
+    assert result.verification_dossier is not None
+    assert result.verification_dossier.policy_status == "manual_review_required"
+    assert result.verification_dossier.model_metadata["extraction_status"] == "low_confidence"
