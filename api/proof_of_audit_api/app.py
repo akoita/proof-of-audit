@@ -35,6 +35,7 @@ from proof_of_audit_api.schemas import (
     ResolveAuditRequest,
     TargetComparisonResponse,
     TargetAuditClaimsResponse,
+    VerificationDossierModel,
 )
 from proof_of_audit_api.service import AuditService
 
@@ -291,6 +292,23 @@ def create_app(
                 detail={"error": "audit_not_found"},
             )
         return AuditRecordModel.model_validate(record)
+
+    @app.get(
+        "/audits/{audit_id}/challenge/dossier",
+        response_model=VerificationDossierModel,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_challenge_verification_dossier(
+        audit_id: str, request: Request
+    ) -> VerificationDossierModel:
+        service = _service(request)
+        dossier = service.get_challenge_verification_dossier(audit_id)
+        if dossier is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "challenge_verification_dossier_not_found"},
+            )
+        return VerificationDossierModel.model_validate(dossier)
 
     @app.get(
         "/audits/{audit_id}/validation/request",

@@ -15,6 +15,7 @@ type ChallengeCardProps = { audit: AuditRecord };
 export function ChallengeCard({ audit }: ChallengeCardProps) {
   if (!audit.challenge) return null;
   const ch = audit.challenge;
+  const dossier = ch.verification_dossier;
 
   const statusColor = statusTone(ch.status) === "confirmed" ? "var(--secondary)"
     : statusTone(ch.status) === "warning" ? "var(--tertiary)"
@@ -125,6 +126,40 @@ export function ChallengeCard({ audit }: ChallengeCardProps) {
                 {ch.verification_detail}
               </p>
             ) : null}
+          </div>
+        ) : null}
+
+        {dossier ? (
+          <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 8, background: "var(--surface-container-low)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div className="hash-label">VERIFIER DOSSIER</div>
+              {ch.verification_dossier_path ? (
+                <a href={ch.verification_dossier_path} target="_blank" rel="noreferrer" style={{ fontSize: "0.7rem", color: "var(--primary)" }}>
+                  Open JSON ↗
+                </a>
+              ) : null}
+            </div>
+            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span className="muted" style={{ fontSize: "0.72rem" }}>Integrity</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600 }}>{titleCase(dossier.integrity.status)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span className="muted" style={{ fontSize: "0.72rem" }}>Execution</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600 }}>{titleCase(dossier.execution.status)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span className="muted" style={{ fontSize: "0.72rem" }}>Comparison</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600 }}>{titleCase(dossier.comparison.status.replaceAll("_", " "))}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span className="muted" style={{ fontSize: "0.72rem" }}>Policy</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 600 }}>{titleCase(dossier.policy.status.replaceAll("_", " "))}</span>
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: "0.7rem", marginTop: 8, lineHeight: 1.6 }}>
+              {dossier.policy.rationale ?? dossier.comparison.rationale ?? "No verifier rationale recorded."}
+            </p>
           </div>
         ) : null}
 

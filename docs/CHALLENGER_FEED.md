@@ -41,6 +41,8 @@ Each item includes:
 - `max_severity`
 - `finding_count`
 - relevant publish / challenge / resolve transaction hashes and URLs
+- `verification_status`
+- `verification_dossier_path` for machine-readable verifier output when a dossier exists
 - `resolution` when the challenge has been resolved
 
 ## Event kinds
@@ -58,3 +60,21 @@ python scripts/watch_challenger_feed.py --api-base http://127.0.0.1:8080 --limit
 ```
 
 The script prints newly observed events as they appear.
+
+## Machine-readable verifier dossiers
+
+Tooling that needs the full verifier substrate can follow the relative
+`verification_dossier_path` from a feed item or audit record.
+
+Endpoint:
+
+`GET /audits/{audit_id}/challenge/dossier`
+
+This returns the structured Challenge Verifier V2 dossier, including:
+
+- integrity status
+- execution metadata
+- extracted claim
+- comparison rationale and matched findings
+- policy outcome, abstention, and confidence
+- model and schema metadata

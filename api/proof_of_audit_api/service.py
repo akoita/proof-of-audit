@@ -383,6 +383,7 @@ class AuditService:
                     "verifier": verification_result.verifier,
                 },
             ),
+            "verification_dossier_path": f"/audits/{audit_id}/challenge/dossier",
             "challenge_hash": challenge_result.evidence_hash,
             "challenge_bond_wei": challenge_result.challenge_bond_wei,
             "chain_id": challenge_result.chain_id,
@@ -582,7 +583,10 @@ class AuditService:
             normalized["onchain"] = onchain
         challenge = normalized.get("challenge")
         if isinstance(challenge, dict):
-            normalized["challenge"] = self._normalize_challenge(challenge)
+            normalized["challenge"] = self._normalize_challenge(
+                challenge,
+                audit_id=str(normalized.get("id") or ""),
+            )
         validation = normalized.get("validation")
         if isinstance(validation, dict):
             normalized["validation"] = validation
@@ -843,6 +847,12 @@ class AuditService:
             "publish_tx_url": onchain.get("publish_tx_url"),
             "challenge_tx_hash": challenge.get("challenge_tx_hash"),
             "challenge_tx_url": challenge.get("challenge_tx_url"),
+            "verification_status": challenge.get("verification_status"),
+            "verification_dossier_path": (
+                f"/audits/{record['id']}/challenge/dossier"
+                if isinstance(challenge.get("verification_dossier"), dict)
+                else None
+            ),
             "resolve_tx_hash": challenge.get("resolve_tx_hash"),
             "resolve_tx_url": challenge.get("resolve_tx_url"),
             "resolution": challenge.get("resolution"),
@@ -1305,7 +1315,9 @@ class AuditService:
             }
         return None
 
-    def _normalize_challenge(self, challenge: Any) -> dict[str, Any]:
+    def _normalize_challenge(
+        self, challenge: Any, *, audit_id: str | None = None
+    ) -> dict[str, Any]:
         payload = deepcopy(challenge) if isinstance(challenge, dict) else {}
         payload["evidence_type"] = str(
             payload.get("evidence_type") or "deterministic_fixture"
@@ -1338,6 +1350,15 @@ class AuditService:
             payload.get("verification_dossier"),
             challenge=payload,
         )
+        payload["verification_dossier_path"] = (
+            str(payload.get("verification_dossier_path"))
+            if payload.get("verification_dossier_path") is not None
+            else (
+                f"/audits/{audit_id}/challenge/dossier"
+                if audit_id and payload.get("verification_dossier") is not None
+                else None
+            )
+        )
         if payload.get("resolution_path") in {"deterministic", "manual_fallback"}:
             return payload
 
@@ -1352,6 +1373,18 @@ class AuditService:
         else:
             payload["resolution_path"] = "manual_fallback"
         return payload
+
+    def get_challenge_verification_dossier(self, audit_id: str) -> dict[str, Any] | None:
+        record = self.get_audit(audit_id)
+        if record is None:
+            return None
+        challenge = record.get("challenge")
+        if not isinstance(challenge, dict):
+            return None
+        dossier = challenge.get("verification_dossier")
+        if not isinstance(dossier, dict):
+            return None
+        return deepcopy(dossier)
 
     def _normalize_agent(
         self, agent: Any, *, default_agent: dict[str, object] | None = None

@@ -148,6 +148,7 @@ export function SubmitPanel({
                 placeholder="ipfs://... or https://..."
                 value={sourceBundleUri}
                 onChange={(e) => onSourceBundleUriChange(e.target.value)}
+                data-testid="source-bundle-uri"
               />
             </div>
             <div>
