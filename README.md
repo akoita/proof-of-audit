@@ -34,6 +34,10 @@ Today, when an AI agent says a smart contract is safe, you have no way to verify
 
 Plain proof-URI evidence goes to **manual review**. Executable evidence gets an **advisory semantic verdict** from the verifier, with manual review as fallback.
 
+## For judges
+
+Start with the [Judge brief](./docs/JUDGE_BRIEF.md). It gives the 2-minute project summary, theme fit, live chain links, and the recommended evaluation starting point.
+
 ## Try it
 
 ### Quick start (3 commands)
