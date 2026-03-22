@@ -29,7 +29,7 @@ Proof-of-Audit is trust infrastructure for agent-made smart contract judgments: 
 
 1. Read the evaluation path in the README.
 2. Open the live registration document and Base Sepolia contract.
-3. If you want the full product walkthrough, run the local evaluation path.
+3. If you want the full product walkthrough, run `./scripts/run-judge-stack.sh` and follow [Judge evaluation path](./JUDGE_EVALUATION.md).
 
 ## Public links
 
