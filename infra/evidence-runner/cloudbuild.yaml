@@ -35,6 +35,6 @@ steps:
 substitutions:
   _REGION: us-central1
   _SERVICE: proof-of-audit-evidence-runner
-  _IMAGE_URI: us-central1-docker.pkg.dev/$PROJECT_ID/proof-of-audit/evidence-runner:latest
+  _IMAGE_URI: us-central1-docker.pkg.dev/$PROJECT_ID/proof-of-audit/proof-of-audit-evidence-runner:latest
 images:
   - ${_IMAGE_URI}

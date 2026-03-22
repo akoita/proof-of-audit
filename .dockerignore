@@ -1,0 +1,15 @@
+.git
+.github
+.tmp
+
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/*.pyc
+
+api/data
+contracts/cache
+contracts/out
+web/.next
+web/node_modules
+web/test-results
