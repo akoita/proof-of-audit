@@ -36,7 +36,13 @@ Plain proof-URI evidence goes to **manual review**. Executable evidence gets an 
 
 ## For judges
 
-Start with the [Judge brief](./docs/JUDGE_BRIEF.md). It gives the 2-minute project summary, theme fit, live chain links, and the recommended evaluation starting point.
+Start with the [Judge brief](./docs/JUDGE_BRIEF.md). For the full product walkthrough, use the default local evaluation path in [Judge evaluation path](./docs/JUDGE_EVALUATION.md):
+
+```bash
+./scripts/run-judge-stack.sh
+```
+
+Then open `http://127.0.0.1:3000`. If the web app is unavailable, use the fallback API docs at `http://127.0.0.1:8080/docs`.
 
 ## Try it
 
