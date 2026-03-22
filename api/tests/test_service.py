@@ -30,6 +30,11 @@ class RecordingVerifier:
         return self.result
 
 
+class RaisingVerifier:
+    def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
+        raise RuntimeError("verifier crashed")
+
+
 class AuditServiceTest(unittest.TestCase):
     def test_list_audits_hydrates_legacy_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -637,6 +642,45 @@ class AuditServiceTest(unittest.TestCase):
                 challenged["challenge"]["resolution_path"],
                 "manual_fallback",
             )
+
+    def test_challenge_persists_local_state_before_verifier_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                challenge_verifiers={
+                    "deterministic_fixture": RaisingVerifier(),
+                },
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, "auditor-agent-v1")
+
+            with self.assertRaisesRegex(RuntimeError, "verifier crashed"):
+                service.challenge_audit(
+                    created["id"],
+                    "ipfs://wrong-proof",
+                    challenger="whitehat",
+                )
+
+            hydrated = service.get_audit(created["id"])
+            self.assertIsNotNone(hydrated)
+            self.assertEqual(hydrated["status"], "challenged")
+            self.assertEqual(hydrated["challenge"]["status"], "opened")
+            self.assertEqual(hydrated["challenge"]["verification_status"], "pending")
+            self.assertEqual(
+                hydrated["challenge"]["resolution_path"],
+                "manual_fallback",
+            )
+            self.assertTrue(hydrated["challenge"]["challenge_tx_hash"].startswith("0x"))
+
+            audit_record = onchain.contract.functions.getAudit(1).call()
+            self.assertEqual(int(audit_record[10]), 2)
 
     def test_executable_evidence_persists_advisory_output_and_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

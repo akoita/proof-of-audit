@@ -32,9 +32,11 @@ from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerifierStrategy,
     EvidenceContext,
     ProofUriChallengeVerifier,
+    VERIFIER_NAME as PROOF_URI_VERIFIER_NAME,
 )
 from proof_of_audit_agent.executable_evidence_verifier import (
     ExecutableEvidenceVerifier,
+    VERIFIER_NAME as EXECUTABLE_VERIFIER_NAME,
 )
 from proof_of_audit_agent.executable_evidence_resolver import (
     EvidenceResolutionError,
@@ -327,6 +329,42 @@ class AuditService:
             evidence_hash=evidence_hash,
             challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
         )
+        challenge_record = {
+            "challenger": challenger,
+            "challenger_address": challenge_result.challenger_address,
+            "proof_uri": proof_uri,
+            "evidence_hash": challenge_result.evidence_hash,
+            "evidence_type": evidence_type,
+            "execution_env": execution_env,
+            "evidence_manifest": deepcopy(evidence_manifest),
+            "submitted_at": datetime.now(UTC).isoformat(),
+            "verifier": (
+                EXECUTABLE_VERIFIER_NAME
+                if evidence_type == "executable_test"
+                else PROOF_URI_VERIFIER_NAME
+            ),
+            "status": "opened",
+            "resolution_path": "manual_fallback",
+            "verification_status": "pending",
+            "verification_summary": "On-chain challenge submitted. Verification still pending.",
+            "verification_detail": None,
+            "verification_case_id": None,
+            "advisory_verdict": None,
+            "execution_log": None,
+            "matched_findings": [],
+            "unmatched_findings": [],
+            "challenge_hash": challenge_result.evidence_hash,
+            "challenge_bond_wei": challenge_result.challenge_bond_wei,
+            "chain_id": challenge_result.chain_id,
+            "challenge_tx_hash": challenge_result.tx_hash,
+            "challenge_tx_url": self.contract_config.transaction_url(
+                challenge_result.tx_hash
+            ),
+        }
+        record["status"] = "challenged"
+        record["challenge"] = challenge_record
+        self.store.write(audit_id, record)
+
         verification_result = verifier.verify(
             EvidenceContext(
                 proof_uri=proof_uri,
@@ -343,55 +381,40 @@ class AuditService:
                 committed_evidence_hash=evidence_hash,
             )
         )
-        challenge_record = {
-            "challenger": challenger,
-            "challenger_address": challenge_result.challenger_address,
-            "proof_uri": proof_uri,
-            "evidence_hash": challenge_result.evidence_hash,
-            "evidence_type": evidence_type,
-            "execution_env": execution_env,
-            "evidence_manifest": deepcopy(evidence_manifest),
-            "submitted_at": datetime.now(UTC).isoformat(),
-            "verifier": verification_result.verifier,
-            "status": "opened",
-            "resolution_path": "manual_fallback",
-            "verification_status": verification_result.status,
-            "verification_summary": verification_result.summary,
-            "verification_detail": verification_result.detail,
-            "verification_case_id": verification_result.case_id,
-            "advisory_verdict": (
-                verification_result.resolution if verification_result.advisory_only else None
-            ),
-            "execution_log": verification_result.execution_log,
-            "matched_findings": verification_result.matched_findings,
-            "unmatched_findings": verification_result.unmatched_findings,
-            "verification_dossier": self._verification_dossier_payload(
-                verification_result=verification_result,
-                challenge_defaults={
-                    "evidence_type": evidence_type,
-                    "execution_env": execution_env,
-                    "proof_uri": proof_uri,
-                    "evidence_hash": challenge_result.evidence_hash,
-                    "matched_findings": verification_result.matched_findings,
-                    "unmatched_findings": verification_result.unmatched_findings,
-                    "advisory_verdict": (
-                        verification_result.resolution
-                        if verification_result.advisory_only
-                        else None
-                    ),
-                    "verification_status": verification_result.status,
-                    "verifier": verification_result.verifier,
-                },
-            ),
-            "verification_dossier_path": f"/audits/{audit_id}/challenge/dossier",
-            "challenge_hash": challenge_result.evidence_hash,
-            "challenge_bond_wei": challenge_result.challenge_bond_wei,
-            "chain_id": challenge_result.chain_id,
-            "challenge_tx_hash": challenge_result.tx_hash,
-            "challenge_tx_url": self.contract_config.transaction_url(
-                challenge_result.tx_hash
-            ),
-        }
+        challenge_record.update(
+            {
+                "verifier": verification_result.verifier,
+                "verification_status": verification_result.status,
+                "verification_summary": verification_result.summary,
+                "verification_detail": verification_result.detail,
+                "verification_case_id": verification_result.case_id,
+                "advisory_verdict": (
+                    verification_result.resolution if verification_result.advisory_only else None
+                ),
+                "execution_log": verification_result.execution_log,
+                "matched_findings": verification_result.matched_findings,
+                "unmatched_findings": verification_result.unmatched_findings,
+                "verification_dossier": self._verification_dossier_payload(
+                    verification_result=verification_result,
+                    challenge_defaults={
+                        "evidence_type": evidence_type,
+                        "execution_env": execution_env,
+                        "proof_uri": proof_uri,
+                        "evidence_hash": challenge_result.evidence_hash,
+                        "matched_findings": verification_result.matched_findings,
+                        "unmatched_findings": verification_result.unmatched_findings,
+                        "advisory_verdict": (
+                            verification_result.resolution
+                            if verification_result.advisory_only
+                            else None
+                        ),
+                        "verification_status": verification_result.status,
+                        "verifier": verification_result.verifier,
+                    },
+                ),
+                "verification_dossier_path": f"/audits/{audit_id}/challenge/dossier",
+            }
+        )
 
         if (
             verification_result.status == "verified"
