@@ -37,3 +37,4 @@ This prototype is not claiming fully autonomous verification. Plain proof-URI ch
 - Best 30-60 second narrative: [DEMO_SCRIPT.md](./DEMO_SCRIPT.md)
 - Judge-facing 2-minute brief: [JUDGE_BRIEF.md](./JUDGE_BRIEF.md)
 - Default evaluation path: [JUDGE_EVALUATION.md](./JUDGE_EVALUATION.md)
+- Latest Base Sepolia smoke evidence: [proofs/base-sepolia-smoke-2026-03-22.md](./proofs/base-sepolia-smoke-2026-03-22.md)

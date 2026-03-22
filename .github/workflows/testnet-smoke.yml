@@ -8,6 +8,8 @@ on:
 jobs:
   testnet-smoke:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
       - uses: foundry-rs/foundry-toolchain@v1
@@ -26,4 +28,17 @@ jobs:
           PROOF_OF_AUDIT_TESTNET_API_URL: ${{ secrets.PROOF_OF_AUDIT_TESTNET_API_URL || vars.PROOF_OF_AUDIT_TESTNET_API_URL || '' }}
           PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI: ${{ secrets.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI || vars.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_URI || '' }}
           PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON: ${{ secrets.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON || vars.PROOF_OF_AUDIT_TESTNET_EXECUTABLE_EVIDENCE_MANIFEST_JSON || '' }}
-        run: PYTHON_BIN=python make test-testnet-smoke
+        run: python scripts/run_testnet_smoke.py --python-bin python --artifacts-dir .tmp/testnet-smoke --require-live-env
+      - name: Upload Base Sepolia smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: testnet-smoke-report
+          path: .tmp/testnet-smoke
+          if-no-files-found: warn
+      - name: Append smoke summary to job
+        if: always()
+        run: |
+          if [ -f .tmp/testnet-smoke/smoke-report.md ]; then
+            cat .tmp/testnet-smoke/smoke-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
