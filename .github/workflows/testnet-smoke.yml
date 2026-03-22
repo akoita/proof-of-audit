@@ -31,7 +31,7 @@ jobs:
         run: python scripts/run_testnet_smoke.py --python-bin python --artifacts-dir .tmp/testnet-smoke --require-live-env
       - name: Upload Base Sepolia smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: testnet-smoke-report
           path: .tmp/testnet-smoke
