@@ -175,6 +175,7 @@ make install-git-hooks
 | [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Asciinema demo](./docs/ASCIINEMA_DEMO.md)        | Terminal recording runbook          |
+| [Submission pack](./docs/SUBMISSION_PACK.md)      | Final copy and demo asset inventory |
 
 ## What's next
 
