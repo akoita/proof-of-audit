@@ -296,6 +296,35 @@ Recommended Artifact Registry image name:
 
 Like the API image, this image is intended to receive environment tags such as `testnet-candidate` and `mainnet-release` in the release workflow.
 
+## Runtime image release workflow
+
+The repository now includes a single GitHub Actions workflow at `.github/workflows/release-images.yml` to publish all three runtime images expected by the infrastructure repo:
+
+- `proof-of-audit-api`
+- `proof-of-audit-web`
+- `proof-of-audit-evidence-runner`
+
+The workflow is intentionally explicit about the registry destination. Each manual run requires:
+
+- `gcp_project_id`
+- `artifact_registry_region`
+- `artifact_registry_repository`
+- `release_channel` set to either `testnet-candidate` or `mainnet-release`
+- `web_api_base_url` for the public API URL baked into the web build
+
+Repository auth requirements:
+
+- GitHub secret `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- GitHub secret `GCP_SERVICE_ACCOUNT_EMAIL`
+
+Run it from GitHub Actions with the `Release Images` workflow. Each run pushes:
+
+- `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-api:${release_channel}`
+- `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-web:${release_channel}`
+- `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-evidence-runner:${release_channel}`
+
+This publish step is the application-repo prerequisite for `akoita/proof-of-audit-iac`. Infra bootstrap and Cloud Run deployment expect these environment-tagged images to exist before the `testnet` or `mainnet` services can converge.
+
 For executable evidence hardening, the API can also switch advisory Foundry execution to Docker:
 
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND`

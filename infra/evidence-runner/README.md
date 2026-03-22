@@ -28,6 +28,7 @@ Response body:
 ## Deployment notes
 
 - build and deploy with [cloudbuild.yaml](/home/koita/dev/hackatons/proof-of-audit/infra/evidence-runner/cloudbuild.yaml)
+- the shared runtime-image workflow publishes the runner as `proof-of-audit-evidence-runner`
 - the service is intended to run one request per instance with authenticated invocation
 - the runner image contains `forge`, `google-cloud-storage`, and a small Python HTTP wrapper
 - the backend can either post the validated evidence root inline or stage it to GCS first and send a `gs://` reference
