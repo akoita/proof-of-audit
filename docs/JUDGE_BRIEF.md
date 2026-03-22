@@ -36,6 +36,7 @@ Proof-of-Audit is trust infrastructure for agent-made smart contract judgments: 
 - Repo: https://github.com/akoita/proof-of-audit
 - Live contract: https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24
 - ERC-8004 registration document: https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json
+- Latest Base Sepolia smoke evidence: [docs/proofs/base-sepolia-smoke-2026-03-22.md](./proofs/base-sepolia-smoke-2026-03-22.md)
 - Auditor identity registry: https://sepolia.basescan.org/address/0x8004A818BFB912233c491871b3d84c89A494BD9e
 - Validation registry: https://sepolia.basescan.org/address/0x8004B663056A597Dffe9eCcC1965A193B7388713
 - Public API/docs: not currently published as a stable public endpoint

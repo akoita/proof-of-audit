@@ -176,6 +176,7 @@ make install-git-hooks
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Asciinema demo](./docs/ASCIINEMA_DEMO.md)        | Terminal recording runbook          |
 | [Submission pack](./docs/SUBMISSION_PACK.md)      | Final copy and demo asset inventory |
+| [Base Sepolia smoke evidence](./docs/proofs/base-sepolia-smoke-2026-03-22.md) | Latest dated live-smoke evidence record |
 
 ## What's next
 

@@ -16,6 +16,8 @@ from proof_of_audit_api.publisher import load_contract_abi
 
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
+
+
 @dataclass
 class GasMeasurement:
     action: str
@@ -40,6 +42,7 @@ class TestnetContext:
     smoke_fixture: dict[str, Any]
     verified_addresses: dict[str, str]
     gas_measurements: list[GasMeasurement] = field(default_factory=list)
+    audit_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def operator_address(self) -> str:
@@ -75,7 +78,19 @@ class TestnetContext:
             payload["repository_url"] = repository_url
         response = self.client.post("/audits", json=payload)
         assert response.status_code == 201, response.text
-        return response.json()
+        created = response.json()
+        self._update_audit_artifact(
+            created,
+            extra={
+                "input_kind": payload["input_kind"],
+                "fixture_id": payload.get("fixture_id"),
+                "entry_contract": payload.get("entry_contract"),
+                "source_bundle_uri": payload.get("source_bundle_uri"),
+                "source_bundle_label": payload.get("source_bundle_label"),
+                "repository_url": payload.get("repository_url"),
+            },
+        )
+        return created
 
     def publish_audit(self, audit_id: str, *, stake_wei: int | None = None) -> dict[str, Any]:
         response = self.client.post(
@@ -87,6 +102,7 @@ class TestnetContext:
         tx_hash = payload.get("onchain", {}).get("publish_tx_hash")
         if isinstance(tx_hash, str) and tx_hash:
             self.record_gas("publish", tx_hash)
+        self._update_audit_artifact(payload)
         return payload
 
     def challenge_audit(
@@ -118,6 +134,7 @@ class TestnetContext:
         resolve_tx = result.get("challenge", {}).get("resolve_tx_hash")
         if isinstance(resolve_tx, str) and resolve_tx:
             self.record_gas(f"{gas_action}_resolve", resolve_tx)
+        self._update_audit_artifact(result)
         return result
 
     def resolve_audit(
@@ -136,12 +153,15 @@ class TestnetContext:
         tx_hash = result.get("challenge", {}).get("resolve_tx_hash")
         if isinstance(tx_hash, str) and tx_hash:
             self.record_gas("manual_resolve", tx_hash)
+        self._update_audit_artifact(result)
         return result
 
     def get_audit(self, audit_id: str) -> dict[str, Any]:
         response = self.client.get(f"/audits/{audit_id}")
         assert response.status_code == 200, response.text
-        return response.json()
+        payload = response.json()
+        self._update_audit_artifact(payload)
+        return payload
 
     def record_gas(self, action: str, tx_hash: str) -> None:
         receipt = self.web3.eth.get_transaction_receipt(tx_hash)
@@ -154,6 +174,64 @@ class TestnetContext:
                 status=int(receipt["status"]),
             )
         )
+
+    def _update_audit_artifact(
+        self, payload: dict[str, Any], *, extra: dict[str, Any] | None = None
+    ) -> None:
+        audit_id = payload.get("id")
+        if not isinstance(audit_id, str) or not audit_id:
+            return
+
+        artifact = self.audit_artifacts.setdefault(audit_id, {"audit_id": audit_id})
+        artifact["status"] = payload.get("status")
+        artifact["submitted_by"] = payload.get("submitted_by")
+        artifact["contract_address"] = payload.get("contract_address")
+
+        submission = payload.get("submission")
+        if isinstance(submission, dict):
+            artifact["input_kind"] = submission.get("input_kind")
+            artifact["fixture_id"] = submission.get("fixture_id")
+            artifact["entry_contract"] = submission.get("entry_contract")
+            artifact["source_bundle_uri"] = submission.get("source_bundle_uri")
+            artifact["source_bundle_label"] = submission.get("source_bundle_label")
+            artifact["repository_url"] = submission.get("repository_url")
+            artifact["submission_contract_address"] = submission.get("contract_address")
+
+        report = payload.get("report")
+        if isinstance(report, dict):
+            artifact["benchmark_id"] = report.get("benchmark_id")
+            artifact["report_hash"] = report.get("report_hash")
+            artifact["metadata_hash"] = report.get("metadata_hash")
+            artifact["finding_count"] = report.get("finding_count")
+            artifact["max_severity"] = report.get("max_severity")
+
+        onchain = payload.get("onchain")
+        if isinstance(onchain, dict):
+            artifact["published_audit_id"] = onchain.get("audit_id")
+            artifact["network"] = onchain.get("network")
+            artifact["chain_id"] = onchain.get("chain_id")
+            artifact["settlement_contract_address"] = onchain.get("contract_address")
+            artifact["publish_tx_hash"] = onchain.get("publish_tx_hash")
+            artifact["publish_tx_url"] = onchain.get("publish_tx_url")
+
+        challenge = payload.get("challenge")
+        if isinstance(challenge, dict):
+            artifact["challenge_status"] = challenge.get("status")
+            artifact["challenge_resolution"] = challenge.get("resolution")
+            artifact["resolution_path"] = challenge.get("resolution_path")
+            artifact["proof_uri"] = challenge.get("proof_uri")
+            artifact["evidence_type"] = challenge.get("evidence_type")
+            artifact["execution_env"] = challenge.get("execution_env")
+            artifact["verification_status"] = challenge.get("verification_status")
+            artifact["verification_summary"] = challenge.get("verification_summary")
+            artifact["challenge_hash"] = challenge.get("challenge_hash")
+            artifact["challenge_tx_hash"] = challenge.get("challenge_tx_hash")
+            artifact["challenge_tx_url"] = challenge.get("challenge_tx_url")
+            artifact["resolve_tx_hash"] = challenge.get("resolve_tx_hash")
+            artifact["resolve_tx_url"] = challenge.get("resolve_tx_url")
+
+        if extra:
+            artifact.update({key: value for key, value in extra.items() if value is not None})
 
 def _required_env(name: str) -> str | None:
     value = os.environ.get(name)
@@ -278,8 +356,32 @@ def testnet_context() -> TestnetContext:
             smoke_fixture=smoke_fixture,
             verified_addresses=verified_addresses,
         )
+        print(
+            "TESTNET_CONTEXT_SUMMARY="
+            + json.dumps(
+                {
+                    "api_url": api_url,
+                    "rpc_url": rpc_url,
+                    "chain_id": chain_id,
+                    "operator_address": context.operator_address,
+                    "verified_addresses": verified_addresses,
+                    "smoke_fixture": {
+                        "id": smoke_fixture.get("id"),
+                        "address": smoke_fixture.get("address"),
+                        "challenge_proof_uri": smoke_fixture.get("challenge_proof_uri"),
+                    },
+                },
+                sort_keys=True,
+            )
+        )
         yield context
     finally:
+        if "context" in locals() and context.audit_artifacts:
+            summary = [
+                context.audit_artifacts[audit_id]
+                for audit_id in sorted(context.audit_artifacts.keys())
+            ]
+            print(f"TESTNET_AUDIT_ARTIFACTS={json.dumps(summary, sort_keys=True)}")
         if "context" in locals() and context.gas_measurements:
             summary = [asdict(entry) for entry in context.gas_measurements]
             print(f"TESTNET_GAS_SUMMARY={json.dumps(summary, sort_keys=True)}")
