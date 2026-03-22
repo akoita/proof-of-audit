@@ -1119,6 +1119,80 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             "manual_fallback",
         )
 
+    def test_verifier_failure_after_challenge_leaves_a_recoverable_audit(self) -> None:
+        class RaisingVerifier:
+            def verify(self, context: EvidenceContext) -> ChallengeVerificationResult:
+                raise RuntimeError("verifier crashed")
+
+        service = AuditService(
+            Path(self.tempdir.name) / "verifier-failure-data",
+            contract_config=self.onchain.contract_config,
+            publisher=self.onchain.publisher,
+            arbiter_client=self.onchain.arbiter_client,
+            challenge_verifiers={
+                "deterministic_fixture": RaisingVerifier(),
+            },
+        )
+        failing_client = TestClient(
+            create_app(audit_service=service),
+            raise_server_exceptions=False,
+        )
+
+        created = failing_client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+
+        published = failing_client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = failing_client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 500)
+
+        fetched = failing_client.get(f"/audits/{audit_id}")
+        self.assertEqual(fetched.status_code, 200)
+        payload = fetched.json()
+        self.assertEqual(payload["status"], "challenged")
+        self.assertEqual(payload["challenge"]["status"], "opened")
+        self.assertEqual(payload["challenge"]["verification_status"], "pending")
+        self.assertTrue(payload["challenge"]["challenge_tx_hash"].startswith("0x"))
+
+        audit_record = self.onchain.contract.functions.getAudit(1).call()
+        self.assertEqual(int(audit_record[10]), 2)
+        self.assertEqual(int(audit_record[11]), 0)
+
+        resolved = failing_client.post(
+            f"/audits/{audit_id}/resolve",
+            json={"upheld": True, "resolved_by": "integration-arbiter"},
+        )
+        self.assertEqual(resolved.status_code, 200)
+        resolved_payload = resolved.json()
+        self.assertEqual(resolved_payload["status"], "resolved")
+        self.assertEqual(resolved_payload["challenge"]["status"], "upheld")
+        self.assertEqual(
+            resolved_payload["challenge"]["resolution_path"],
+            "manual_fallback",
+        )
+        self.assertTrue(resolved_payload["challenge"]["resolve_tx_hash"].startswith("0x"))
+
+        resolved_record = self.onchain.contract.functions.getAudit(1).call()
+        self.assertEqual(int(resolved_record[10]), 3)
+        self.assertEqual(int(resolved_record[11]), 1)
+
     def test_typed_executable_challenge_round_trips_through_api(self) -> None:
         class RecordingVerifier:
             def __init__(self) -> None:
