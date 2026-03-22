@@ -241,6 +241,32 @@ The API can target the deployed contract with:
 - `PROOF_OF_AUDIT_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY`
 
+## API container image
+
+The repository now includes a deployable API image definition at `api/Dockerfile`.
+
+Build the Cloud Run-ready image from the repository root so the Docker build can include the Python packages, deployment metadata, registration document, and generated contract ABI artifact:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+docker build -f api/Dockerfile -t proof-of-audit-api .
+```
+
+Run it locally with the API bound to `0.0.0.0:8080`:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+docker run --rm -p 8080:8080 proof-of-audit-api
+```
+
+For publish, challenge, and resolve transactions, pass the same runtime env vars documented above into the container (for example with `--env-file` or explicit `-e` flags). The image bakes in the repo's default deployment metadata and registration document, and it keeps writable audit state under `/app/api/data`.
+
+Recommended Artifact Registry image name:
+
+- `proof-of-audit-api`
+
+This image is intended to receive environment tags such as `testnet-candidate` and `mainnet-release` in the release workflow.
+
 For executable evidence hardening, the API can also switch advisory Foundry execution to Docker:
 
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND`
