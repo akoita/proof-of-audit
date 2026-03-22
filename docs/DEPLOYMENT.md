@@ -267,6 +267,35 @@ Recommended Artifact Registry image name:
 
 This image is intended to receive environment tags such as `testnet-candidate` and `mainnet-release` in the release workflow.
 
+## Web container image
+
+The repository now includes a Cloud Run-ready Next.js image definition at `web/Dockerfile`.
+
+The web app builds with Next.js standalone output so the runtime image only needs the compiled server bundle, static assets, and public files.
+
+Build the image from the repository root and provide the public API URL at build time:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+docker build \
+  -f web/Dockerfile \
+  --build-arg NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080 \
+  -t proof-of-audit-web .
+```
+
+Run it locally on port `3000` mapped to the container's Cloud Run port `8080`:
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+docker run --rm -p 3000:8080 proof-of-audit-web
+```
+
+Recommended Artifact Registry image name:
+
+- `proof-of-audit-web`
+
+Like the API image, this image is intended to receive environment tags such as `testnet-candidate` and `mainnet-release` in the release workflow.
+
 For executable evidence hardening, the API can also switch advisory Foundry execution to Docker:
 
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND`
