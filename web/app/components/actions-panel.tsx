@@ -6,6 +6,7 @@ import { formatEth } from "../lib/format";
 type ActionsPanelProps = {
   audit: AuditRecord;
   config: PublicContractConfig | null;
+  publicationMode?: string | null;
   proofUri: string;
   isPending: boolean;
   activeAction: string | null;
@@ -18,6 +19,8 @@ type ActionsPanelProps = {
 
 export function ActionsPanel({
   audit,
+  config,
+  publicationMode,
   proofUri,
   isPending,
   activeAction,
@@ -28,6 +31,8 @@ export function ActionsPanel({
   onChallenge,
 }: ActionsPanelProps) {
   if (audit.status !== "draft" && audit.status !== "published") return null;
+  const isApiMediated = publicationMode === "api_mediated";
+  const networkLabel = config?.network ?? "this deployment";
 
   return (
     <div className="action-cta" style={{ marginTop: 20 }}>
@@ -38,8 +43,9 @@ export function ActionsPanel({
             <div>
               <h4>Ready for Protocol Staking?</h4>
               <p>
-                Stake {formatEth(Number(publishStake))} and move this draft to the publication
-                phase to earn reputation.
+                {isApiMediated
+                  ? `This ${networkLabel} release publishes through an API signer. The backend wallet must hold ${formatEth(Number(publishStake))} plus gas; the connected browser wallet is not used for publish yet.`
+                  : `Stake ${formatEth(Number(publishStake))} and move this draft to the publication phase to earn reputation.`}
               </p>
             </div>
           </div>
@@ -50,7 +56,7 @@ export function ActionsPanel({
             onClick={onPublish}
             data-testid="publish-btn"
           >
-            {activeAction ?? "Prepare for Publication"}
+            {activeAction ?? (isApiMediated ? "Publish via API Signer" : "Prepare for Publication")}
           </button>
         </>
       ) : (
@@ -60,8 +66,9 @@ export function ActionsPanel({
             <div>
               <h4>Challenge This Claim</h4>
               <p>
-                Bond {formatEth(Number(challengeBond))} to dispute this audit with a proof of
-                error.
+                {isApiMediated
+                  ? `This ${networkLabel} release opens challenges through the API signer. The backend wallet must hold ${formatEth(Number(challengeBond))} plus gas for the challenge bond.`
+                  : `Bond ${formatEth(Number(challengeBond))} to dispute this audit with a proof of error.`}
               </p>
             </div>
           </div>
