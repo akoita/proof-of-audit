@@ -1,9 +1,11 @@
 import tempfile
 import unittest
+import io
 from pathlib import Path
 import json
 from unittest.mock import Mock, patch
 import zipfile
+import tempfile as tempfile_module
 
 from fastapi.testclient import TestClient
 
@@ -121,11 +123,147 @@ class AuditApiAppTest(unittest.TestCase):
         uploaded_path = Path(payload["source_bundle_uri"])
         self.assertTrue(uploaded_path.exists())
         self.assertEqual(uploaded_path.suffix, ".sol")
+        self.assertEqual(payload["storage_backend"], "local")
         self.assertEqual(payload["source_bundle_label"], "UncheckedTreasury")
         self.assertEqual(payload["entry_contract"], "UncheckedTreasury")
         self.assertEqual(
             uploaded_path.read_text(encoding="utf-8"),
             "pragma solidity ^0.8.28;\ncontract UncheckedTreasury {}\n",
+        )
+
+    def test_source_bundle_upload_can_store_to_gcs(self) -> None:
+        env_file = Path(self.tempdir.name) / ".env.gcs"
+        fixtures_file = Path(self.tempdir.name) / "demo-fixtures.gcs.json"
+        fixtures_file.write_text('{"fixtures":[]}\n', encoding="utf-8")
+        env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND=gcs",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_BUCKET=proof-of-audit-bundles",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_PREFIX=uploads/source-bundles",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        class FakeBlob:
+            def __init__(self, name: str) -> None:
+                self.name = name
+                self.uploaded: bytes | None = None
+                self.content_type: str | None = None
+
+            def upload_from_string(self, payload: bytes, content_type: str | None = None) -> None:
+                self.uploaded = payload
+                self.content_type = content_type
+
+        class FakeBucket:
+            def __init__(self) -> None:
+                self.last_blob: FakeBlob | None = None
+
+            def blob(self, name: str) -> FakeBlob:
+                self.last_blob = FakeBlob(name)
+                return self.last_blob
+
+        class FakeStorageClient:
+            def __init__(self) -> None:
+                self.last_bucket_name: str | None = None
+                self.last_bucket = FakeBucket()
+
+            def bucket(self, name: str) -> FakeBucket:
+                self.last_bucket_name = name
+                return self.last_bucket
+
+        fake_storage_client = FakeStorageClient()
+        with patch("google.cloud.storage.Client", return_value=fake_storage_client):
+            client = TestClient(
+                create_app(Path(self.tempdir.name) / "gcs-data", env_file=env_file)
+            )
+            response = client.post(
+                "/source-bundles/upload",
+                json={
+                    "filename": "UncheckedTreasury.sol",
+                    "content_base64": "cHJhZ21hIHNvbGlkaXR5IF4wLjguMjg7CmNvbnRyYWN0IFVuY2hlY2tlZFRyZWFzdXJ5IHt9Cg==",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["storage_backend"], "gcs")
+        self.assertTrue(
+            payload["source_bundle_uri"].startswith(
+                "gs://proof-of-audit-bundles/uploads/source-bundles/UncheckedTreasury-"
+            )
+        )
+        self.assertEqual(fake_storage_client.last_bucket_name, "proof-of-audit-bundles")
+        self.assertIsNotNone(fake_storage_client.last_bucket.last_blob)
+        self.assertEqual(
+            fake_storage_client.last_bucket.last_blob.content_type,
+            "text/plain; charset=utf-8",
+        )
+        self.assertEqual(
+            fake_storage_client.last_bucket.last_blob.uploaded,
+            b"pragma solidity ^0.8.28;\ncontract UncheckedTreasury {}\n",
+        )
+
+    def test_source_bundle_upload_can_store_to_ipfs(self) -> None:
+        env_file = Path(self.tempdir.name) / ".env.ipfs"
+        fixtures_file = Path(self.tempdir.name) / "demo-fixtures.ipfs.json"
+        fixtures_file.write_text('{"fixtures":[]}\n', encoding="utf-8")
+        env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND=ipfs",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_API_URL=http://127.0.0.1:5001",
+                    "PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_AUTH_HEADER=Authorization: Bearer token-123",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        class FakeResponse:
+            def __init__(self, payload: bytes) -> None:
+                self._buffer = io.BytesIO(payload)
+
+            def read(self, size: int = -1) -> bytes:
+                return self._buffer.read(size)
+
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                del exc_type, exc, tb
+
+        def fake_urlopen(req, timeout=0):  # type: ignore[no-untyped-def]
+            self.assertEqual(timeout, 30)
+            self.assertIn("/api/v0/add?pin=true&wrap-with-directory=true", req.full_url)
+            self.assertEqual(req.headers["Authorization"], "Bearer token-123")
+            return FakeResponse(
+                b'{"Name":"UncheckedTreasury.sol","Hash":"bafyfile"}\n'
+                b'{"Name":"","Hash":"bafydirectory"}\n'
+            )
+
+        with patch("proof_of_audit_api.source_bundle_storage.request.urlopen", side_effect=fake_urlopen):
+            client = TestClient(
+                create_app(Path(self.tempdir.name) / "ipfs-data", env_file=env_file)
+            )
+            response = client.post(
+                "/source-bundles/upload",
+                json={
+                    "filename": "UncheckedTreasury.sol",
+                    "content_base64": "cHJhZ21hIHNvbGlkaXR5IF4wLjguMjg7CmNvbnRyYWN0IFVuY2hlY2tlZFRyZWFzdXJ5IHt9Cg==",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["storage_backend"], "ipfs")
+        self.assertEqual(
+            payload["source_bundle_uri"],
+            "ipfs://bafydirectory/UncheckedTreasury.sol",
         )
 
     def test_source_bundle_upload_rejects_unsupported_extensions(self) -> None:
@@ -1120,6 +1258,99 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             payload["report"]["findings"][0]["source_path"],
             "UncheckedTreasury.sol",
         )
+
+    def test_deployed_address_submission_hybrid_runs_live_verified_source_path(self) -> None:
+        runs_home = self.root / "home-deployed"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed",
+            report_payload={
+                "benchmark_id": "agent-forge-live",
+                "summary": "Live deployed-address audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "src/Vault.sol",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+        source_tempdir = tempfile_module.TemporaryDirectory(prefix="proof-of-audit-test-")
+        source_root = Path(source_tempdir.name) / "source"
+        (source_root / "src").mkdir(parents=True, exist_ok=True)
+        (source_root / "src" / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            return_value=type(
+                "ResolvedSource",
+                (),
+                {
+                    "path": source_root,
+                    "tempdir": source_tempdir,
+                    "entry_contract": "Vault",
+                    "source_uri": "sourcify://84532/0xabc0000000000000000000000000000000000000",
+                },
+            )(),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["submission"]["input_kind"], "deployed_address")
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(
+            payload["execution"]["source_path"],
+            "sourcify://84532/0xabc0000000000000000000000000000000000000",
+        )
+        self.assertEqual(
+            payload["report"]["contract_address"],
+            "0xabc0000000000000000000000000000000000000",
+        )
+
+    def test_deployed_address_submission_hybrid_returns_fallback_metadata_when_live_lookup_fails(self) -> None:
+        runs_home = self.root / "home-deployed-fallback"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed-fallback",
+            report_payload=None,
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            side_effect=ValueError("missing verified source"),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["execution"]["status"], "fallback")
+        self.assertTrue(payload["execution"]["fallback_used"])
+        self.assertEqual(payload["execution"]["source"], "safe-fallback")
+        self.assertEqual(payload["report"]["benchmark_id"], "unknown")
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

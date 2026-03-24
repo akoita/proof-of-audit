@@ -78,6 +78,9 @@ class AuditService:
                 agent_forge_model=self.contract_config.agent_forge_model,
                 agent_forge_max_iterations=self.contract_config.agent_forge_max_iterations,
                 agent_forge_runs_home=self.contract_config.agent_forge_runs_home,
+                sourcify_base_url=self.contract_config.sourcify_base_url,
+                explorer_api_url=self.contract_config.explorer_api_url,
+                explorer_api_key=self.contract_config.explorer_api_key,
             ),
             workspace_root=data_root,
         )

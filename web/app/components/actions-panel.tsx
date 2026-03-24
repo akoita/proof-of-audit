@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuditRecord, PublicContractConfig } from "../lib/types";
-import { formatEth } from "../lib/format";
+import { formatEth, publishBlockedReason } from "../lib/format";
 
 type ActionsPanelProps = {
   audit: AuditRecord;
@@ -33,6 +33,7 @@ export function ActionsPanel({
   if (audit.status !== "draft" && audit.status !== "published") return null;
   const isApiMediated = publicationMode === "api_mediated";
   const networkLabel = config?.network ?? "this deployment";
+  const publishRestriction = publishBlockedReason(audit);
 
   return (
     <div className="action-cta" style={{ marginTop: 20 }}>
@@ -41,22 +42,24 @@ export function ActionsPanel({
           <div className="action-cta-info">
             <div className="action-cta-icon">🚀</div>
             <div>
-              <h4>Ready for Protocol Staking?</h4>
+              <h4>{publishRestriction ? "Publish Unavailable" : "Ready for Protocol Staking?"}</h4>
               <p>
-                {isApiMediated
+                {publishRestriction ?? (isApiMediated
                   ? `This ${networkLabel} release publishes through an API signer. The backend wallet must hold ${formatEth(Number(publishStake))} plus gas; the connected browser wallet is not used for publish yet.`
-                  : `Stake ${formatEth(Number(publishStake))} and move this draft to the publication phase to earn reputation.`}
+                  : `Stake ${formatEth(Number(publishStake))} and move this draft to the publication phase to earn reputation.`)}
               </p>
             </div>
           </div>
           <button
             type="button"
             className="cta-gradient"
-            disabled={isPending}
+            disabled={isPending || publishRestriction !== null}
             onClick={onPublish}
             data-testid="publish-btn"
           >
-            {activeAction ?? (isApiMediated ? "Publish via API Signer" : "Prepare for Publication")}
+            {publishRestriction
+              ? "Publish Unavailable"
+              : activeAction ?? (isApiMediated ? "Publish via API Signer" : "Prepare for Publication")}
           </button>
         </>
       ) : (

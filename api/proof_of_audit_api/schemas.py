@@ -483,6 +483,7 @@ class PublicContractConfigResponse(BaseModel):
 class SourceBundleUploadResponse(BaseModel):
     original_filename: str
     source_bundle_uri: str
+    storage_backend: str = "local"
     source_bundle_label: str | None = None
     entry_contract: str | None = None
 
