@@ -310,21 +310,24 @@ The repository now includes a Cloud Run-ready Next.js image definition at `web/D
 
 The web app builds with Next.js standalone output so the runtime image only needs the compiled server bundle, static assets, and public files.
 
-Build the image from the repository root and provide the public API URL at build time:
+Build the image from the repository root:
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
 docker build \
   -f web/Dockerfile \
-  --build-arg NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080 \
   -t proof-of-audit-web .
 ```
+
+At runtime, set `PROOF_OF_AUDIT_API_URL` on the Cloud Run service. The Next.js server exposes that value to the browser through a runtime config endpoint, so the same image can be reused across environments without rebuilding. The legacy `NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL` runtime env is still accepted as a fallback for compatibility.
 
 Run it locally on port `3000` mapped to the container's Cloud Run port `8080`:
 
 ```bash
 cd /home/koita/dev/hackatons/proof-of-audit
-docker run --rm -p 3000:8080 proof-of-audit-web
+docker run --rm -p 3000:8080 \
+  -e PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080 \
+  proof-of-audit-web
 ```
 
 Recommended Artifact Registry image name:
@@ -347,7 +350,6 @@ The workflow is intentionally explicit about the registry destination. Each manu
 - `artifact_registry_region`
 - `artifact_registry_repository`
 - `release_channel` set to either `testnet-candidate` or `mainnet-release`
-- `web_api_base_url` for the public API URL baked into the web build
 
 Repository auth requirements:
 
@@ -359,6 +361,8 @@ Run it from GitHub Actions with the `Release Images` workflow. Each run pushes:
 - `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-api:${release_channel}`
 - `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-web:${release_channel}`
 - `${artifact_registry_region}-docker.pkg.dev/${gcp_project_id}/${artifact_registry_repository}/proof-of-audit-evidence-runner:${release_channel}`
+
+When deploying the web image to Cloud Run, configure the service runtime env with `PROOF_OF_AUDIT_API_URL` so the web server can publish the correct public API base URL without rebuilding the image.
 
 This publish step is the application-repo prerequisite for `akoita/proof-of-audit-iac`. Infra bootstrap and Cloud Run deployment expect these environment-tagged images to exist before the `testnet` or `mainnet` services can converge.
 

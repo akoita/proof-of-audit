@@ -13,8 +13,6 @@ FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080
-ENV NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=${NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL}
 
 COPY --from=deps /app/node_modules /app/node_modules
 COPY web /app

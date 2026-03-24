@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build web app
-        run: NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080 pnpm build
+        run: pnpm build
 
   e2e:
     runs-on: ubuntu-latest
