@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
-from pathlib import Path
 from typing import Any
 
 from hexbytes import HexBytes
@@ -13,15 +12,7 @@ from web3.contract.contract import ContractFunction
 from web3.exceptions import ContractCustomError, ContractLogicError, TimeExhausted
 
 from proof_of_audit_api.config import ContractConfig
-
-
-ARTIFACT_FILE = (
-    Path(__file__).resolve().parents[2]
-    / "contracts"
-    / "out"
-    / "ReputationRegistryAdapter.sol"
-    / "ReputationRegistryAdapter.json"
-)
+from proof_of_audit_api.contract_artifacts import load_contract_artifact_json
 
 
 class ReputationBridgeError(Exception):
@@ -64,7 +55,10 @@ class OnchainReputationSnapshot:
 
 
 def load_reputation_bridge_artifact() -> dict[str, Any]:
-    return json.loads(ARTIFACT_FILE.read_text(encoding="utf-8"))
+    return load_contract_artifact_json(
+        "ReputationRegistryAdapter.sol",
+        "ReputationRegistryAdapter.json",
+    )
 
 
 def load_reputation_bridge_abi() -> list[dict[str, Any]]:

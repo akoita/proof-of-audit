@@ -14,6 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PROOF_OF_AUDIT_HOST=0.0.0.0
 ENV PROOF_OF_AUDIT_PORT=8080
+ENV PROOF_OF_AUDIT_CONTRACT_ARTIFACT_ROOT=/app/contracts/out
 
 WORKDIR /app
 
@@ -24,10 +25,15 @@ COPY agent /app/agent
 COPY api /app/api
 COPY deployments /app/deployments
 COPY docs/registrations /app/docs/registrations
+RUN mkdir -p /app/api/data \
+    /app/contracts/out/ProofOfAudit.sol \
+    /app/contracts/out/ValidationRegistryAdapter.sol \
+    /app/contracts/out/ReputationRegistryAdapter.sol
 COPY --from=contracts-build /src/contracts/out/ProofOfAudit.sol/ProofOfAudit.json /app/contracts/out/ProofOfAudit.sol/ProofOfAudit.json
+COPY --from=contracts-build /src/contracts/out/ValidationRegistryAdapter.sol/ValidationRegistryAdapter.json /app/contracts/out/ValidationRegistryAdapter.sol/ValidationRegistryAdapter.json
+COPY --from=contracts-build /src/contracts/out/ReputationRegistryAdapter.sol/ReputationRegistryAdapter.json /app/contracts/out/ReputationRegistryAdapter.sol/ReputationRegistryAdapter.json
 
-RUN mkdir -p /app/api/data /app/contracts/out/ProofOfAudit.sol \
-    && python -m pip install --no-cache-dir --no-build-isolation .
+RUN python -m pip install --no-cache-dir --no-build-isolation .
 
 EXPOSE 8080
 

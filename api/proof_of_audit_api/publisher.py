@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
-from pathlib import Path
 import re
 from typing import Any
 
@@ -13,15 +11,7 @@ from web3.contract.contract import ContractFunction
 from web3.exceptions import ContractCustomError, ContractLogicError, TimeExhausted
 
 from proof_of_audit_api.config import ContractConfig
-
-
-ARTIFACT_FILE = (
-    Path(__file__).resolve().parents[2]
-    / "contracts"
-    / "out"
-    / "ProofOfAudit.sol"
-    / "ProofOfAudit.json"
-)
+from proof_of_audit_api.contract_artifacts import load_contract_artifact_json
 
 
 class OnchainTransactionError(Exception):
@@ -72,7 +62,7 @@ class ResolutionResult:
 
 
 def load_contract_artifact() -> dict[str, Any]:
-    return json.loads(ARTIFACT_FILE.read_text(encoding="utf-8"))
+    return load_contract_artifact_json("ProofOfAudit.sol", "ProofOfAudit.json")
 
 
 def load_contract_abi() -> list[dict[str, Any]]:
