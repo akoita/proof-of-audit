@@ -1323,7 +1323,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             "0xabc0000000000000000000000000000000000000",
         )
 
-    def test_deployed_address_submission_hybrid_returns_fallback_metadata_when_live_lookup_fails(self) -> None:
+    def test_deployed_address_submission_hybrid_rejects_fake_fallback_when_live_lookup_fails(self) -> None:
         runs_home = self.root / "home-deployed-fallback"
         script = write_fake_agent_forge_script(
             self.root / "agent-forge-deployed-fallback",
@@ -1345,12 +1345,10 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 400)
         payload = response.json()
-        self.assertEqual(payload["execution"]["status"], "fallback")
-        self.assertTrue(payload["execution"]["fallback_used"])
-        self.assertEqual(payload["execution"]["source"], "safe-fallback")
-        self.assertEqual(payload["report"]["benchmark_id"], "unknown")
+        self.assertEqual(payload["error"], "invalid_payload")
+        self.assertIn("require live agent-forge analysis", payload["message"])
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

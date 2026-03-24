@@ -36,6 +36,16 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
+    def test_real_testnet_deployed_addresses_require_live_auditor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir))
+
+            with self.assertRaisesRegex(ValueError, "require live agent-forge analysis"):
+                service.create_audit(
+                    "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                    submitted_by="testnet-user",
+                )
+
     def test_list_audits_hydrates_legacy_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             data_root = Path(tmpdir)
