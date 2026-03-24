@@ -2,7 +2,12 @@
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
 import { apiFetch } from "./lib/api";
-import { relativeTimeLabel, submissionModeLabel, suggestedProofUriForBenchmark } from "./lib/format";
+import {
+  formatEth,
+  relativeTimeLabel,
+  submissionModeLabel,
+  suggestedProofUriForBenchmark,
+} from "./lib/format";
 import type {
   AuditRecord,
   AuditorServiceRecord,
@@ -34,6 +39,26 @@ import { DocsView } from "./components/views/docs-view";
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
   return fixtures.find((f) => f.id === "clean-vault") ?? fixtures[0];
+}
+
+function formatMediatedOnchainError(
+  error: unknown,
+  *,
+  action: "publish" | "challenge",
+  amountWei: number,
+  publicationMode: string | null | undefined,
+  network: string | null | undefined,
+): string {
+  const fallback =
+    error instanceof Error
+      ? error.message
+      : `Failed to ${action}`;
+  const normalized = fallback.toLowerCase();
+  if (publicationMode !== "api_mediated" || !normalized.includes("insufficient funds")) {
+    return fallback;
+  }
+  const networkLabel = network ?? "current";
+  return `${action === "publish" ? "Publish" : "Challenge"} failed because this ${networkLabel} deployment uses an API signer and that backend wallet is underfunded. It must hold at least ${formatEth(amountWei)} plus gas. The connected browser wallet balance is not used for ${action} in api-mediated mode.`;
 }
 
 const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
@@ -304,7 +329,14 @@ export function AuditWorkbench() {
             body: JSON.stringify({ stake_wei: publishStake }),
           }));
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Failed to publish");
+          setError(
+            formatMediatedOnchainError(e, {
+              action: "publish",
+              amountWei: publishStake,
+              publicationMode: selectedAuditorService?.publication_mode,
+              network: contractConfig?.network,
+            }),
+          );
         } finally {
           setActiveAction(null);
         }
@@ -324,7 +356,14 @@ export function AuditWorkbench() {
             body: JSON.stringify({ proof_uri: proofUri, challenger: "whitehat-demo" }),
           }));
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Failed to challenge");
+          setError(
+            formatMediatedOnchainError(e, {
+              action: "challenge",
+              amountWei: challengeBond,
+              publicationMode: selectedAuditorService?.publication_mode,
+              network: contractConfig?.network,
+            }),
+          );
         } finally {
           setActiveAction(null);
         }
@@ -449,6 +488,7 @@ export function AuditWorkbench() {
                     <ActionsPanel
                       audit={activeAudit}
                       config={contractConfig}
+                      publicationMode={selectedAuditorService?.publication_mode}
                       proofUri={proofUri}
                       isPending={isPending}
                       activeAction={activeAction}

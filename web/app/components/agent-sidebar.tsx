@@ -25,6 +25,12 @@ export function AgentSidebar({
   const trustColor = reputation >= 70 ? "var(--secondary)" : reputation >= 40 ? "var(--tertiary)" : "var(--error)";
   const circumference = 2 * Math.PI * 34;
   const dashArray = `${(reputation / 100) * circumference} ${circumference}`;
+  const publicationModeLabel =
+    svc?.publication_mode === "api_mediated"
+      ? "Auditor service stakes"
+      : svc?.publication_mode === "self_published"
+        ? "User wallet stakes"
+        : svc?.publication_mode ?? "unknown";
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -89,6 +95,7 @@ export function AgentSidebar({
           <tbody>
             <tr><td>Stake</td><td>{formatEth(Number(publishStake))}</td></tr>
             <tr><td>Bond</td><td>{formatEth(Number(challengeBond))}</td></tr>
+            <tr><td>Stake payer</td><td>{svc?.publication_mode === "api_mediated" ? agentName : "Connected wallet"}</td></tr>
             <tr><td>Window</td><td>{config?.challenge_window_seconds ? `${config.challenge_window_seconds}s` : "—"}</td></tr>
             <tr><td>Network</td><td>{config?.network ?? "—"}</td></tr>
           </tbody>
@@ -114,7 +121,7 @@ export function AgentSidebar({
                 {shortenHex(config.contract_address, 10, 8)}
               </span>
             ) : null}
-            {svc?.publication_mode ? <span className="pill">{svc.publication_mode}</span> : null}
+            {svc?.publication_mode ? <span className="pill">{publicationModeLabel}</span> : null}
           </div>
         </div>
       ) : null}

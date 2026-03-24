@@ -36,6 +36,19 @@ const MODES: { id: InputKind; label: string }[] = [
   { id: "source_bundle",    label: "Source bundle" },
 ];
 
+function publicationModeSummary(
+  publicationMode: string | null | undefined,
+  serviceName: string,
+): string | null {
+  if (publicationMode === "api_mediated") {
+    return `${serviceName} stakes and submits the on-chain publish transaction. Your connected wallet is not charged for publish in this mode.`;
+  }
+  if (publicationMode === "self_published") {
+    return `Your connected wallet must sign and fund the publish transaction for ${serviceName}.`;
+  }
+  return null;
+}
+
 export function SubmitPanel({
   submissionMode,
   contractAddress,
@@ -63,6 +76,12 @@ export function SubmitPanel({
   const selectedServiceSupportsMode = selectedAuditorService
     ? selectedAuditorService.submission_modes.includes(submissionMode)
     : false;
+  const publicationSummary = selectedAuditorService
+    ? publicationModeSummary(
+        selectedAuditorService.publication_mode,
+        selectedAuditorService.name,
+      )
+    : null;
   const canSubmit =
     !isPending &&
     selectedServiceSupportsMode &&
@@ -96,11 +115,18 @@ export function SubmitPanel({
             ))}
           </select>
           {selectedAuditorService ? (
-            <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8, lineHeight: 1.5 }}>
-              {selectedAuditorService.capability} via {selectedAuditorService.execution_mode}
-              {" · "}
-              supports {selectedAuditorService.submission_modes.map((mode) => mode.replace("_", " ")).join(", ")}
-            </p>
+            <>
+              <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8, lineHeight: 1.5 }}>
+                {selectedAuditorService.capability} via {selectedAuditorService.execution_mode}
+                {" · "}
+                supports {selectedAuditorService.submission_modes.map((mode) => mode.replace("_", " ")).join(", ")}
+              </p>
+              {publicationSummary ? (
+                <p className="notice-banner notice-banner-info" style={{ marginTop: 8 }}>
+                  {publicationSummary}
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8 }}>
               No auditor services are currently available.
