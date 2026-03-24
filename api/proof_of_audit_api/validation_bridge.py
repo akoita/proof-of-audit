@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
-from pathlib import Path
 from typing import Any
 
 from hexbytes import HexBytes
@@ -13,15 +12,7 @@ from web3.contract.contract import ContractFunction
 from web3.exceptions import ContractCustomError, ContractLogicError, TimeExhausted
 
 from proof_of_audit_api.config import ContractConfig
-
-
-ARTIFACT_FILE = (
-    Path(__file__).resolve().parents[2]
-    / "contracts"
-    / "out"
-    / "ValidationRegistryAdapter.sol"
-    / "ValidationRegistryAdapter.json"
-)
+from proof_of_audit_api.contract_artifacts import load_contract_artifact_json
 
 
 class ValidationBridgeError(Exception):
@@ -54,7 +45,10 @@ class ValidationResponseResult:
 
 
 def load_validation_bridge_artifact() -> dict[str, Any]:
-    return json.loads(ARTIFACT_FILE.read_text(encoding="utf-8"))
+    return load_contract_artifact_json(
+        "ValidationRegistryAdapter.sol",
+        "ValidationRegistryAdapter.json",
+    )
 
 
 def load_validation_bridge_abi() -> list[dict[str, Any]]:
