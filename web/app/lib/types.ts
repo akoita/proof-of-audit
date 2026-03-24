@@ -156,6 +156,13 @@ export type PublicContractConfig = {
   deployment_ready: boolean;
 };
 
+export type SourceBundleUpload = {
+  original_filename: string;
+  source_bundle_uri: string;
+  source_bundle_label?: string | null;
+  entry_contract?: string | null;
+};
+
 export type InputKind =
   | "deployed_address"
   | "demo_fixture"

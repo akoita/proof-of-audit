@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -477,6 +478,26 @@ class PublicContractConfigResponse(BaseModel):
     required_challenge_bond_wei: int
     challenge_window_seconds: int
     deployment_ready: bool
+
+
+class SourceBundleUploadResponse(BaseModel):
+    original_filename: str
+    source_bundle_uri: str
+    source_bundle_label: str | None = None
+    entry_contract: str | None = None
+
+
+class SourceBundleUploadRequest(BaseModel):
+    filename: str
+    content_base64: str
+
+    @model_validator(mode="after")
+    def validate_base64(self) -> "SourceBundleUploadRequest":
+        try:
+            base64.b64decode(self.content_base64, validate=True)
+        except ValueError as exc:
+            raise ValueError("content_base64 must be valid base64 data") from exc
+        return self
 
 
 InputKind = Literal["deployed_address", "demo_fixture", "source_bundle", "repository_url"]

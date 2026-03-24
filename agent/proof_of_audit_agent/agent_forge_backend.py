@@ -199,11 +199,14 @@ class AgentForgeBackend:
             shutil.copytree(source_path, workspace_dir)
         else:
             workspace_dir.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(source_path) as archive:
-                archive.extractall(workspace_dir)
-            entries = [entry for entry in workspace_dir.iterdir()]
-            if len(entries) == 1 and entries[0].is_dir():
-                workspace_dir = entries[0]
+            if source_path.suffix.lower() == ".zip":
+                with zipfile.ZipFile(source_path) as archive:
+                    archive.extractall(workspace_dir)
+                entries = [entry for entry in workspace_dir.iterdir()]
+                if len(entries) == 1 and entries[0].is_dir():
+                    workspace_dir = entries[0]
+            else:
+                shutil.copy2(source_path, workspace_dir / source_path.name)
         (workspace_dir / ".proof-of-audit").mkdir(parents=True, exist_ok=True)
         return workspace_dir
 
