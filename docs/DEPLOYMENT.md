@@ -200,6 +200,7 @@ workbench fixtures.
 cd /home/koita/dev/hackatons/proof-of-audit
 PROOF_OF_AUDIT_FIXTURE_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
 PROOF_OF_AUDIT_FIXTURE_PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY" \
+BASESCAN_API_KEY="$BASESCAN_API_KEY" \
 ./scripts/deploy-base-sepolia-fixtures.sh
 ```
 
@@ -207,9 +208,18 @@ This script:
 
 - deploys the contracts defined in `demo/fixtures.catalog.json` to the configured Base Sepolia RPC
 - verifies that bytecode exists at each deployed address
+- attempts contract source verification on Sourcify and BaseScan for each fixture
 - writes `deployments/demo-fixtures.base-sepolia.json`
-- records reusable deployment metadata per target, including address, tx hash, block number, deployer, and explorer URL
+- records reusable deployment metadata per target, including address, tx hash, block number, deployer, explorer URL, and per-provider verification status
 - does **not** update `api/.env.local` or enable these contracts as public UI fixtures
+
+Verification behavior:
+
+- Sourcify verification is attempted by default and does not require an API key.
+- BaseScan verification is attempted by default when `PROOF_OF_AUDIT_FIXTURE_VERIFY_API_KEY`,
+  `PROOF_OF_AUDIT_VERIFY_API_KEY`, or `BASESCAN_API_KEY` is set.
+- The script exits non-zero if any fixture ends without a verified source provider unless
+  `PROOF_OF_AUDIT_FIXTURE_ALLOW_UNVERIFIED=1` is set.
 
 The intended workflow is:
 

@@ -48,6 +48,18 @@ def test_write_demo_fixtures_manifest_merges_deployment_records_without_touching
                     "deployment_block_number": 42,
                     "deployer_address": "0x5000000000000000000000000000000000000005",
                     "immutable_source_uri": "ipfs://fixture-cid/VulnerableBank.sol",
+                    "verification": {
+                        "sourcify": {
+                            "status": "verified",
+                            "command": "forge verify-contract --verifier sourcify ...",
+                            "verified_at": "2026-03-24T21:00:00+00:00",
+                        },
+                        "basescan": {
+                            "status": "skipped",
+                            "command": "missing-api-key",
+                            "reason": "BaseScan verification requires an API key.",
+                        },
+                    },
                 }
             }
         )
@@ -94,4 +106,6 @@ def test_write_demo_fixtures_manifest_merges_deployment_records_without_touching
         payload["fixtures"][0]["immutable_source_uri"]
         == "ipfs://fixture-cid/VulnerableBank.sol"
     )
+    assert payload["fixtures"][0]["verification"]["sourcify"]["status"] == "verified"
+    assert payload["fixtures"][0]["verification"]["basescan"]["status"] == "skipped"
     assert api_env_file.read_text(encoding="utf-8") == "KEEP_EXISTING=1\n"
