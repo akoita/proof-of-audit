@@ -11,6 +11,7 @@ import type {
 
 type SubmitPanelProps = {
   submissionMode: InputKind;
+  allowDemoFixtures: boolean;
   contractAddress: string;
   selectedFixtureId: string;
   auditorServices: AuditorServiceRecord[];
@@ -55,6 +56,7 @@ function publicationModeSummary(
 
 export function SubmitPanel({
   submissionMode,
+  allowDemoFixtures,
   contractAddress,
   selectedFixtureId,
   auditorServices,
@@ -79,6 +81,9 @@ export function SubmitPanel({
 }: SubmitPanelProps) {
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const availableModes = allowDemoFixtures
+    ? MODES
+    : MODES.filter((mode) => mode.id !== "demo_fixture");
   const trimmedContractAddress = contractAddress.trim();
   const trimmedSourceBundleUri = sourceBundleUri.trim();
   const selectedServiceSupportsMode = selectedAuditorService
@@ -186,7 +191,7 @@ export function SubmitPanel({
 
         {/* Mode tabs */}
         <div style={{ display: "flex", gap: 8 }}>
-          {MODES.map((m) => (
+          {availableModes.map((m) => (
             <button
               key={m.id}
               type="button"
@@ -240,7 +245,7 @@ export function SubmitPanel({
               <div className="icon">☁️</div>
               <p>{isUploadingSourceBundle ? "Uploading source bundle..." : "Drop .zip or .sol files here"}</p>
               <p className="drop-zone-detail">
-                {selectedBundleName || "Or click to choose a local file"}
+                {selectedBundleName || "Stored via the API's configured local, GCS, or IPFS backend"}
               </p>
               <button
                 type="button"
@@ -260,7 +265,7 @@ export function SubmitPanel({
               <label className="section-label">Bundle URI</label>
               <input
                 className="input-field mono"
-                placeholder="ipfs://... or https://..."
+                placeholder="ipfs://..., gs://..., https://..., or local file path"
                 value={sourceBundleUri}
                 onChange={(e) => onSourceBundleUriChange(e.target.value)}
                 data-testid="source-bundle-uri"
