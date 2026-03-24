@@ -174,6 +174,64 @@ test("web app resolves the API base URL from runtime config", async ({ page }) =
   );
 });
 
+test("connect wallet uses an injected provider and renders the connected account", async ({ page }) => {
+  await page.addInitScript(() => {
+    const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+    const walletState = {
+      accounts: [] as string[],
+      chainId: "0x7a69",
+    };
+
+    const emit = (event: string, payload: unknown) => {
+      for (const listener of listeners.get(event) ?? []) {
+        listener(payload);
+      }
+    };
+
+    Object.defineProperty(window, "ethereum", {
+      configurable: true,
+      value: {
+        request: async ({ method, params }: { method: string; params?: Array<{ chainId?: string }> }) => {
+          switch (method) {
+            case "eth_accounts":
+              return [...walletState.accounts];
+            case "eth_chainId":
+              return walletState.chainId;
+            case "eth_requestAccounts":
+              walletState.accounts = ["0x1111111111111111111111111111111111111111"];
+              emit("accountsChanged", [...walletState.accounts]);
+              return [...walletState.accounts];
+            case "wallet_switchEthereumChain": {
+              const nextChainId = params?.[0]?.chainId ?? walletState.chainId;
+              walletState.chainId = nextChainId;
+              emit("chainChanged", walletState.chainId);
+              return null;
+            }
+            default:
+              throw new Error(`unsupported wallet method: ${method}`);
+          }
+        },
+        on: (event: string, listener: (...args: unknown[]) => void) => {
+          if (!listeners.has(event)) {
+            listeners.set(event, new Set());
+          }
+          listeners.get(event)?.add(listener);
+        },
+        removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+          listeners.get(event)?.delete(listener);
+        },
+      },
+    });
+  });
+
+  await openWorkbench(page);
+  await page.getByTestId("connect-wallet-btn").click();
+
+  await expect(page.getByTestId("wallet-address-chip")).toContainText("0x111111...111111");
+  await expect(page.getByTestId("wallet-address-chip")).toContainText("Chain 31337");
+  await expect(page.getByTestId("disconnect-wallet-btn")).toBeVisible();
+});
+
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await openWorkbench(page);
   await page.getByRole("button", { name: fixtureName }).click();
