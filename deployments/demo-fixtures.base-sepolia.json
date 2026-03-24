@@ -2,79 +2,139 @@
   "network": "base-sepolia",
   "chain_id": 84532,
   "rpc_url": "https://base-sepolia.drpc.org",
-  "generated_at": "2026-03-24T19:30:18.911038+00:00",
+  "generated_at": "2026-03-24T21:29:43.248108+00:00",
   "fixtures": [
     {
-      "deployment_tx_hash": "0x34aa62c8b4d7b2dd25ef0f1d2f15bba62188506bafd37f237611b55c0e69c9fa",
-      "deployment_block_number": 39306159,
+      "deployment_tx_hash": "0x5b351a6c21b77193304b9c0e79aa8d3935d50a890fcca45f1746d25614958d0b",
+      "deployment_block_number": 39309686,
       "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
-      "basescan_url": "https://sepolia.basescan.org/address/0xe19855137c64fE20346E5044190137530348cAFE",
+      "basescan_url": "https://sepolia.basescan.org/address/0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+      "verification": {
+        "sourcify": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier sourcify --creation-transaction-hash 0x5b351a6c21b77193304b9c0e79aa8d3935d50a890fcca45f1746d25614958d0b --use 0.8.28 0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11 src/VulnerableBank.sol:VulnerableBank ",
+          "verified_at": "2026-03-24T21:28:00.977969+00:00"
+        },
+        "basescan": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier etherscan --etherscan-api-key \\<redacted\\> --use 0.8.28 0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11 src/VulnerableBank.sol:VulnerableBank ",
+          "verified_at": "2026-03-24T21:28:01.906655+00:00"
+        }
+      },
       "id": "vulnerable-bank",
       "label": "Vulnerable Bank",
       "contract_name": "VulnerableBank",
       "entry_contract": "VulnerableBank",
       "benchmark_id": "reentrancy-bank",
-      "address": "0xe19855137c64fE20346E5044190137530348cAFE",
+      "address": "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
       "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
       "note": "High-confidence reentrancy finding",
       "source_path": "demo/contracts/VulnerableBank.sol"
     },
     {
-      "deployment_tx_hash": "0x0d42baf53722fc7dd0e6bd4f69f3b2e213c82ca0670ac398d54a7022e2d84080",
-      "deployment_block_number": 39306160,
+      "deployment_tx_hash": "0x05180ebe3b1cb7b410f411362a0c1671d7c7e0c8b4e1d9c436d6df56518f4c60",
+      "deployment_block_number": 39309698,
       "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
-      "basescan_url": "https://sepolia.basescan.org/address/0x020E6B5e4d06F720d7E8a80Fd491DE9716c21421",
+      "basescan_url": "https://sepolia.basescan.org/address/0xaB045C14825e12A287869d5246303B040Ac98c6B",
+      "verification": {
+        "sourcify": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier sourcify --creation-transaction-hash 0x05180ebe3b1cb7b410f411362a0c1671d7c7e0c8b4e1d9c436d6df56518f4c60 --use 0.8.28 0xaB045C14825e12A287869d5246303B040Ac98c6B src/AdminSetter.sol:AdminSetter ",
+          "verified_at": "2026-03-24T21:28:25.655428+00:00"
+        },
+        "basescan": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier etherscan --etherscan-api-key \\<redacted\\> --use 0.8.28 0xaB045C14825e12A287869d5246303B040Ac98c6B src/AdminSetter.sol:AdminSetter ",
+          "verified_at": "2026-03-24T21:28:26.789854+00:00"
+        }
+      },
       "id": "admin-setter",
       "label": "Admin Setter",
       "contract_name": "AdminSetter",
       "entry_contract": "AdminSetter",
       "benchmark_id": "admin-setter",
-      "address": "0x020E6B5e4d06F720d7E8a80Fd491DE9716c21421",
+      "address": "0xaB045C14825e12A287869d5246303B040Ac98c6B",
       "challenge_proof_uri": "ipfs://admin-setter/unauthorized-admin-change",
       "note": "High-confidence access control finding",
       "source_path": "demo/contracts/AdminSetter.sol"
     },
     {
-      "deployment_tx_hash": "0x45bcf89f06e9a997cd4c0077fa6d75a28beda1bf7bbf5e18c32681a8ea9e9e85",
-      "deployment_block_number": 39306162,
+      "deployment_tx_hash": "0x9ce77ca64e8f3d7408f4d96304db2c628727679c58908fed79b3046573e4e49d",
+      "deployment_block_number": 39309711,
       "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
-      "basescan_url": "https://sepolia.basescan.org/address/0xF14E6EBE928eB4eA90a93BF3Bc5C9F7aa8e67eE1",
+      "basescan_url": "https://sepolia.basescan.org/address/0x717876F72b2242c6CE90AeeecE5242Ce5E0A1290",
+      "verification": {
+        "sourcify": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier sourcify --creation-transaction-hash 0x9ce77ca64e8f3d7408f4d96304db2c628727679c58908fed79b3046573e4e49d --use 0.8.28 0x717876F72b2242c6CE90AeeecE5242Ce5E0A1290 src/CleanVault.sol:CleanVault ",
+          "verified_at": "2026-03-24T21:28:52.303209+00:00"
+        },
+        "basescan": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier etherscan --etherscan-api-key \\<redacted\\> --use 0.8.28 0x717876F72b2242c6CE90AeeecE5242Ce5E0A1290 src/CleanVault.sol:CleanVault ",
+          "verified_at": "2026-03-24T21:28:53.278096+00:00"
+        }
+      },
       "id": "clean-vault",
       "label": "Clean Vault",
       "contract_name": "CleanVault",
       "entry_contract": "CleanVault",
       "benchmark_id": "clean-vault",
-      "address": "0xF14E6EBE928eB4eA90a93BF3Bc5C9F7aa8e67eE1",
+      "address": "0x717876F72b2242c6CE90AeeecE5242Ce5E0A1290",
       "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
       "note": "Clean benchmark with medium confidence",
       "source_path": "demo/contracts/CleanVault.sol"
     },
     {
-      "deployment_tx_hash": "0xa1003a676eef48c0e1725e71355182f5f0fcbddd9a5816b6cb01c77c4c1b72bf",
-      "deployment_block_number": 39306163,
+      "deployment_tx_hash": "0xab3fde66181e75d03776d09c6c0104168a8392f8cb65c18031e952f3b4ca0628",
+      "deployment_block_number": 39309724,
       "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
-      "basescan_url": "https://sepolia.basescan.org/address/0x4C8E160aF0f2180232702173be0e4aB7629e04cE",
+      "basescan_url": "https://sepolia.basescan.org/address/0x6C10364c57A0315B7920764D30110d12210F88E6",
+      "verification": {
+        "sourcify": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier sourcify --creation-transaction-hash 0xab3fde66181e75d03776d09c6c0104168a8392f8cb65c18031e952f3b4ca0628 --use 0.8.28 0x6C10364c57A0315B7920764D30110d12210F88E6 src/DualRiskVault.sol:DualRiskVault ",
+          "verified_at": "2026-03-24T21:29:17.084904+00:00"
+        },
+        "basescan": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier etherscan --etherscan-api-key \\<redacted\\> --constructor-args 0x000000000000000000000000000000000000000000000000000000000000dead --use 0.8.28 0x6C10364c57A0315B7920764D30110d12210F88E6 src/DualRiskVault.sol:DualRiskVault ",
+          "verified_at": "2026-03-24T21:29:18.058160+00:00"
+        }
+      },
       "id": "dual-risk-vault",
       "label": "Dual Risk Vault",
       "contract_name": "DualRiskVault",
       "entry_contract": "DualRiskVault",
       "benchmark_id": "dual-risk-vault",
-      "address": "0x4C8E160aF0f2180232702173be0e4aB7629e04cE",
+      "address": "0x6C10364c57A0315B7920764D30110d12210F88E6",
       "challenge_proof_uri": "ipfs://dual-risk-vault/owner-takeover",
       "note": "Multi-finding benchmark with access control and unchecked payout issues",
       "source_path": "demo/contracts/DualRiskVault.sol"
     },
     {
-      "deployment_tx_hash": "0x4bf8e4cdfa9bc0bbbaefc6c9e99a301bc86cbd0f2886861134853c9bcd108873",
-      "deployment_block_number": 39306164,
+      "deployment_tx_hash": "0x6ca9ee83595e19a4564dd25cf7545cbb86c3e262113bd721b5f3fa327601142d",
+      "deployment_block_number": 39309736,
       "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
-      "basescan_url": "https://sepolia.basescan.org/address/0xC4aEDF8c233320d0e10e1B6D937195dBF8C9c05c",
+      "basescan_url": "https://sepolia.basescan.org/address/0xA1525950a47CE49892ae453Ac5982B1347e70102",
+      "verification": {
+        "sourcify": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier sourcify --creation-transaction-hash 0x6ca9ee83595e19a4564dd25cf7545cbb86c3e262113bd721b5f3fa327601142d --use 0.8.28 0xA1525950a47CE49892ae453Ac5982B1347e70102 src/UncheckedTreasury.sol:UncheckedTreasury ",
+          "verified_at": "2026-03-24T21:29:41.867950+00:00"
+        },
+        "basescan": {
+          "status": "verified",
+          "command": "forge verify-contract --root \\<generated-demo-foundry-root\\> --chain 84532 --watch --verifier etherscan --etherscan-api-key \\<redacted\\> --use 0.8.28 0xA1525950a47CE49892ae453Ac5982B1347e70102 src/UncheckedTreasury.sol:UncheckedTreasury ",
+          "verified_at": "2026-03-24T21:29:42.882247+00:00"
+        }
+      },
       "id": "unchecked-treasury",
       "label": "Unchecked Treasury",
       "contract_name": "UncheckedTreasury",
       "entry_contract": "UncheckedTreasury",
       "benchmark_id": "unchecked-treasury",
-      "address": "0xC4aEDF8c233320d0e10e1B6D937195dBF8C9c05c",
+      "address": "0xA1525950a47CE49892ae453Ac5982B1347e70102",
       "challenge_proof_uri": "ipfs://unchecked-treasury/unchecked-call-failure",
       "note": "Imported registry and unchecked external call",
       "source_path": "demo/contracts/UncheckedTreasury.sol"
