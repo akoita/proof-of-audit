@@ -102,6 +102,12 @@ class ContractConfigTest(unittest.TestCase):
             config.auditor_services[0].service_id,
             config.auditor_service.service_id,
         )
+        self.assertEqual(
+            config.demo_fixtures_file,
+            Path(__file__).resolve().parents[2]
+            / "deployments"
+            / "demo-fixtures.base-sepolia.json",
+        )
         self.assertFalse(config.deployment_ready)
 
     def test_reads_environment_overrides(self) -> None:

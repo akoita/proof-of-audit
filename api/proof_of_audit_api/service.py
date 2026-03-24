@@ -42,6 +42,9 @@ from proof_of_audit_agent.executable_evidence_resolver import (
     EvidenceResolutionError,
     ExecutableEvidenceResolver,
 )
+from proof_of_audit_agent.deterministic_auditor_backend import (
+    LEGACY_BENCHMARK_ADDRESSES,
+)
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import AuditStore, CloudSqlPostgresConfig, create_store
@@ -149,6 +152,10 @@ class AuditService:
             audit_id=audit_id,
             **self._worker_submission_payload(normalized_submission),
         )
+        self._validate_live_deployed_address_execution(
+            normalized_submission=normalized_submission,
+            execution_result=execution_result,
+        )
         target_key = self._normalize_target_key(normalized_submission["contract_address"])
         record = {
             "id": audit_id,
@@ -176,6 +183,45 @@ class AuditService:
         }
         self.store.write(audit_id, record)
         return self.get_audit(audit_id) or record
+
+    def _validate_live_deployed_address_execution(
+        self,
+        *,
+        normalized_submission: dict[str, Any],
+        execution_result: Any,
+    ) -> None:
+        if normalized_submission.get("input_kind") != "deployed_address":
+            return
+
+        contract_address = self._normalize_target_key(
+            normalized_submission.get("contract_address")
+        )
+        if self._is_local_network() or contract_address in LEGACY_BENCHMARK_ADDRESSES:
+            return
+
+        execution = getattr(execution_result, "execution", None)
+        if (
+            execution is not None
+            and execution.backend == "agent_forge"
+            and execution.status == "completed"
+            and not execution.fallback_used
+        ):
+            return
+
+        raise ValueError(
+            f"deployed_address submissions on {self.contract_config.network} require live agent-forge analysis; deterministic fallback is disabled for this address"
+        )
+
+    def _is_local_network(self) -> bool:
+        network = self.contract_config.network.strip().lower()
+        return (
+            "anvil" in network
+            or "localhost" in network
+            or "eth-tester" in network
+            or network == "eth_tester"
+            or network == "tester"
+            or network == "local"
+        )
 
     def get_audit(self, audit_id: str) -> dict[str, Any] | None:
         records = self._all_normalized_records()

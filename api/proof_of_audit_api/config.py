@@ -6,7 +6,11 @@ import json
 import os
 from pathlib import Path
 from typing import Mapping
-from proof_of_audit_agent.fixtures import DEFAULT_DEMO_FIXTURES_FILE, resolve_demo_fixtures_file
+from proof_of_audit_agent.fixtures import (
+    DEFAULT_DEMO_FIXTURES_FILE,
+    default_demo_fixtures_file_for_network,
+    resolve_demo_fixtures_file,
+)
 
 DEFAULT_API_ENV_FILE = Path(__file__).resolve().parents[1] / ".env.local"
 DEFAULT_AUDITOR_MANIFEST_FILE = (
@@ -690,7 +694,7 @@ class ContractConfig:
             demo_fixtures_file=resolve_demo_fixtures_file(
                 Path(source["PROOF_OF_AUDIT_DEMO_FIXTURES_FILE"])
                 if source.get("PROOF_OF_AUDIT_DEMO_FIXTURES_FILE")
-                else DEFAULT_DEMO_FIXTURES_FILE
+                else default_demo_fixtures_file_for_network(network)
             ),
             required_stake_wei=int(
                 source.get("PROOF_OF_AUDIT_REQUIRED_STAKE_WEI", "10000000000000000")

@@ -54,6 +54,18 @@ def resolve_demo_fixtures_file(path: Path | None = None) -> Path | None:
     return candidate if candidate.exists() else None
 
 
+def default_demo_fixtures_file_for_network(network: str | None = None) -> Path:
+    if network:
+        normalized_network = str(network).strip().lower()
+        if normalized_network:
+            network_candidate = (
+                REPO_ROOT / "deployments" / f"demo-fixtures.{normalized_network}.json"
+            )
+            if network_candidate.exists():
+                return network_candidate
+    return DEFAULT_DEMO_FIXTURES_FILE
+
+
 def load_demo_fixtures(path: Path | None = None) -> list[DemoFixture]:
     manifest_file = resolve_demo_fixtures_file(path)
     if manifest_file is None:
