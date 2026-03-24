@@ -43,11 +43,17 @@ function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
 
 function formatMediatedOnchainError(
   error: unknown,
-  *,
-  action: "publish" | "challenge",
-  amountWei: number,
-  publicationMode: string | null | undefined,
-  network: string | null | undefined,
+  {
+    action,
+    amountWei,
+    publicationMode,
+    network,
+  }: {
+    action: "publish" | "challenge";
+    amountWei: number;
+    publicationMode: string | null | undefined;
+    network: string | null | undefined;
+  },
 ): string {
   const fallback =
     error instanceof Error
