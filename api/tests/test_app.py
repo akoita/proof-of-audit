@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import json
+from unittest.mock import Mock, patch
 import zipfile
 
 from fastapi.testclient import TestClient
@@ -105,6 +106,43 @@ class AuditApiAppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_create_app_accepts_cloudsql_postgres_store_settings(self) -> None:
+        env_file = Path(self.tempdir.name) / ".env.cloudsql"
+        fixtures_file = Path(self.tempdir.name) / "demo-fixtures.localhost.json"
+        env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
+                    "PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres",
+                    "PROOF_OF_AUDIT_STORE_INSTANCE_CONNECTION_NAME=project:region:instance",
+                    "PROOF_OF_AUDIT_STORE_DATABASE=proof_of_audit",
+                    "PROOF_OF_AUDIT_STORE_USER=auditor@example.iam",
+                    "PROOF_OF_AUDIT_STORE_ENABLE_IAM_AUTH=true",
+                    "PROOF_OF_AUDIT_STORE_PATH=ignored-for-cloudsql",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        store = Mock()
+        store.close = Mock()
+
+        with patch("proof_of_audit_api.service.create_store", return_value=store) as create_store_mock:
+            with TestClient(create_app(Path(self.tempdir.name) / "cloudsql-data", env_file=env_file)) as client:
+                response = client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        create_store_mock.assert_called_once()
+        kwargs = create_store_mock.call_args.kwargs
+        self.assertEqual(kwargs["kind"], "cloudsql-postgres")
+        self.assertIsNone(kwargs["database_path"])
+        self.assertEqual(
+            kwargs["postgres_config"].instance_connection_name,
+            "project:region:instance",
+        )
+        self.assertTrue(kwargs["postgres_config"].enable_iam_auth)
+        store.close.assert_called_once()
 
     def test_public_config_endpoint(self) -> None:
         manifest = load_base_sepolia_manifest()
