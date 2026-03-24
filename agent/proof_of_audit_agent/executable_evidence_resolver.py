@@ -113,9 +113,9 @@ class ExecutableEvidenceResolver:
                 canonical_hash=canonical_hash,
             )
 
-        if parsed.scheme not in {"ipfs", "https", "http"}:
+        if parsed.scheme not in {"ipfs", "https", "http", "gs"}:
             raise EvidenceResolutionError(
-                "Executable evidence supports local paths, file://, ipfs://, http://, and https:// URIs."
+                "Executable evidence supports local paths, file://, ipfs://, gs://, http://, and https:// URIs."
             )
 
         tempdir = tempfile.TemporaryDirectory(prefix="proof-of-audit-fetch-")
@@ -183,6 +183,12 @@ class ExecutableEvidenceResolver:
             raise
 
     def _download_remote_uri(self, proof_uri: str, destination_stub: Path) -> Path:
+        parsed = parse.urlparse(proof_uri)
+        if parsed.scheme == "gs":
+            filename = self._suggest_filename(proof_uri)
+            destination = destination_stub.with_name(filename)
+            self._download_gcs_uri(proof_uri, destination)
+            return destination
         remote_url = self._translate_remote_uri(proof_uri)
         req = request.Request(
             remote_url,
@@ -208,6 +214,23 @@ class ExecutableEvidenceResolver:
             raise EvidenceResolutionError("Executable evidence download was empty.")
         return destination
 
+    def _download_gcs_uri(self, proof_uri: str, destination: Path) -> None:
+        try:
+            from google.cloud import storage
+        except ImportError as exc:
+            raise EvidenceResolutionError(
+                "google-cloud-storage is required to fetch gs:// executable evidence."
+            ) from exc
+        bucket_name, object_name = self._parse_gcs_uri(proof_uri)
+        payload = storage.Client().bucket(bucket_name).blob(object_name).download_as_bytes()
+        if len(payload) > self.max_download_bytes:
+            raise EvidenceResolutionError(
+                "Executable evidence download exceeded the maximum allowed size."
+            )
+        if not payload:
+            raise EvidenceResolutionError("Executable evidence download was empty.")
+        destination.write_bytes(payload)
+
     def _translate_remote_uri(self, proof_uri: str) -> str:
         parsed = parse.urlparse(proof_uri)
         if parsed.scheme == "ipfs":
@@ -223,6 +246,16 @@ class ExecutableEvidenceResolver:
         if parsed.netloc:
             return parsed.netloc
         return "evidence.bin"
+
+    def _parse_gcs_uri(self, proof_uri: str) -> tuple[str, str]:
+        parsed = parse.urlparse(proof_uri)
+        bucket_name = parsed.netloc.strip()
+        object_name = parsed.path.lstrip("/")
+        if parsed.scheme != "gs" or not bucket_name:
+            raise EvidenceResolutionError("Executable evidence gs:// URI must include a bucket name.")
+        if not object_name:
+            raise EvidenceResolutionError("Executable evidence gs:// URI must include an object path.")
+        return bucket_name, object_name
 
     def _resolve_local_source_path(self, proof_uri: str) -> Path | None:
         parsed = parse.urlparse(proof_uri)

@@ -159,6 +159,7 @@ export type PublicContractConfig = {
 export type SourceBundleUpload = {
   original_filename: string;
   source_bundle_uri: string;
+  storage_backend?: string;
   source_bundle_label?: string | null;
   entry_contract?: string | null;
 };

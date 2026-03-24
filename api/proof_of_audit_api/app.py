@@ -4,8 +4,6 @@ import base64
 from contextlib import asynccontextmanager
 import os
 from pathlib import Path
-import re
-from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -44,11 +42,15 @@ from proof_of_audit_api.schemas import (
     VerificationDossierModel,
 )
 from proof_of_audit_api.service import AuditService
+from proof_of_audit_api.source_bundle_storage import (
+    SourceBundleStorageError,
+    build_source_bundle_storage,
+    validate_upload_filename,
+)
 from proof_of_audit_api.store import CloudSqlPostgresConfig
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
-UPLOAD_SUFFIXES = {".sol", ".zip"}
 
 
 def create_app(
@@ -317,32 +319,32 @@ def create_app(
         request: Request,
         payload: SourceBundleUploadRequest,
     ) -> SourceBundleUploadResponse:
-        original_name = Path(payload.filename).name
-        suffix = Path(original_name).suffix.lower()
-        if not original_name or suffix not in UPLOAD_SUFFIXES:
+        try:
+            original_name = validate_upload_filename(payload.filename)
+            service = _service(request)
+            storage = build_source_bundle_storage(
+                workspace_root=service.worker.workspace_root,
+                env=runtime_env,
+            )
+            stored_bundle = storage.store(
+                original_filename=original_name,
+                content=base64.b64decode(payload.content_base64),
+            )
+        except SourceBundleStorageError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "invalid_upload",
-                    "message": "Only .zip and .sol files are supported for source bundle uploads.",
+                    "message": str(exc),
                 },
-            )
-
-        service = _service(request)
-        uploads_dir = service.worker.workspace_root / "uploads"
-        uploads_dir.mkdir(parents=True, exist_ok=True)
-        stem = Path(original_name).stem
-        normalized_stem = (
-            re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-._") or "source-bundle"
-        )
-        destination = uploads_dir / f"{normalized_stem}-{uuid4().hex}{suffix}"
-        destination.write_bytes(base64.b64decode(payload.content_base64))
+            ) from exc
 
         return SourceBundleUploadResponse(
-            original_filename=original_name,
-            source_bundle_uri=str(destination),
-            source_bundle_label=stem or None,
-            entry_contract=stem if suffix == ".sol" and stem else None,
+            original_filename=stored_bundle.original_filename,
+            source_bundle_uri=stored_bundle.source_bundle_uri,
+            storage_backend=stored_bundle.storage_backend,
+            source_bundle_label=stored_bundle.source_bundle_label,
+            entry_contract=stored_bundle.entry_contract,
         )
 
     @app.get(

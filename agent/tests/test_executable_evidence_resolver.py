@@ -63,6 +63,46 @@ def test_resolver_downloads_ipfs_sol_file() -> None:
         assert resolved.materialized_root is not None
 
 
+def test_resolver_downloads_gcs_sol_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = b"contract ChallengeEvidenceTest {}\n"
+
+    class FakeBlob:
+        def download_as_bytes(self) -> bytes:
+            return payload
+
+    class FakeBucket:
+        def __init__(self) -> None:
+            self.last_blob_name: str | None = None
+
+        def blob(self, name: str) -> FakeBlob:
+            self.last_blob_name = name
+            return FakeBlob()
+
+    class FakeStorageClient:
+        def __init__(self) -> None:
+            self.last_bucket_name: str | None = None
+            self.last_bucket = FakeBucket()
+
+        def bucket(self, name: str) -> FakeBucket:
+            self.last_bucket_name = name
+            return self.last_bucket
+
+    fake_storage_client = FakeStorageClient()
+    monkeypatch.setattr(
+        "google.cloud.storage.Client",
+        lambda: fake_storage_client,
+    )
+    resolver = ExecutableEvidenceResolver()
+
+    with resolver.resolve(
+        _context("gs://proof-of-audit-evidence/challenges/ChallengeEvidence.t.sol")
+    ) as resolved:
+        assert resolved.source_path.name == "ChallengeEvidence.t.sol"
+        assert resolved.source_text == payload.decode("utf-8")
+        assert fake_storage_client.last_bucket_name == "proof-of-audit-evidence"
+        assert fake_storage_client.last_bucket.last_blob_name == "challenges/ChallengeEvidence.t.sol"
+
+
 def test_resolver_rejects_oversized_download() -> None:
     payload = b"a" * 32
 

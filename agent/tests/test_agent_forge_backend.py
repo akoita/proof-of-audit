@@ -1,5 +1,7 @@
+import io
 import json
 from pathlib import Path
+import tempfile
 import zipfile
 
 import pytest
@@ -323,6 +325,127 @@ def test_resolve_source_path_supports_file_uri_absolute_relative_and_missing(
         )
         is None
     )
+
+
+def test_run_submission_downloads_ipfs_source_bundle_before_live_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_agent_forge_script(
+        tmp_path / "fake-agent-forge",
+        report_text=json.dumps(
+            {
+                "summary": "Live audit completed.",
+                "confidence": "medium",
+                "findings": [],
+            }
+        ),
+    )
+    backend = AgentForgeBackend(
+        _runtime(tmp_path, command=str(script)),
+        tmp_path / "runtime",
+    )
+
+    class FakeResponse:
+        def __init__(self, payload: bytes) -> None:
+            self._buffer = io.BytesIO(payload)
+
+        def read(self, size: int = -1) -> bytes:
+            return self._buffer.read(size)
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            del exc_type, exc, tb
+
+    def fake_urlopen(req, timeout=0):  # type: ignore[no-untyped-def]
+        assert req.full_url == "https://gateway.example/ipfs/QmBundle/UncheckedTreasury.sol"
+        assert timeout == 15
+        return FakeResponse(b"contract UncheckedTreasury {}\n")
+
+    monkeypatch.setenv("PROOF_OF_AUDIT_IPFS_GATEWAY", "https://gateway.example/ipfs")
+    monkeypatch.setattr(
+        "proof_of_audit_agent.agent_forge_backend.request.urlopen",
+        fake_urlopen,
+    )
+
+    result = backend.run_submission(
+        AuditSubmission(
+            audit_id="audit-123",
+            input_kind="source_bundle",
+            source_bundle_uri="ipfs://QmBundle/UncheckedTreasury.sol",
+            entry_contract="UncheckedTreasury",
+        )
+    )
+
+    assert result is not None
+    assert result.execution is not None
+    assert result.execution.workspace_dir is not None
+    assert Path(result.execution.workspace_dir, "UncheckedTreasury.sol").exists()
+
+
+def test_run_submission_materializes_verified_source_for_deployed_address(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_agent_forge_script(
+        tmp_path / "fake-agent-forge",
+        report_text=json.dumps(
+            {
+                "summary": "Live audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "src/Vault.sol",
+                    }
+                ],
+            }
+        ),
+    )
+    backend = AgentForgeBackend(
+        _runtime(tmp_path, command=str(script)),
+        tmp_path / "runtime",
+    )
+    tempdir = tempfile.TemporaryDirectory(prefix="proof-of-audit-test-")
+    source_root = Path(tempdir.name) / "source"
+    (source_root / "src").mkdir(parents=True, exist_ok=True)
+    (source_root / "src" / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        backend.deployed_address_source_resolver,
+        "resolve",
+        lambda **_: type(
+            "ResolvedSource",
+            (),
+            {
+                "path": source_root,
+                "tempdir": tempdir,
+                "entry_contract": "Vault",
+                "source_uri": "sourcify://84532/0xabc0000000000000000000000000000000000000",
+            },
+        )(),
+    )
+
+    result = backend.run_submission(
+        AuditSubmission(
+            audit_id="audit-123",
+            input_kind="deployed_address",
+            chain_id=84532,
+            contract_address="0xabc0000000000000000000000000000000000000",
+        )
+    )
+
+    assert result is not None
+    assert result.execution is not None
+    assert result.execution.source_path == "sourcify://84532/0xabc0000000000000000000000000000000000000"
+    assert result.report.contract_address == "0xabc0000000000000000000000000000000000000"
+    assert result.report.findings[0].source_path == "src/Vault.sol"
+    assert Path(result.execution.workspace_dir, "src", "Vault.sol").exists()
 
 
 def test_prepare_workspace_copies_directory_unwraps_zip_and_preserves_sol_files(

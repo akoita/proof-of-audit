@@ -118,6 +118,19 @@ export function submissionTargetLabel(audit: AuditRecord): string {
   return shortenHex(audit.contract_address, 8, 6);
 }
 
+export function publishBlockedReason(audit: AuditRecord): string | null {
+  if (audit.status !== "draft") return null;
+
+  switch (audit.submission.input_kind) {
+    case "source_bundle":
+      return "Source bundle drafts must be deployed and resubmitted as a deployed address before they can be published on-chain.";
+    case "repository_url":
+      return "Repository URL drafts are exploratory only and cannot be published on-chain yet.";
+    default:
+      return null;
+  }
+}
+
 export function agentVersionLabel(agent: AuditorProfile | null | undefined): string {
   if (!agent) return "loading";
   return `${agent.name} v${agent.version}`;

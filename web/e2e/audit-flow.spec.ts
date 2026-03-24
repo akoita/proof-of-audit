@@ -281,6 +281,10 @@ test("source bundle mode can submit without a deployed address", async ({ page }
 
   await submitButton.click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+  await expect(page.getByTestId("publish-btn")).toBeDisabled();
+  await expect(
+    page.getByText(/must be deployed and resubmitted as a deployed address/i),
+  ).toBeVisible();
 });
 
 test("source bundle mode accepts a local Solidity file upload", async ({ page }) => {

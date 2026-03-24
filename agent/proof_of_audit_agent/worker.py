@@ -80,6 +80,35 @@ class AuditWorker:
             assert result is not None
             return result
 
+        if submission.input_kind == "deployed_address":
+            live_attempted = submission.audit_id is not None and self.runtime.mode in {
+                "hybrid",
+                "agent_forge",
+            }
+            if live_attempted:
+                live_result = self.agent_forge.run_submission(submission)
+                if live_result is not None:
+                    return live_result
+            deterministic_result = self.deterministic_backend.run_submission(submission)
+            assert deterministic_result is not None
+            if deterministic_result.report.benchmark_id != "unknown":
+                return AuditExecutionResult(
+                    report=deterministic_result.report,
+                    execution=self.agent_forge.fallback_execution(
+                        reason="No live verified-source execution was available for this deployed address. Returned the deterministic benchmark mapping instead.",
+                        live_attempted=live_attempted,
+                        source="deterministic-benchmark",
+                    ),
+                )
+            return AuditExecutionResult(
+                report=deterministic_result.report,
+                execution=self.agent_forge.fallback_execution(
+                    reason="No verified source could be retrieved for this deployed address and no live agent-forge execution result was produced. Upload a source bundle for deeper analysis.",
+                    live_attempted=live_attempted,
+                    source="safe-fallback",
+                ),
+            )
+
         if submission.input_kind == "source_bundle":
             live_attempted = submission.audit_id is not None
             if live_attempted:

@@ -42,6 +42,25 @@ def test_unknown_contract_is_safe_fallback() -> None:
     assert report.finding_count == 0
 
 
+def test_deployed_address_submission_hybrid_returns_clear_fallback_when_live_resolution_fails() -> None:
+    worker = AuditWorker(
+        runtime=WorkerRuntimeConfig.from_values(mode="hybrid"),
+    )
+
+    result = worker.run_submission(
+        audit_id="audit-deployed-1",
+        input_kind="deployed_address",
+        chain_id=84532,
+        contract_address="0x1234000000000000000000000000000000000000",
+    )
+
+    assert result.execution is not None
+    assert result.execution.fallback_used is True
+    assert result.execution.source == "safe-fallback"
+    assert "Upload a source bundle" in (result.execution.error or "")
+    assert result.report.benchmark_id == "unknown"
+
+
 def test_manifest_fixture_address_maps_to_benchmark(tmp_path) -> None:
     manifest = tmp_path / "demo-fixtures.localhost.json"
     manifest.write_text(
