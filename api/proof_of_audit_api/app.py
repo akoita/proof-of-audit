@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 
@@ -38,6 +39,7 @@ from proof_of_audit_api.schemas import (
     VerificationDossierModel,
 )
 from proof_of_audit_api.service import AuditService
+from proof_of_audit_api.store import CloudSqlPostgresConfig
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -52,11 +54,31 @@ def create_app(
     runtime_env.update(os.environ)
     contract_config = ContractConfig.from_env(env_file=env_file)
     store_kind = runtime_env.get("PROOF_OF_AUDIT_STORE_KIND", "sqlite")
-    store_path = runtime_env.get("PROOF_OF_AUDIT_STORE_PATH")
+    normalized_store_kind = store_kind.strip().lower() if store_kind else "sqlite"
+    store_path_value = runtime_env.get("PROOF_OF_AUDIT_STORE_PATH")
+    store_path = (
+        Path(store_path_value)
+        if store_path_value and normalized_store_kind != "cloudsql-postgres"
+        else None
+    )
+    postgres_config = (
+        CloudSqlPostgresConfig.from_env(runtime_env)
+        if normalized_store_kind == "cloudsql-postgres"
+        else None
+    )
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            app.state.audit_service.close()
+
     app = FastAPI(
         title="Proof-of-Audit API",
         version="0.2.0",
         description="API for creating, publishing, and challenging audit records.",
+        lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -68,7 +90,8 @@ def create_app(
         data_root or Path(os.environ.get("PROOF_OF_AUDIT_DATA_ROOT", DATA_ROOT)),
         contract_config=contract_config,
         store_kind=store_kind,
-        store_path=Path(store_path) if store_path else None,
+        store_path=store_path,
+        postgres_config=postgres_config,
     )
     if audit_service is not None:
         contract_config = audit_service.contract_config

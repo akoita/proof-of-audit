@@ -259,6 +259,43 @@ cd /home/koita/dev/hackatons/proof-of-audit
 docker run --rm -p 8080:8080 proof-of-audit-api
 ```
 
+## Cloud SQL PostgreSQL
+
+The API now supports `PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres` for deployed persistence.
+
+Runtime contract:
+
+- `PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres`
+- `PROOF_OF_AUDIT_STORE_PATH` is only used by the `json` and `sqlite` stores and is ignored for Cloud SQL PostgreSQL
+- `PROOF_OF_AUDIT_STORE_INSTANCE_CONNECTION_NAME` must be the Cloud SQL instance connection name in `project:region:instance` form
+- `PROOF_OF_AUDIT_STORE_DATABASE` must be the PostgreSQL database name
+- `PROOF_OF_AUDIT_STORE_USER` must be the PostgreSQL user name
+- `PROOF_OF_AUDIT_STORE_PASSWORD` is required when `PROOF_OF_AUDIT_STORE_ENABLE_IAM_AUTH=false`
+- `PROOF_OF_AUDIT_STORE_ENABLE_IAM_AUTH=true` enables automatic IAM database authentication through the Cloud SQL Python connector
+- `PROOF_OF_AUDIT_STORE_IP_TYPE` may be `public`, `private`, or `psc`
+
+Recommended Cloud Run configuration for the production path:
+
+- attach the Cloud SQL instance to the Cloud Run service
+- grant the runtime service account the `Cloud SQL Client` role
+- enable automatic IAM database authentication with `PROOF_OF_AUDIT_STORE_ENABLE_IAM_AUTH=true`
+- use the IAM principal name as `PROOF_OF_AUDIT_STORE_USER`
+- if `PROOF_OF_AUDIT_STORE_IP_TYPE=private` or `psc`, configure Cloud Run egress so the service can reach the same VPC path as the database
+- keep `PROOF_OF_AUDIT_STORE_PATH` unset for this mode
+
+Example runtime env for Cloud Run:
+
+```bash
+PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres
+PROOF_OF_AUDIT_STORE_INSTANCE_CONNECTION_NAME=my-project:europe-west1:proof-of-audit
+PROOF_OF_AUDIT_STORE_DATABASE=proof_of_audit
+PROOF_OF_AUDIT_STORE_USER=proof-of-audit-api@my-project.iam
+PROOF_OF_AUDIT_STORE_ENABLE_IAM_AUTH=true
+PROOF_OF_AUDIT_STORE_IP_TYPE=private
+```
+
+Local development and automated tests should continue to use `PROOF_OF_AUDIT_STORE_KIND=sqlite`.
+
 For publish, challenge, and resolve transactions, pass the same runtime env vars documented above into the container (for example with `--env-file` or explicit `-e` flags). The image bakes in the repo's default deployment metadata and registration document, and it keeps writable audit state under `/app/api/data`.
 
 Recommended Artifact Registry image name:

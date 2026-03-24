@@ -44,7 +44,7 @@ from proof_of_audit_agent.executable_evidence_resolver import (
 )
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
-from proof_of_audit_api.store import AuditStore, create_store
+from proof_of_audit_api.store import AuditStore, CloudSqlPostgresConfig, create_store
 
 
 class AuditService:
@@ -60,11 +60,13 @@ class AuditService:
         store: AuditStore | None = None,
         store_kind: str = "sqlite",
         store_path: Path | None = None,
+        postgres_config: CloudSqlPostgresConfig | None = None,
     ) -> None:
         self.store = store or create_store(
             root=data_root,
             kind=store_kind,
             database_path=store_path,
+            postgres_config=postgres_config,
         )
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(
@@ -100,6 +102,9 @@ class AuditService:
         self.reputation_bridge = reputation_bridge or ReputationRegistryBridge.from_config_if_ready(
             self.contract_config
         )
+
+    def close(self) -> None:
+        self.store.close()
 
     def _build_challenge_claim_extractor(
         self,

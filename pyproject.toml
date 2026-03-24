@@ -10,10 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
+  "cloud-sql-python-connector==1.20.1",
   "eth-tester[py-evm]==0.13.0b1",
   "fastapi==0.115.11",
   "google-cloud-storage==2.19.0",
   "httpx==0.28.1",
+  "pg8000==1.31.5",
   "uvicorn==0.34.0",
   "web3==7.14.0",
 ]
