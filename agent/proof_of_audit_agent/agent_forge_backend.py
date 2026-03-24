@@ -15,11 +15,16 @@ from proof_of_audit_agent.auditor_backend import (
     AuditExecutionResult,
     AuditSubmission,
 )
+from proof_of_audit_agent.deployed_address_source_resolver import (
+    DEFAULT_EXPLORER_API_URL,
+    DEFAULT_SOURCIFY_BASE_URL,
+    DeployedAddressSourceResolver,
+)
 from proof_of_audit_agent.models import AuditReport, Finding
 
 
 REPORT_FILE = ".proof-of-audit/agent-report.json"
-DEFAULT_SUPPORTED_INPUT_KINDS = ("repository_url", "source_bundle")
+DEFAULT_SUPPORTED_INPUT_KINDS = ("deployed_address", "repository_url", "source_bundle")
 
 
 @dataclass(frozen=True)
@@ -30,6 +35,9 @@ class AgentForgeRuntimeConfig:
     model: str | None = None
     max_iterations: int | None = None
     runs_home: Path | None = None
+    sourcify_base_url: str = DEFAULT_SOURCIFY_BASE_URL
+    explorer_api_url: str | None = DEFAULT_EXPLORER_API_URL
+    explorer_api_key: str | None = None
     enabled_input_kinds: tuple[str, ...] = DEFAULT_SUPPORTED_INPUT_KINDS
 
     @property
@@ -55,6 +63,11 @@ class AgentForgeBackend:
     def __init__(self, runtime: AgentForgeRuntimeConfig, workspace_root: Path) -> None:
         self.runtime = runtime
         self.workspace_root = workspace_root
+        self.deployed_address_source_resolver = DeployedAddressSourceResolver(
+            sourcify_base_url=runtime.sourcify_base_url,
+            explorer_api_url=runtime.explorer_api_url,
+            explorer_api_key=runtime.explorer_api_key,
+        )
 
     @property
     def backend_name(self) -> str:
@@ -70,11 +83,26 @@ class AgentForgeBackend:
                 )
             return None
 
-        source_path = self._resolve_source_path(
-            input_kind=submission.input_kind,
-            repository_url=submission.repository_url,
-            source_bundle_uri=submission.source_bundle_uri,
-        )
+        resolved_source = None
+        effective_entry_contract = submission.entry_contract
+        if submission.input_kind == "deployed_address":
+            try:
+                resolved_source = self.deployed_address_source_resolver.resolve(
+                    chain_id=submission.chain_id,
+                    contract_address=submission.contract_address,
+                )
+            except Exception as exc:
+                if self.runtime.strict_live_mode:
+                    raise AgentForgeExecutionError(str(exc)) from exc
+                return None
+            source_path = resolved_source.path
+            effective_entry_contract = resolved_source.entry_contract or effective_entry_contract
+        else:
+            source_path = self._resolve_source_path(
+                input_kind=submission.input_kind,
+                repository_url=submission.repository_url,
+                source_bundle_uri=submission.source_bundle_uri,
+            )
         if source_path is None:
             if self.runtime.strict_live_mode:
                 raise AgentForgeExecutionError(
@@ -89,7 +117,7 @@ class AgentForgeBackend:
         if submission.audit_id is None:
             raise AgentForgeExecutionError("agent-forge submissions require an audit_id")
         workspace_dir = self._prepare_workspace(submission.audit_id, source_path)
-        task_prompt = self._build_task_prompt(entry_contract=submission.entry_contract)
+        task_prompt = self._build_task_prompt(entry_contract=effective_entry_contract)
         report_path = workspace_dir / REPORT_FILE
         before_runs = self._snapshot_runs()
 
@@ -99,12 +127,16 @@ class AgentForgeBackend:
                 report_path=report_path,
                 workspace_dir=workspace_dir,
                 source_path=source_path,
-                entry_contract=submission.entry_contract,
+                entry_contract=effective_entry_contract,
+                contract_address=submission.contract_address,
             )
         except Exception as exc:
             if self.runtime.strict_live_mode:
                 raise AgentForgeExecutionError(str(exc)) from exc
             return None
+        finally:
+            if resolved_source is not None:
+                resolved_source.cleanup()
 
         run_dir = self._detect_new_run(before_runs, workspace_dir)
         execution = AuditExecution(
@@ -116,7 +148,7 @@ class AgentForgeBackend:
             fallback_used=False,
             task_prompt=task_prompt,
             workspace_dir=str(workspace_dir),
-            source_path=str(source_path),
+            source_path=resolved_source.source_uri if resolved_source is not None else str(source_path),
             report_path=str(report_path),
             run_id=run_dir.name if run_dir is not None else None,
             run_dir=str(run_dir) if run_dir is not None else None,
@@ -240,6 +272,7 @@ class AgentForgeBackend:
         workspace_dir: Path,
         source_path: Path,
         entry_contract: str | None,
+        contract_address: str | None,
     ) -> AuditReport:
         if not report_path.exists():
             raise AgentForgeExecutionError(
@@ -279,7 +312,10 @@ class AgentForgeBackend:
             )
         return AuditReport(
             benchmark_id=str(payload.get("benchmark_id") or "agent-forge-live"),
-            contract_address=self._synthetic_contract_address(str(source_path), entry_contract=entry_contract),
+            contract_address=contract_address
+            or self._synthetic_contract_address(
+                str(source_path), entry_contract=entry_contract
+            ),
             summary=str(payload.get("summary") or "Agent Forge completed a live audit pass."),
             findings=findings,
             confidence=str(payload.get("confidence") or "medium"),

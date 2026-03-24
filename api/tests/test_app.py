@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 import json
 from unittest.mock import Mock, patch
+import tempfile as tempfile_module
 import zipfile
 
 from fastapi.testclient import TestClient
@@ -1120,6 +1121,99 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             payload["report"]["findings"][0]["source_path"],
             "UncheckedTreasury.sol",
         )
+
+    def test_deployed_address_submission_hybrid_runs_live_verified_source_path(self) -> None:
+        runs_home = self.root / "home-deployed"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed",
+            report_payload={
+                "benchmark_id": "agent-forge-live",
+                "summary": "Live deployed-address audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "src/Vault.sol",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+        source_tempdir = tempfile_module.TemporaryDirectory(prefix="proof-of-audit-test-")
+        source_root = Path(source_tempdir.name) / "source"
+        (source_root / "src").mkdir(parents=True, exist_ok=True)
+        (source_root / "src" / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            return_value=type(
+                "ResolvedSource",
+                (),
+                {
+                    "path": source_root,
+                    "tempdir": source_tempdir,
+                    "entry_contract": "Vault",
+                    "source_uri": "sourcify://84532/0xabc0000000000000000000000000000000000000",
+                },
+            )(),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["submission"]["input_kind"], "deployed_address")
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(
+            payload["execution"]["source_path"],
+            "sourcify://84532/0xabc0000000000000000000000000000000000000",
+        )
+        self.assertEqual(
+            payload["report"]["contract_address"],
+            "0xabc0000000000000000000000000000000000000",
+        )
+
+    def test_deployed_address_submission_hybrid_returns_fallback_metadata_when_live_lookup_fails(self) -> None:
+        runs_home = self.root / "home-deployed-fallback"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed-fallback",
+            report_payload=None,
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            side_effect=ValueError("missing verified source"),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["execution"]["status"], "fallback")
+        self.assertTrue(payload["execution"]["fallback_used"])
+        self.assertEqual(payload["execution"]["source"], "safe-fallback")
+        self.assertEqual(payload["report"]["benchmark_id"], "unknown")
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

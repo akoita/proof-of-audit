@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import tempfile
 import zipfile
 
 import pytest
@@ -323,6 +324,70 @@ def test_resolve_source_path_supports_file_uri_absolute_relative_and_missing(
         )
         is None
     )
+
+
+def test_run_submission_materializes_verified_source_for_deployed_address(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_agent_forge_script(
+        tmp_path / "fake-agent-forge",
+        report_text=json.dumps(
+            {
+                "summary": "Live audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "src/Vault.sol",
+                    }
+                ],
+            }
+        ),
+    )
+    backend = AgentForgeBackend(
+        _runtime(tmp_path, command=str(script)),
+        tmp_path / "runtime",
+    )
+    tempdir = tempfile.TemporaryDirectory(prefix="proof-of-audit-test-")
+    source_root = Path(tempdir.name) / "source"
+    (source_root / "src").mkdir(parents=True, exist_ok=True)
+    (source_root / "src" / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        backend.deployed_address_source_resolver,
+        "resolve",
+        lambda **_: type(
+            "ResolvedSource",
+            (),
+            {
+                "path": source_root,
+                "tempdir": tempdir,
+                "entry_contract": "Vault",
+                "source_uri": "sourcify://84532/0xabc0000000000000000000000000000000000000",
+            },
+        )(),
+    )
+
+    result = backend.run_submission(
+        AuditSubmission(
+            audit_id="audit-123",
+            input_kind="deployed_address",
+            chain_id=84532,
+            contract_address="0xabc0000000000000000000000000000000000000",
+        )
+    )
+
+    assert result is not None
+    assert result.execution is not None
+    assert result.execution.source_path == "sourcify://84532/0xabc0000000000000000000000000000000000000"
+    assert result.report.contract_address == "0xabc0000000000000000000000000000000000000"
+    assert result.report.findings[0].source_path == "src/Vault.sol"
+    assert Path(result.execution.workspace_dir, "src", "Vault.sol").exists()
 
 
 def test_prepare_workspace_copies_directory_unwraps_zip_and_preserves_sol_files(

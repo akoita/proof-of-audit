@@ -599,6 +599,9 @@ class ContractConfig:
     agent_forge_model: str | None
     agent_forge_max_iterations: int | None
     agent_forge_runs_home: Path | None
+    sourcify_base_url: str
+    explorer_api_url: str | None
+    explorer_api_key: str | None
     challenge_claim_extractor_command: str | None
     challenge_claim_extractor_provider: str | None
     challenge_claim_extractor_model: str | None
@@ -859,6 +862,20 @@ class ContractConfig:
                 Path(source["PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME"])
                 if source.get("PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME")
                 else None
+            ),
+            sourcify_base_url=source.get(
+                "PROOF_OF_AUDIT_SOURCIFY_BASE_URL",
+                "https://sourcify.dev/server",
+            ).rstrip("/"),
+            explorer_api_url=(
+                source.get("PROOF_OF_AUDIT_EXPLORER_API_URL")
+                or "https://api.etherscan.io/v2/api"
+            ),
+            explorer_api_key=(
+                source.get("PROOF_OF_AUDIT_EXPLORER_API_KEY")
+                or source.get("BASESCAN_API_KEY")
+                or source.get("PROOF_OF_AUDIT_VERIFY_API_KEY")
+                or None
             ),
             challenge_claim_extractor_command=(
                 source.get("PROOF_OF_AUDIT_CHALLENGE_CLAIM_EXTRACTOR_COMMAND")

@@ -21,6 +21,9 @@ class WorkerRuntimeConfig:
         agent_forge_model: str | None = None,
         agent_forge_max_iterations: int | None = None,
         agent_forge_runs_home: Path | None = None,
+        sourcify_base_url: str = "https://sourcify.dev/server",
+        explorer_api_url: str | None = "https://api.etherscan.io/v2/api",
+        explorer_api_key: str | None = None,
     ) -> "WorkerRuntimeConfig":
         normalized_mode = (
             mode if mode in {"deterministic", "hybrid", "agent_forge"} else "deterministic"
@@ -34,5 +37,8 @@ class WorkerRuntimeConfig:
                 model=agent_forge_model,
                 max_iterations=agent_forge_max_iterations,
                 runs_home=agent_forge_runs_home,
+                sourcify_base_url=sourcify_base_url,
+                explorer_api_url=explorer_api_url,
+                explorer_api_key=explorer_api_key,
             ),
         )
