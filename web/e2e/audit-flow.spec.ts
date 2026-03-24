@@ -1,3 +1,5 @@
+import path from "path";
+
 import { expect, Page, test } from "@playwright/test";
 
 async function openWorkbench(page: Page) {
@@ -279,6 +281,21 @@ test("source bundle mode can submit without a deployed address", async ({ page }
 
   await submitButton.click();
   await expect(page.getByTestId("current-audit-status")).toHaveText("draft");
+});
+
+test("source bundle mode accepts a local Solidity file upload", async ({ page }) => {
+  await openWorkbench(page);
+
+  const submitButton = page.getByTestId("submit-audit");
+  await page.getByRole("button", { name: "Source bundle" }).click();
+  await expect(submitButton).toBeDisabled();
+
+  await page.getByTestId("source-bundle-file-input").setInputFiles(
+    path.join(process.cwd(), "..", "demo", "contracts", "UncheckedTreasury.sol"),
+  );
+
+  await expect(page.getByTestId("source-bundle-uri")).not.toHaveValue("");
+  await expect(submitButton).toBeEnabled();
 });
 
 test("sidebar docs and support controls are wired", async ({ page }) => {

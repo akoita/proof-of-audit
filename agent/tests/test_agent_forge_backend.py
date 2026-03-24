@@ -325,7 +325,7 @@ def test_resolve_source_path_supports_file_uri_absolute_relative_and_missing(
     )
 
 
-def test_prepare_workspace_copies_directory_and_unwraps_single_entry_zip(
+def test_prepare_workspace_copies_directory_unwraps_zip_and_preserves_sol_files(
     tmp_path: Path,
 ) -> None:
     source_dir = tmp_path / "source-repo"
@@ -335,6 +335,8 @@ def test_prepare_workspace_copies_directory_and_unwraps_single_entry_zip(
     archive_path = tmp_path / "bundle.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
         archive.writestr("wrapped/src/Vault.sol", "contract Vault {}\n")
+    plain_sol_path = tmp_path / "SingleVault.sol"
+    plain_sol_path.write_text("contract SingleVault {}\n", encoding="utf-8")
     backend = AgentForgeBackend(
         _runtime(tmp_path, mode="hybrid", command="python -m agent_forge.cli"),
         tmp_path / "runtime",
@@ -348,6 +350,10 @@ def test_prepare_workspace_copies_directory_and_unwraps_single_entry_zip(
     extracted_workspace = backend._prepare_workspace("audit-zip", archive_path)
     assert extracted_workspace.name == "wrapped"
     assert (extracted_workspace / "src" / "Vault.sol").exists()
+
+    single_file_workspace = backend._prepare_workspace("audit-sol", plain_sol_path)
+    assert single_file_workspace == tmp_path / "runtime" / "agent-forge" / "audit-sol" / "repo"
+    assert (single_file_workspace / "SingleVault.sol").exists()
 
 
 def test_prepare_workspace_replaces_existing_target_root(tmp_path: Path) -> None:

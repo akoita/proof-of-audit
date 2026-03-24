@@ -1,3 +1,5 @@
+import type { SourceBundleUpload } from "./types";
+
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
 
 type RuntimeConfigPayload = {
@@ -56,6 +58,38 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     throw new Error(payload.message ?? payload.error ?? "Request failed");
+  }
+
+  return payload;
+}
+
+export async function uploadSourceBundle(file: File): Promise<SourceBundleUpload> {
+  const apiBaseUrl = await resolveApiBaseUrl();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+
+  const response = await fetch(`${apiBaseUrl}/source-bundles/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filename: file.name,
+      content_base64: btoa(binary),
+    }),
+  });
+
+  const payload = (await response.json()) as SourceBundleUpload & {
+    error?: string;
+    message?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? payload.error ?? "Source bundle upload failed");
   }
 
   return payload;

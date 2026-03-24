@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
-import { apiFetch } from "./lib/api";
+import { apiFetch, uploadSourceBundle } from "./lib/api";
 import {
   formatEth,
   relativeTimeLabel,
@@ -148,6 +148,7 @@ export function AuditWorkbench() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isComparisonLoaded, setIsComparisonLoaded] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [isUploadingSourceBundle, setIsUploadingSourceBundle] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedFixture =
@@ -323,6 +324,28 @@ export function AuditWorkbench() {
     );
   }
 
+  async function handleSourceBundleFileSelect(file: File) {
+    const suffix = file.name.split(".").pop()?.toLowerCase();
+    if (!suffix || !["sol", "zip"].includes(suffix)) {
+      setError("Only .zip and .sol files are supported for source bundle uploads.");
+      return;
+    }
+
+    setError(null);
+    setSubmissionMode("source_bundle");
+    setIsUploadingSourceBundle(true);
+    try {
+      const upload = await uploadSourceBundle(file);
+      setSourceBundleUri(upload.source_bundle_uri);
+      setSourceBundleLabel(upload.source_bundle_label ?? "");
+      setEntryContract((current) => upload.entry_contract ?? current);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload source bundle");
+    } finally {
+      setIsUploadingSourceBundle(false);
+    }
+  }
+
   async function handlePublish() {
     if (!activeAudit) return;
     setError(null);
@@ -439,7 +462,7 @@ export function AuditWorkbench() {
                   sourceBundleUri={sourceBundleUri}
                   sourceBundleLabel={sourceBundleLabel}
                   selectedFixture={selectedFixture}
-                  isPending={isPending}
+                  isPending={isPending || isUploadingSourceBundle}
                   activeAction={activeAction}
                   config={contractConfig}
                   onModeChange={setSubmissionMode}
@@ -448,6 +471,8 @@ export function AuditWorkbench() {
                   onEntryContractChange={setEntryContract}
                   onSourceBundleUriChange={setSourceBundleUri}
                   onSourceBundleLabelChange={setSourceBundleLabel}
+                  onSourceBundleFileSelect={handleSourceBundleFileSelect}
+                  isUploadingSourceBundle={isUploadingSourceBundle}
                   onSubmit={() => handleSubmit()}
                 />
                 {activeAction ? (

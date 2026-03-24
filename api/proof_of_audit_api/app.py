@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
 from contextlib import asynccontextmanager
 import os
 from pathlib import Path
+import re
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -34,6 +37,8 @@ from proof_of_audit_api.schemas import (
     PublicContractConfigResponse,
     PublishAuditRequest,
     ResolveAuditRequest,
+    SourceBundleUploadRequest,
+    SourceBundleUploadResponse,
     TargetComparisonResponse,
     TargetAuditClaimsResponse,
     VerificationDossierModel,
@@ -43,6 +48,7 @@ from proof_of_audit_api.store import CloudSqlPostgresConfig
 
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+UPLOAD_SUFFIXES = {".sol", ".zip"}
 
 
 def create_app(
@@ -300,6 +306,44 @@ def create_app(
     def list_demo_fixtures(request: Request) -> DemoFixtureListResponse:
         service = _service(request)
         return DemoFixtureListResponse(items=service.list_demo_fixtures())
+
+    @app.post(
+        "/source-bundles/upload",
+        response_model=SourceBundleUploadResponse,
+        status_code=status.HTTP_201_CREATED,
+        responses={status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse}},
+    )
+    async def upload_source_bundle(
+        request: Request,
+        payload: SourceBundleUploadRequest,
+    ) -> SourceBundleUploadResponse:
+        original_name = Path(payload.filename).name
+        suffix = Path(original_name).suffix.lower()
+        if not original_name or suffix not in UPLOAD_SUFFIXES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "invalid_upload",
+                    "message": "Only .zip and .sol files are supported for source bundle uploads.",
+                },
+            )
+
+        service = _service(request)
+        uploads_dir = service.worker.workspace_root / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        stem = Path(original_name).stem
+        normalized_stem = (
+            re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-._") or "source-bundle"
+        )
+        destination = uploads_dir / f"{normalized_stem}-{uuid4().hex}{suffix}"
+        destination.write_bytes(base64.b64decode(payload.content_base64))
+
+        return SourceBundleUploadResponse(
+            original_filename=original_name,
+            source_bundle_uri=str(destination),
+            source_bundle_label=stem or None,
+            entry_contract=stem if suffix == ".sol" and stem else None,
+        )
 
     @app.get(
         "/audits/{audit_id}",

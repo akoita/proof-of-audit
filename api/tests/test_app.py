@@ -107,6 +107,39 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_source_bundle_upload_persists_sol_file_and_returns_local_path(self) -> None:
+        response = self.client.post(
+            "/source-bundles/upload",
+            json={
+                "filename": "UncheckedTreasury.sol",
+                "content_base64": "cHJhZ21hIHNvbGlkaXR5IF4wLjguMjg7CmNvbnRyYWN0IFVuY2hlY2tlZFRyZWFzdXJ5IHt9Cg==",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        uploaded_path = Path(payload["source_bundle_uri"])
+        self.assertTrue(uploaded_path.exists())
+        self.assertEqual(uploaded_path.suffix, ".sol")
+        self.assertEqual(payload["source_bundle_label"], "UncheckedTreasury")
+        self.assertEqual(payload["entry_contract"], "UncheckedTreasury")
+        self.assertEqual(
+            uploaded_path.read_text(encoding="utf-8"),
+            "pragma solidity ^0.8.28;\ncontract UncheckedTreasury {}\n",
+        )
+
+    def test_source_bundle_upload_rejects_unsupported_extensions(self) -> None:
+        response = self.client.post(
+            "/source-bundles/upload",
+            json={
+                "filename": "notes.txt",
+                "content_base64": "bm90IGEgY29udHJhY3QK",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_upload")
+
     def test_create_app_accepts_cloudsql_postgres_store_settings(self) -> None:
         env_file = Path(self.tempdir.name) / ".env.cloudsql"
         fixtures_file = Path(self.tempdir.name) / "demo-fixtures.localhost.json"
@@ -1041,6 +1074,52 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(payload["execution"]["status"], "completed")
         self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-live")
         self.assertEqual(payload["report"]["findings"][0]["source_path"], "src/Vault.sol")
+
+    def test_source_bundle_submission_hybrid_accepts_single_sol_file(self) -> None:
+        bundle_path = self.root / "UncheckedTreasury.sol"
+        bundle_path.write_text("contract UncheckedTreasury {}\n", encoding="utf-8")
+        runs_home = self.root / "home-sol"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-sol",
+            report_payload={
+                "benchmark_id": "agent-forge-live-sol",
+                "summary": "Live Solidity file audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Unchecked external call",
+                        "severity": "medium",
+                        "category": "unchecked_external_call",
+                        "description": "Low-level call return value ignored.",
+                        "impact": "Failures may be swallowed.",
+                        "recommendation": "Check the returned boolean.",
+                        "source_path": "UncheckedTreasury.sol",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        response = client.post(
+            "/audits",
+            json={
+                "input_kind": "source_bundle",
+                "source_bundle_uri": str(bundle_path),
+                "entry_contract": "UncheckedTreasury",
+                "submitted_by": "bundle-test",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["submission"]["input_kind"], "source_bundle")
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-live-sol")
+        self.assertEqual(
+            payload["report"]["findings"][0]["source_path"],
+            "UncheckedTreasury.sol",
+        )
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

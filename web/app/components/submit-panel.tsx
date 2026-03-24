@@ -1,5 +1,7 @@
 "use client";
 
+import { ChangeEvent, DragEvent, useRef, useState } from "react";
+
 import type {
   AuditorServiceRecord,
   DemoFixture,
@@ -27,6 +29,8 @@ type SubmitPanelProps = {
   onEntryContractChange: (v: string) => void;
   onSourceBundleUriChange: (v: string) => void;
   onSourceBundleLabelChange: (v: string) => void;
+  onSourceBundleFileSelect: (file: File) => void;
+  isUploadingSourceBundle: boolean;
   onSubmit: () => void;
 };
 
@@ -69,8 +73,12 @@ export function SubmitPanel({
   onEntryContractChange,
   onSourceBundleUriChange,
   onSourceBundleLabelChange,
+  onSourceBundleFileSelect,
+  isUploadingSourceBundle,
   onSubmit,
 }: SubmitPanelProps) {
+  const [isDragActive, setIsDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedContractAddress = contractAddress.trim();
   const trimmedSourceBundleUri = sourceBundleUri.trim();
   const selectedServiceSupportsMode = selectedAuditorService
@@ -90,6 +98,43 @@ export function SubmitPanel({
       (submissionMode === "deployed_address" && trimmedContractAddress.length > 0) ||
       (submissionMode === "source_bundle" && trimmedSourceBundleUri.length > 0)
     );
+  const selectedBundleName =
+    sourceBundleLabel.trim() ||
+    trimmedSourceBundleUri.split(/[\\/]/).pop() ||
+    "";
+
+  function handleFileList(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file || isPending) return;
+    onSourceBundleFileSelect(file);
+  }
+
+  function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    handleFileList(event.target.files);
+    event.target.value = "";
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+    handleFileList(event.dataTransfer.files);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    if (!isPending) {
+      setIsDragActive(true);
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+  }
 
   return (
     <div className="card">
@@ -162,9 +207,53 @@ export function SubmitPanel({
 
         {submissionMode === "source_bundle" ? (
           <>
-            <div className="drop-zone">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip,.sol"
+              hidden
+              onChange={handleFileInputChange}
+              data-testid="source-bundle-file-input"
+            />
+            <div
+              className={`drop-zone${isDragActive ? " drag-active" : ""}${isPending ? " is-disabled" : ""}`}
+              role="button"
+              tabIndex={isPending ? -1 : 0}
+              onClick={() => {
+                if (!isPending) {
+                  fileInputRef.current?.click();
+                }
+              }}
+              onKeyDown={(event) => {
+                if (isPending) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              onDrop={handleDrop}
+              onDragEnter={handleDragOver}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              data-testid="source-bundle-drop-zone"
+            >
               <div className="icon">☁️</div>
-              <p>Drop .zip or .sol files here</p>
+              <p>{isUploadingSourceBundle ? "Uploading source bundle..." : "Drop .zip or .sol files here"}</p>
+              <p className="drop-zone-detail">
+                {selectedBundleName || "Or click to choose a local file"}
+              </p>
+              <button
+                type="button"
+                className="cta-secondary file-picker-button"
+                disabled={isPending}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                data-testid="source-bundle-choose-file"
+              >
+                Choose File or ZIP
+              </button>
             </div>
             <div className="or-divider"><span>Or</span></div>
             <div>
