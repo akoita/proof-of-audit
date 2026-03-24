@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+import time
 from typing import Any
 
 from hexbytes import HexBytes
@@ -74,6 +75,8 @@ def load_contract_bytecode() -> str:
 
 
 class ProofOfAuditPublisher:
+    _PUBLISH_VERIFICATION_RETRY_DELAYS_SECONDS = (0.25, 0.5, 1.0)
+
     def __init__(
         self,
         contract_config: ContractConfig,
@@ -141,7 +144,7 @@ class ProofOfAuditPublisher:
                 "Publish transaction succeeded but AuditPublished event was missing."
             )
         audit_id = int(events[0]["args"]["auditId"])
-        self._verify_onchain_record(
+        self._verify_published_record_with_retry(
             audit_id=audit_id,
             target=target,
             report_hash=report_hash,
@@ -155,6 +158,45 @@ class ProofOfAuditPublisher:
             tx_hash=Web3.to_hex(receipt["transactionHash"]),
             chain_id=runtime_chain_id,
         )
+
+    def _verify_published_record_with_retry(
+        self,
+        *,
+        audit_id: int,
+        target: str,
+        report_hash: str,
+        metadata_hash: str,
+        max_severity: int,
+        finding_count: int,
+        stake_wei: int,
+    ) -> None:
+        last_error: OnchainPublishError | None = None
+        delays = self._PUBLISH_VERIFICATION_RETRY_DELAYS_SECONDS
+        attempt_count = len(delays) + 1
+
+        for attempt in range(attempt_count):
+            try:
+                self._verify_onchain_record(
+                    audit_id=audit_id,
+                    target=target,
+                    report_hash=report_hash,
+                    metadata_hash=metadata_hash,
+                    max_severity=max_severity,
+                    finding_count=finding_count,
+                    stake_wei=stake_wei,
+                )
+                return
+            except OnchainPublishError as exc:
+                last_error = exc
+                if attempt == len(delays):
+                    break
+                time.sleep(delays[attempt])
+
+        message = (
+            "Publish transaction receipt was confirmed, but post-transaction on-chain "
+            f"verification remained inconsistent after {attempt_count} attempts: {last_error}"
+        )
+        raise OnchainPublishError(message)
 
     def challenge_audit(
         self,
