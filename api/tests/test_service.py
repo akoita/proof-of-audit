@@ -36,13 +36,25 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
-    def test_real_testnet_deployed_addresses_require_live_auditor(self) -> None:
+    def test_predeployed_testnet_fixture_addresses_remain_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir))
+
+            created = service.create_audit(
+                "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                submitted_by="testnet-user",
+            )
+
+            self.assertEqual(created["report"]["benchmark_id"], "reentrancy-bank")
+            self.assertEqual(created["report"]["finding_count"], 1)
+
+    def test_unknown_real_testnet_deployed_addresses_require_live_auditor(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
 
             with self.assertRaisesRegex(ValueError, "require live agent-forge analysis"):
                 service.create_audit(
-                    "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                    "0x1234000000000000000000000000000000009876",
                     submitted_by="testnet-user",
                 )
 

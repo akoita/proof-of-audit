@@ -1350,6 +1350,54 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(payload["error"], "invalid_payload")
         self.assertIn("require live agent-forge analysis", payload["message"])
 
+    def test_deployed_address_submission_hybrid_allows_configured_fixture_addresses(self) -> None:
+        self.fixtures_file.write_text(
+            json.dumps(
+                {
+                    "fixtures": [
+                        {
+                            "id": "vulnerable-bank",
+                            "label": "Vulnerable Bank",
+                            "contract_name": "VulnerableBank",
+                            "entry_contract": "VulnerableBank",
+                            "benchmark_id": "reentrancy-bank",
+                            "address": "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                            "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                            "note": "High-confidence reentrancy finding",
+                            "source_path": "demo/contracts/VulnerableBank.sol",
+                        }
+                    ]
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        runs_home = self.root / "home-deployed-fixture"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed-fixture",
+            report_payload=None,
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            side_effect=ValueError("missing verified source"),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["report"]["benchmark_id"], "reentrancy-bank")
+        self.assertEqual(payload["report"]["finding_count"], 1)
+
 
 class AuditApiOnchainPublishTest(unittest.TestCase):
     def setUp(self) -> None:

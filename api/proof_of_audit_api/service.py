@@ -196,7 +196,11 @@ class AuditService:
         contract_address = self._normalize_target_key(
             normalized_submission.get("contract_address")
         )
-        if self._is_local_network() or contract_address in LEGACY_BENCHMARK_ADDRESSES:
+        if (
+            self._is_local_network()
+            or contract_address in LEGACY_BENCHMARK_ADDRESSES
+            or self._is_configured_fixture_address(contract_address)
+        ):
             return
 
         execution = getattr(execution_result, "execution", None)
@@ -221,6 +225,13 @@ class AuditService:
             or network == "eth_tester"
             or network == "tester"
             or network == "local"
+        )
+
+    def _is_configured_fixture_address(self, contract_address: str) -> bool:
+        return any(
+            self._normalize_target_key(fixture["address"]) == contract_address
+            for fixture in self.worker.list_demo_fixtures()
+            if isinstance(fixture, dict) and fixture.get("address")
         )
 
     def get_audit(self, audit_id: str) -> dict[str, Any] | None:
