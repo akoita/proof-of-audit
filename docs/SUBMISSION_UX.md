@@ -92,6 +92,11 @@ Recommended UI copy:
 
 This keeps the local demo strong because the user can click a real fixture instead of pasting an address from memory.
 
+For public testnet or Base Sepolia environments, do not expose these fixtures in the workbench UI.
+Treat them as reusable operator assets instead: deploy them once, commit a manifest such as
+`deployments/demo-fixtures.base-sepolia.json`, and submit them through the normal
+`deployed_address` path when you need repeatable live-chain targets.
+
 ### Deployed address
 
 This should remain the second local path.

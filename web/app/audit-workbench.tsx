@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState, useTransition } from "react";
 import { apiFetch, uploadSourceBundle } from "./lib/api";
 import {
   formatEth,
+  publishBlockedReason,
   relativeTimeLabel,
   submissionModeLabel,
   suggestedProofUriForBenchmark,
@@ -39,6 +40,15 @@ import { DocsView } from "./components/views/docs-view";
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
   return fixtures.find((f) => f.id === "clean-vault") ?? fixtures[0];
+}
+
+function supportsDemoFixtures(config: PublicContractConfig | null): boolean {
+  const network = config?.network?.toLowerCase() ?? "";
+  return (
+    network.includes("anvil")
+    || network.includes("localhost")
+    || network.includes("local")
+  );
 }
 
 function formatMediatedOnchainError(
@@ -174,6 +184,7 @@ export function AuditWorkbench() {
   const footerNetwork = contractConfig
     ? `${contractConfig.network} · Chain ${contractConfig.chain_id}`
     : "Network unavailable";
+  const demoFixturesEnabled = supportsDemoFixtures(contractConfig);
   const selectedAuditorService =
     auditorServices.find((service) => service.service_id === selectedServiceId) ??
     activeAudit?.auditor_service ??
@@ -209,6 +220,13 @@ export function AuditWorkbench() {
     startTransition(() => void loadTargetComparison(activeAudit.contract_address));
   }, [activeAudit?.id, activeAudit?.contract_address]);
 
+  useEffect(() => {
+    if (!demoFixturesEnabled && submissionMode === "demo_fixture") {
+      setSubmissionMode("deployed_address");
+      setSelectedFixtureId("");
+    }
+  }, [demoFixturesEnabled, submissionMode]);
+
   async function loadWorkbench() {
     setLoadError(null);
     try {
@@ -219,6 +237,7 @@ export function AuditWorkbench() {
         apiFetch<AuditorServiceRecord>("/auditor"),
         apiFetch<{ items: AuditorServiceRecord[] }>("/auditors"),
       ]);
+      const allowDemoFixtures = supportsDemoFixtures(configPayload);
       setRecentAudits(auditPayload.items);
       setDemoFixtures(fixturePayload.items);
       setContractConfig(configPayload);
@@ -234,7 +253,7 @@ export function AuditWorkbench() {
       if (auditPayload.items.length > 0) {
         setActiveAudit((current) => current ?? selectAuditForView(activeView, auditPayload.items, null));
       }
-      if (fixturePayload.items.length > 0 && !selectedFixtureId) {
+      if (allowDemoFixtures && fixturePayload.items.length > 0 && !selectedFixtureId) {
         const first = preferredDemoFixture(fixturePayload.items);
         if (first) {
           setSubmissionMode("demo_fixture");
@@ -265,10 +284,14 @@ export function AuditWorkbench() {
   /* ── actions ────────────────────────────────────────── */
   function syncAudit(next: AuditRecord) {
     setActiveAudit(next);
-    setSubmissionMode(next.submission.input_kind);
+    setSubmissionMode(
+      !demoFixturesEnabled && next.submission.input_kind === "demo_fixture"
+        ? "deployed_address"
+        : next.submission.input_kind,
+    );
     setSelectedServiceId(next.submission.service_id ?? next.auditor_service.service_id);
     setContractAddress(next.submission.contract_address ?? next.contract_address);
-    setSelectedFixtureId(next.submission.fixture_id ?? "");
+    setSelectedFixtureId(demoFixturesEnabled ? (next.submission.fixture_id ?? "") : "");
     setEntryContract(next.submission.entry_contract ?? "");
     setSourceBundleUri(next.submission.source_bundle_uri ?? "");
     setSourceBundleLabel(next.submission.source_bundle_label ?? "");
@@ -287,8 +310,12 @@ export function AuditWorkbench() {
     startTransition(() =>
       void (async () => {
         try {
+          const effectiveSubmissionMode =
+            !demoFixturesEnabled && submissionMode === "demo_fixture"
+              ? "deployed_address"
+              : submissionMode;
           const payload =
-            submissionMode === "demo_fixture"
+            effectiveSubmissionMode === "demo_fixture"
                 ? {
                     input_kind: "demo_fixture",
                     service_id: selectedServiceId || contractConfig?.auditor_service.service_id,
@@ -297,7 +324,7 @@ export function AuditWorkbench() {
                     entry_contract: entryContract || selectedFixture?.entry_contract,
                   submitted_by: "web-demo",
                 }
-                : submissionMode === "source_bundle"
+                : effectiveSubmissionMode === "source_bundle"
                   ? {
                       input_kind: "source_bundle",
                       service_id: selectedServiceId || contractConfig?.auditor_service.service_id,
@@ -348,6 +375,11 @@ export function AuditWorkbench() {
 
   async function handlePublish() {
     if (!activeAudit) return;
+    const blockedReason = publishBlockedReason(activeAudit);
+    if (blockedReason) {
+      setError(blockedReason);
+      return;
+    }
     setError(null);
     setActiveAction("Submitting publish transaction");
     startTransition(() =>
@@ -429,7 +461,7 @@ export function AuditWorkbench() {
         {activeView === "workbench" ? <PhaseStepper audit={activeAudit} /> : null}
 
         {/* ── Demo Fixtures — workbench only ── */}
-        {activeView === "workbench" ? (
+        {activeView === "workbench" && demoFixturesEnabled ? (
           <FixtureStrip
             fixtures={demoFixtures}
             selectedId={selectedFixtureId}
@@ -453,6 +485,7 @@ export function AuditWorkbench() {
               <div id="submit-section" style={{ display: "grid", gap: 20, alignContent: "start" }}>
                 <SubmitPanel
                   submissionMode={submissionMode}
+                  allowDemoFixtures={demoFixturesEnabled}
                   contractAddress={contractAddress}
                   selectedFixtureId={selectedFixtureId}
                   auditorServices={auditorServices}
@@ -519,7 +552,10 @@ export function AuditWorkbench() {
                     <ActionsPanel
                       audit={activeAudit}
                       config={contractConfig}
-                      publicationMode={selectedAuditorService?.publication_mode}
+                      publicationMode={
+                        activeAudit.auditor_service.publication_mode ??
+                        selectedAuditorService?.publication_mode
+                      }
                       proofUri={proofUri}
                       isPending={isPending}
                       activeAction={activeAction}

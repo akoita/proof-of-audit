@@ -190,6 +190,39 @@ The validation bridge path:
 - records the canonical validation registry metadata in `deployments/base-sepolia.json`
 - keeps the native `ProofOfAudit` contract as the settlement source of truth
 
+### Deploy reusable Base Sepolia vulnerable targets
+
+If you want stable contracts for smoke tests, screenshots, or repeated manual test runs, deploy the
+fixture suite to Base Sepolia and commit the resulting manifest instead of exposing them as public
+workbench fixtures.
+
+```bash
+cd /home/koita/dev/hackatons/proof-of-audit
+PROOF_OF_AUDIT_FIXTURE_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
+PROOF_OF_AUDIT_FIXTURE_PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY" \
+./scripts/deploy-base-sepolia-fixtures.sh
+```
+
+This script:
+
+- deploys the contracts defined in `demo/fixtures.catalog.json` to the configured Base Sepolia RPC
+- verifies that bytecode exists at each deployed address
+- writes `deployments/demo-fixtures.base-sepolia.json`
+- records reusable deployment metadata per target, including address, tx hash, block number, deployer, and explorer URL
+- does **not** update `api/.env.local` or enable these contracts as public UI fixtures
+
+The intended workflow is:
+
+1. deploy the reusable targets with `./scripts/deploy-base-sepolia-fixtures.sh`
+2. inspect the manifest and explorer links
+3. commit `deployments/demo-fixtures.base-sepolia.json`
+4. use those addresses via `deployed_address` submissions in the testnet workbench or smoke tests
+
+This keeps the public testnet UX focused on real target submissions while still giving operators a
+stable, committed set of known vulnerable contracts for repeatable validation.
+
+See [TESTNET_FIXTURES.md](./TESTNET_FIXTURES.md) for the manifest shape and usage guidance.
+
 ### Regenerate the published registration document without redeploying
 
 ```bash
