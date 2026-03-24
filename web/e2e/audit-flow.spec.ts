@@ -6,6 +6,174 @@ async function openWorkbench(page: Page) {
   await expect(page.getByRole("heading", { name: /Demo Fixtures/i })).toBeVisible();
 }
 
+test("web app resolves the API base URL from runtime config", async ({ page }) => {
+  const runtimeApiBaseUrl = "http://127.0.0.1:65501";
+  const runtimeRequests: string[] = [];
+
+  const auditorService = {
+    service_id: "auditor-local",
+    name: "Proof-of-Audit Auditor",
+    manifest_schema: "proof-of-audit/v1",
+    manifest_hash: "sha256:manifest",
+    registration_kind: "local",
+    registration_type: "service",
+    registration_endpoint: "https://auditor.example.com",
+    registration_uri: "ipfs://auditor-service",
+    agent_id: 1,
+    agent_registry: "0x0000000000000000000000000000000000000001",
+    identity_source: "local",
+    capability: "deterministic-audit",
+    discovery_path: "/discover",
+    submit_path: "/audits",
+    execution_mode: "deterministic",
+    execution_endpoint: "https://auditor.example.com/run",
+    publish_path_template: "/audits/{id}/publish",
+    challenge_path_template: "/audits/{id}/challenge",
+    network: "anvil-e2e",
+    active: true,
+    supported_trust: ["deterministic"],
+    settlement_mode: "manual",
+    publication_mode: "onchain",
+    staking_adapter_kind: "native",
+    staking_adapter_address: "0x0000000000000000000000000000000000000002",
+    staking_adapter_method: "stake",
+    publication_scope: "public",
+    registry_contract_address: "0x0000000000000000000000000000000000000003",
+    validation_registry_address: "0x0000000000000000000000000000000000000004",
+    validation_source: "local",
+    validation_request_path_template: "/validation/{id}/request",
+    validation_response_path_template: "/validation/{id}/response",
+    reputation_registry_address: "0x0000000000000000000000000000000000000005",
+    reputation_source: "local",
+    reputation_path_template: "/reputation/{id}",
+    submission_modes: ["demo_fixture", "deployed_address", "source_bundle"],
+    resolution_modes: ["manual"],
+    deterministic_resolution_supported: true,
+    manual_fallback_supported: true,
+    reputation: {
+      score: 80,
+      band: "trusted",
+      resolved_challenge_count: 3,
+      challenge_rejected_count: 2,
+      challenge_upheld_count: 1,
+      open_challenge_count: 0,
+      published_claim_count: 4,
+      draft_claim_count: 1,
+      last_resolved_at: "2026-03-22T10:00:00Z",
+      formula: "weighted-v1",
+    },
+  };
+
+  const configPayload = {
+    network: "anvil-e2e",
+    chain_id: 31337,
+    contract_address: "0x0000000000000000000000000000000000000006",
+    explorer_base_url: "http://127.0.0.1:8545",
+    arbiter: "0x0000000000000000000000000000000000000007",
+    auditor: {
+      id: "proof-of-audit-auditor",
+      name: "Proof-of-Audit Auditor",
+      version: "0.1.0",
+      manifest_schema: "proof-of-audit/v1",
+      service_type: "deterministic-auditor",
+      description: "Deterministic smart contract auditor",
+      capabilities: ["deterministic-audit"],
+      operator: "Proof-of-Audit",
+      resolution_policy: "manual fallback",
+      reputation: auditorService.reputation,
+    },
+    auditor_service: auditorService,
+    required_stake_wei: 10_000_000_000_000_000,
+    required_challenge_bond_wei: 5_000_000_000_000_000,
+    challenge_window_seconds: 86_400,
+    deployment_ready: true,
+  };
+
+  await page.route("**/api/runtime-config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseUrl: runtimeApiBaseUrl }),
+    });
+  });
+
+  await page.route("http://127.0.0.1:18081/**", async (route) => {
+    throw new Error(`unexpected request to baked API origin: ${route.request().url()}`);
+  });
+
+  await page.route(`${runtimeApiBaseUrl}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    runtimeRequests.push(url.pathname);
+
+    if (url.pathname === "/audits") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/fixtures") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              id: "clean-vault",
+              label: "Clean Vault",
+              contract_name: "CleanVault",
+              entry_contract: "CleanVault",
+              benchmark_id: "clean-vault",
+              address: "0x0000000000000000000000000000000000000010",
+              challenge_proof_uri: "ipfs://clean-vault-proof",
+              note: "Reference fixture",
+              source_path: "demo/contracts/CleanVault.sol",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/config") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(configPayload),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditor") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(auditorService),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditors") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [auditorService] }),
+      });
+      return;
+    }
+
+    throw new Error(`unexpected runtime API request: ${route.request().url()}`);
+  });
+
+  await openWorkbench(page);
+
+  expect(runtimeRequests).toEqual(
+    expect.arrayContaining(["/audits", "/fixtures", "/config", "/auditor", "/auditors"]),
+  );
+});
+
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
   await openWorkbench(page);
   await page.getByRole("button", { name: fixtureName }).click();

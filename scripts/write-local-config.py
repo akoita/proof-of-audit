@@ -83,6 +83,7 @@ def main() -> None:
     write_env_file(
         web_env_file,
         {
+            "PROOF_OF_AUDIT_API_URL": args.api_url,
             "NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL": args.api_url,
             "NEXT_PUBLIC_PROOF_OF_AUDIT_NETWORK": args.network,
             "NEXT_PUBLIC_PROOF_OF_AUDIT_CHAIN_ID": str(args.chain_id),

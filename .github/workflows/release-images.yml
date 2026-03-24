@@ -24,10 +24,6 @@ on:
         options:
           - testnet-candidate
           - mainnet-release
-      web_api_base_url:
-        description: Public API base URL baked into NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -76,8 +72,6 @@ jobs:
           context: .
           file: web/Dockerfile
           push: true
-          build-args: |
-            NEXT_PUBLIC_PROOF_OF_AUDIT_API_URL=${{ inputs.web_api_base_url }}
           tags: ${{ env.REGISTRY_PATH }}/${{ env.WEB_IMAGE_NAME }}:${{ env.RELEASE_CHANNEL }}
 
       - name: Build and push evidence-runner image
