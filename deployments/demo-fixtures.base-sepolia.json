@@ -1,0 +1,83 @@
+{
+  "network": "base-sepolia",
+  "chain_id": 84532,
+  "rpc_url": "https://base-sepolia.drpc.org",
+  "generated_at": "2026-03-24T19:30:18.911038+00:00",
+  "fixtures": [
+    {
+      "deployment_tx_hash": "0x34aa62c8b4d7b2dd25ef0f1d2f15bba62188506bafd37f237611b55c0e69c9fa",
+      "deployment_block_number": 39306159,
+      "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+      "basescan_url": "https://sepolia.basescan.org/address/0xe19855137c64fE20346E5044190137530348cAFE",
+      "id": "vulnerable-bank",
+      "label": "Vulnerable Bank",
+      "contract_name": "VulnerableBank",
+      "entry_contract": "VulnerableBank",
+      "benchmark_id": "reentrancy-bank",
+      "address": "0xe19855137c64fE20346E5044190137530348cAFE",
+      "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+      "note": "High-confidence reentrancy finding",
+      "source_path": "demo/contracts/VulnerableBank.sol"
+    },
+    {
+      "deployment_tx_hash": "0x0d42baf53722fc7dd0e6bd4f69f3b2e213c82ca0670ac398d54a7022e2d84080",
+      "deployment_block_number": 39306160,
+      "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+      "basescan_url": "https://sepolia.basescan.org/address/0x020E6B5e4d06F720d7E8a80Fd491DE9716c21421",
+      "id": "admin-setter",
+      "label": "Admin Setter",
+      "contract_name": "AdminSetter",
+      "entry_contract": "AdminSetter",
+      "benchmark_id": "admin-setter",
+      "address": "0x020E6B5e4d06F720d7E8a80Fd491DE9716c21421",
+      "challenge_proof_uri": "ipfs://admin-setter/unauthorized-admin-change",
+      "note": "High-confidence access control finding",
+      "source_path": "demo/contracts/AdminSetter.sol"
+    },
+    {
+      "deployment_tx_hash": "0x45bcf89f06e9a997cd4c0077fa6d75a28beda1bf7bbf5e18c32681a8ea9e9e85",
+      "deployment_block_number": 39306162,
+      "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+      "basescan_url": "https://sepolia.basescan.org/address/0xF14E6EBE928eB4eA90a93BF3Bc5C9F7aa8e67eE1",
+      "id": "clean-vault",
+      "label": "Clean Vault",
+      "contract_name": "CleanVault",
+      "entry_contract": "CleanVault",
+      "benchmark_id": "clean-vault",
+      "address": "0xF14E6EBE928eB4eA90a93BF3Bc5C9F7aa8e67eE1",
+      "challenge_proof_uri": "ipfs://clean-vault/missed-reentrancy",
+      "note": "Clean benchmark with medium confidence",
+      "source_path": "demo/contracts/CleanVault.sol"
+    },
+    {
+      "deployment_tx_hash": "0xa1003a676eef48c0e1725e71355182f5f0fcbddd9a5816b6cb01c77c4c1b72bf",
+      "deployment_block_number": 39306163,
+      "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+      "basescan_url": "https://sepolia.basescan.org/address/0x4C8E160aF0f2180232702173be0e4aB7629e04cE",
+      "id": "dual-risk-vault",
+      "label": "Dual Risk Vault",
+      "contract_name": "DualRiskVault",
+      "entry_contract": "DualRiskVault",
+      "benchmark_id": "dual-risk-vault",
+      "address": "0x4C8E160aF0f2180232702173be0e4aB7629e04cE",
+      "challenge_proof_uri": "ipfs://dual-risk-vault/owner-takeover",
+      "note": "Multi-finding benchmark with access control and unchecked payout issues",
+      "source_path": "demo/contracts/DualRiskVault.sol"
+    },
+    {
+      "deployment_tx_hash": "0x4bf8e4cdfa9bc0bbbaefc6c9e99a301bc86cbd0f2886861134853c9bcd108873",
+      "deployment_block_number": 39306164,
+      "deployer_address": "0x3e19e4B2f22fC27B5105A6762FCC6C6f129550BE",
+      "basescan_url": "https://sepolia.basescan.org/address/0xC4aEDF8c233320d0e10e1B6D937195dBF8C9c05c",
+      "id": "unchecked-treasury",
+      "label": "Unchecked Treasury",
+      "contract_name": "UncheckedTreasury",
+      "entry_contract": "UncheckedTreasury",
+      "benchmark_id": "unchecked-treasury",
+      "address": "0xC4aEDF8c233320d0e10e1B6D937195dBF8C9c05c",
+      "challenge_proof_uri": "ipfs://unchecked-treasury/unchecked-call-failure",
+      "note": "Imported registry and unchecked external call",
+      "source_path": "demo/contracts/UncheckedTreasury.sol"
+    }
+  ]
+}
