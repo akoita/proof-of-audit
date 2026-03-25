@@ -204,6 +204,7 @@ export function SubmitPanel({
                 border: "1px solid rgba(67,70,85,0.2)",
               }}
               onClick={() => onModeChange(m.id)}
+              data-testid={`submission-mode-${m.id}`}
             >
               {m.label}
             </button>
