@@ -16,10 +16,13 @@ flowchart LR
     User["User or challenger"] --> Web["Next.js workbench"]
     Web --> API["FastAPI service"]
     API --> Worker["Deterministic auditor worker"]
+    API --> Resolver["Verified source resolver"]
+    API --> AgentForge["Hosted agent-forge service (target path)"]
     API --> Verifier["Deterministic challenge verifier"]
     API --> Store["JSON audit store"]
     API --> Contract["ProofOfAudit contract"]
     API --> Validation["ERC-8004 validation bridge"]
+    AgentForge --> Sandbox["Sandboxed coding-agent runtime"]
     Contract --> Base["Base Sepolia or local Anvil"]
     Validation --> Base
 ```
@@ -57,10 +60,23 @@ Key files:
 
 - maps supported demo inputs to deterministic benchmark claims
 - returns richer findings with evidence URIs and severity breakdowns
+- in the target architecture, live source-based execution moves out of this process and into a separately deployed `agent-forge` service
 
 Key files:
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/worker.py`
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json`
+
+### External agent-forge service
+
+- target execution path for live source-based audits
+- consumes prepared source archives or repository snapshots from Proof-of-Audit
+- runs the canonical coding-agent runtime in a sandbox-compatible environment
+- returns machine-readable run status and report artifacts back to the API
+
+Design docs:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_CONTRACT.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_INTEGRATION.md`
 
 ### Challenge verifier
 
