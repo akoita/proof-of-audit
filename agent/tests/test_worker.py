@@ -61,6 +61,26 @@ def test_deployed_address_submission_hybrid_returns_clear_fallback_when_live_res
     assert result.report.benchmark_id == "unknown"
 
 
+def test_deployed_address_submission_can_disable_deterministic_fallback() -> None:
+    worker = AuditWorker(
+        runtime=WorkerRuntimeConfig.from_values(
+            mode="hybrid",
+            allow_deployed_address_deterministic_fallback=False,
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="deployed_address submissions require live agent-forge analysis",
+    ):
+        worker.run_submission(
+            audit_id="audit-deployed-live-only",
+            input_kind="deployed_address",
+            chain_id=84532,
+            contract_address="0x1234000000000000000000000000000000000000",
+        )
+
+
 def test_manifest_fixture_address_maps_to_benchmark(tmp_path) -> None:
     manifest = tmp_path / "demo-fixtures.localhost.json"
     manifest.write_text(

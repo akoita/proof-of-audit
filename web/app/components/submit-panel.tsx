@@ -309,7 +309,7 @@ export function SubmitPanel({
                 onChange={(e) => onEntryContractChange(e.target.value)}
               />
             </div>
-            {selectedFixture ? (
+            {submissionMode === "demo_fixture" && selectedFixture ? (
               <p className="muted" style={{ fontSize: "0.78rem" }}>
                 {selectedFixture.label} selected for a reproducible demo.
               </p>

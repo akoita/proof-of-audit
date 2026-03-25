@@ -36,15 +36,30 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
-    def test_predeployed_testnet_fixture_addresses_remain_allowed(self) -> None:
+    def test_predeployed_testnet_fixture_addresses_require_live_auditor(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
 
+            with self.assertRaisesRegex(ValueError, "require live agent-forge analysis"):
+                service.create_audit(
+                    "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                    submitted_by="testnet-user",
+                )
+
+    def test_local_fixture_addresses_trim_contract_address(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
+            service = AuditService(Path(tmpdir), contract_config=local_config)
+
             created = service.create_audit(
-                "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                " 0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11 ",
                 submitted_by="testnet-user",
             )
 
+            self.assertEqual(
+                created["contract_address"],
+                "0xebb43aa379270bcbbffdf33656ac37ebd7c81a11",
+            )
             self.assertEqual(created["report"]["benchmark_id"], "reentrancy-bank")
             self.assertEqual(created["report"]["finding_count"], 1)
 
@@ -135,7 +150,8 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_list_audits_returns_newest_first(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            service = AuditService(Path(tmpdir))
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
+            service = AuditService(Path(tmpdir), contract_config=local_config)
             first = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
                 submitted_by="first",
@@ -152,7 +168,8 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_list_target_claims_filters_by_normalized_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            service = AuditService(Path(tmpdir))
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
+            service = AuditService(Path(tmpdir), contract_config=local_config)
             matching_first = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
                 submitted_by="first",
@@ -910,7 +927,8 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_challenge_requires_publish(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            service = AuditService(Path(tmpdir))
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
+            service = AuditService(Path(tmpdir), contract_config=local_config)
             created = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
                 submitted_by="judge",
@@ -978,9 +996,10 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_publish_requires_onchain_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
             service = AuditService(
                 Path(tmpdir),
-                contract_config=ContractConfig.from_env({}),
+                contract_config=local_config,
             )
             created = service.create_audit(
                 "0x1000000000000000000000000000000000000003",
@@ -995,7 +1014,8 @@ class AuditServiceTest(unittest.TestCase):
 
     def test_multi_finding_benchmark_report_is_serialized(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            service = AuditService(Path(tmpdir))
+            local_config = replace(ContractConfig.from_env({}), network="anvil-local")
+            service = AuditService(Path(tmpdir), contract_config=local_config)
 
             created = service.create_audit(
                 "0x1000000000000000000000000000000000000004",
