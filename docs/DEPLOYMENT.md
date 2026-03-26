@@ -152,6 +152,11 @@ Proof-of-Audit is configured to deploy to Base Sepolia with the following defaul
 
 The deployment manifest lives in `deployments/base-sepolia.json`.
 
+For the external `agent-forge` architecture, use
+[AGENT_FORGE_OPERATIONS.md](./AGENT_FORGE_OPERATIONS.md) as the primary runbook
+for service topology, staging-storage requirements, local dev against a hosted
+service, and failure/debugging workflow.
+
 ### Repeatable release flow
 
 The release path is now split into two explicit scripts:
