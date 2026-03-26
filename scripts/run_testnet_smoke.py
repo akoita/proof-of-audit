@@ -27,6 +27,8 @@ OPTIONAL_ENV_VARS = (
 )
 REQUIRED_TEST_SUFFIXES = (
     "test_preflight.test_base_sepolia_preflight_validates_configured_environment",
+    "test_agent_forge_service_smoke.test_base_sepolia_deployed_address_uses_hosted_agent_forge_service",
+    "test_agent_forge_service_smoke.test_base_sepolia_deployed_address_missing_verified_source_fails_without_fallback",
     "test_workflow_smoke.test_base_sepolia_plain_proof_uri_workflow_stays_open_onchain",
     "test_workflow_smoke.test_base_sepolia_manual_resolution_workflow_resolves_onchain",
 )
@@ -196,6 +198,13 @@ def _render_markdown(report: dict[str, Any]) -> str:
     else:
         lines.append("- No publish/challenge/resolve artifacts were captured.")
 
+    failure_artifacts = report.get("failure_artifacts", [])
+    lines.extend(["", "## Failure Artifacts", ""])
+    if failure_artifacts:
+        lines.extend(["```json", json.dumps(failure_artifacts, indent=2), "```"])
+    else:
+        lines.append("- No failed submission artifacts were captured.")
+
     gas_summary = report.get("gas_summary", [])
     if gas_summary:
         lines.extend(["", "## Gas Summary", "", "```json", json.dumps(gas_summary, indent=2), "```"])
@@ -258,6 +267,7 @@ def main() -> int:
         },
         "context": None,
         "audit_artifacts": [],
+        "failure_artifacts": [],
         "gas_summary": [],
         "issues": [],
         "pytest": {"exit_code": None, "junit": {"exists": False, "summary": {}, "tests": []}},
@@ -298,6 +308,7 @@ def main() -> int:
 
     context_summary: dict[str, Any] | None = None
     audit_artifacts: list[dict[str, Any]] = []
+    failure_artifacts: list[dict[str, Any]] = []
     gas_summary: list[dict[str, Any]] = []
 
     with console_log_path.open("w", encoding="utf-8") as log_file:
@@ -319,6 +330,8 @@ def main() -> int:
                 context_summary = json.loads(stripped.split("=", 1)[1])
             elif stripped.startswith("TESTNET_AUDIT_ARTIFACTS="):
                 audit_artifacts = json.loads(stripped.split("=", 1)[1])
+            elif stripped.startswith("TESTNET_FAILURE_ARTIFACTS="):
+                failure_artifacts = json.loads(stripped.split("=", 1)[1])
             elif stripped.startswith("TESTNET_GAS_SUMMARY="):
                 gas_summary = json.loads(stripped.split("=", 1)[1])
         exit_code = process.wait()
@@ -327,6 +340,7 @@ def main() -> int:
     report["finished_at"] = _now_iso()
     report["context"] = context_summary
     report["audit_artifacts"] = audit_artifacts
+    report["failure_artifacts"] = failure_artifacts
     report["gas_summary"] = gas_summary
     report["pytest"] = {"exit_code": exit_code, "junit": junit_report}
 
@@ -357,6 +371,18 @@ def main() -> int:
     if args.require_live_env and report["status"] == "passed" and not audit_artifacts:
         report["status"] = "failed"
         report["issues"].append("No structured publish/challenge artifacts were captured.")
+
+    if args.require_live_env and report["status"] == "passed":
+        hosted_artifacts = [
+            artifact
+            for artifact in audit_artifacts
+            if artifact.get("execution_source") == "agent_forge_service"
+        ]
+        if not hosted_artifacts:
+            report["status"] = "failed"
+            report["issues"].append(
+                "No captured audit artifact proved that the hosted agent-forge service path was used."
+            )
 
     _write_json(json_path, report)
     markdown_path.write_text(_render_markdown(report))

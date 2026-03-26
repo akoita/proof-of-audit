@@ -43,6 +43,7 @@ class TestnetContext:
     verified_addresses: dict[str, str]
     gas_measurements: list[GasMeasurement] = field(default_factory=list)
     audit_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    failed_submissions: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def operator_address(self) -> str:
@@ -175,6 +176,28 @@ class TestnetContext:
             )
         )
 
+    def record_failed_submission(
+        self,
+        *,
+        name: str,
+        response: httpx.Response,
+        payload: dict[str, Any],
+    ) -> None:
+        body: dict[str, Any]
+        try:
+            parsed = response.json()
+            body = parsed if isinstance(parsed, dict) else {"raw": parsed}
+        except ValueError:
+            body = {"raw_text": response.text}
+        self.failed_submissions.append(
+            {
+                "name": name,
+                "status_code": response.status_code,
+                "request_payload": payload,
+                "response": body,
+            }
+        )
+
     def _update_audit_artifact(
         self, payload: dict[str, Any], *, extra: dict[str, Any] | None = None
     ) -> None:
@@ -204,6 +227,26 @@ class TestnetContext:
             artifact["metadata_hash"] = report.get("metadata_hash")
             artifact["finding_count"] = report.get("finding_count")
             artifact["max_severity"] = report.get("max_severity")
+
+        execution = payload.get("execution")
+        if isinstance(execution, dict):
+            artifact["execution_backend"] = execution.get("backend")
+            artifact["execution_mode"] = execution.get("mode")
+            artifact["execution_status"] = execution.get("status")
+            artifact["execution_source"] = execution.get("source")
+            artifact["execution_live_attempted"] = execution.get("live_attempted")
+            artifact["execution_fallback_used"] = execution.get("fallback_used")
+            artifact["execution_source_path"] = execution.get("source_path")
+            artifact["execution_report_path"] = execution.get("report_path")
+            artifact["execution_run_id"] = execution.get("run_id")
+            artifact["execution_run_dir"] = execution.get("run_dir")
+            artifact["execution_status_url"] = execution.get("status_url")
+            artifact["execution_logs_url"] = execution.get("logs_url")
+            artifact["execution_source_digest"] = execution.get("source_digest")
+            artifact["execution_profile_id"] = execution.get("profile_id")
+            artifact["execution_provider"] = execution.get("provider")
+            artifact["execution_model"] = execution.get("model")
+            artifact["execution_error"] = execution.get("error")
 
         onchain = payload.get("onchain")
         if isinstance(onchain, dict):
@@ -382,6 +425,11 @@ def testnet_context() -> TestnetContext:
                 for audit_id in sorted(context.audit_artifacts.keys())
             ]
             print(f"TESTNET_AUDIT_ARTIFACTS={json.dumps(summary, sort_keys=True)}")
+        if "context" in locals() and context.failed_submissions:
+            print(
+                "TESTNET_FAILURE_ARTIFACTS="
+                + json.dumps(context.failed_submissions, sort_keys=True)
+            )
         if "context" in locals() and context.gas_measurements:
             summary = [asdict(entry) for entry in context.gas_measurements]
             print(f"TESTNET_GAS_SUMMARY={json.dumps(summary, sort_keys=True)}")
