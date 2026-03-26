@@ -10,6 +10,7 @@ from proof_of_audit_agent.models import AuditReport
 class AuditSubmission:
     audit_id: str | None
     input_kind: str
+    network: str | None = None
     chain_id: int | None = None
     contract_address: str | None = None
     fixture_id: str | None = None
@@ -33,6 +34,10 @@ class AuditExecution:
     report_path: str | None = None
     run_id: str | None = None
     run_dir: str | None = None
+    status_url: str | None = None
+    logs_url: str | None = None
+    source_digest: str | None = None
+    profile_id: str | None = None
     provider: str | None = None
     model: str | None = None
     error: str | None = None
@@ -53,6 +58,10 @@ class AuditExecution:
             "report_path": self.report_path,
             "run_id": self.run_id,
             "run_dir": self.run_dir,
+            "status_url": self.status_url,
+            "logs_url": self.logs_url,
+            "source_digest": self.source_digest,
+            "profile_id": self.profile_id,
             "provider": self.provider,
             "model": self.model,
             "error": self.error,

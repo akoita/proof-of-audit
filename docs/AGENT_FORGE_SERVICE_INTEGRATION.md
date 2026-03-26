@@ -113,6 +113,8 @@ Recommended first cut:
 - Proof-of-Audit submits jobs over authenticated HTTP
 - Proof-of-Audit polls for status
 - report retrieval happens through a separate report endpoint
+- prepared source archives should be uploaded to remotely readable storage such as GCS or IPFS before submission
+- local filesystem paths are not a valid hosted-service source transport unless both systems explicitly share that volume
 
 This is slower than an in-process subprocess, but much simpler than introducing
 webhooks, event buses, or queue consumers immediately.

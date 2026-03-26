@@ -603,6 +603,18 @@ class ContractConfig:
     agent_forge_model: str | None
     agent_forge_max_iterations: int | None
     agent_forge_runs_home: Path | None
+    agent_forge_service_url: str | None
+    agent_forge_service_token: str | None
+    agent_forge_service_profile_id: str
+    agent_forge_service_report_schema: str
+    agent_forge_service_poll_interval_seconds: float
+    agent_forge_service_poll_timeout_seconds: float
+    agent_forge_service_request_timeout_seconds: float
+    source_bundle_storage_kind: str
+    source_bundle_gcs_bucket: str | None
+    source_bundle_gcs_prefix: str
+    source_bundle_ipfs_api_url: str | None
+    source_bundle_ipfs_auth_header: str | None
     sourcify_base_url: str
     explorer_api_url: str | None
     explorer_api_key: str | None
@@ -866,6 +878,55 @@ class ContractConfig:
                 Path(source["PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME"])
                 if source.get("PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME")
                 else None
+            ),
+            agent_forge_service_url=(
+                source.get("PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL") or None
+            ),
+            agent_forge_service_token=(
+                source.get("PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_TOKEN") or None
+            ),
+            agent_forge_service_profile_id=source.get(
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_PROFILE_ID",
+                "proof-of-audit-solidity-v1",
+            ),
+            agent_forge_service_report_schema=source.get(
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_REPORT_SCHEMA",
+                "proof-of-audit-report-v1",
+            ),
+            agent_forge_service_poll_interval_seconds=float(
+                source.get(
+                    "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_INTERVAL_SECONDS",
+                    "0.25",
+                )
+            ),
+            agent_forge_service_poll_timeout_seconds=float(
+                source.get(
+                    "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_TIMEOUT_SECONDS",
+                    "60",
+                )
+            ),
+            agent_forge_service_request_timeout_seconds=float(
+                source.get(
+                    "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_REQUEST_TIMEOUT_SECONDS",
+                    "30",
+                )
+            ),
+            source_bundle_storage_kind=source.get(
+                "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND",
+                "local",
+            ).strip().lower(),
+            source_bundle_gcs_bucket=(
+                source.get("PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_BUCKET") or None
+            ),
+            source_bundle_gcs_prefix=source.get(
+                "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_PREFIX",
+                "source-bundles",
+            ),
+            source_bundle_ipfs_api_url=(
+                source.get("PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_API_URL") or None
+            ),
+            source_bundle_ipfs_auth_header=(
+                source.get("PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_AUTH_HEADER") or None
             ),
             sourcify_base_url=source.get(
                 "PROOF_OF_AUDIT_SOURCIFY_BASE_URL",
