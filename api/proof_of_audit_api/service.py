@@ -62,6 +62,13 @@ def _network_is_local(network: str | None) -> bool:
     )
 
 
+_CHALLENGER_EVENT_PRIORITY = {
+    "challenge_resolved": 3,
+    "challenge_opened": 2,
+    "audit_published": 1,
+}
+
+
 class AuditService:
     def __init__(
         self,
@@ -631,7 +638,13 @@ class AuditService:
         items: list[dict[str, Any]] = []
         for record in self._all_normalized_records():
             items.extend(self._challenger_events_for_record(record))
-        items.sort(key=lambda item: str(item["event_timestamp"]), reverse=True)
+        items.sort(
+            key=lambda item: (
+                str(item["event_timestamp"]),
+                _CHALLENGER_EVENT_PRIORITY.get(str(item.get("event_kind")), 0),
+            ),
+            reverse=True,
+        )
         return items[:limit]
 
     def _require_audit(self, audit_id: str) -> dict[str, Any]:

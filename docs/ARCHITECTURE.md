@@ -77,6 +77,7 @@ Design docs:
 
 - `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_CONTRACT.md`
 - `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_INTEGRATION.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_OPERATIONS.md`
 
 ### Challenge verifier
 
