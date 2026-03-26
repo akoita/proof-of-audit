@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState, useTransition } from "react";
 import { apiFetch, uploadSourceBundle } from "./lib/api";
 import {
   formatEth,
+  parseEthInputToWei,
   publishBlockedReason,
   relativeTimeLabel,
   submissionModeLabel,
@@ -14,6 +15,7 @@ import type {
   AuditorServiceRecord,
   DemoFixture,
   InputKind,
+  MarketplacePreviewResponse,
   PublicContractConfig,
   TargetComparisonResponse,
 } from "./lib/types";
@@ -36,6 +38,7 @@ import { ReputationView } from "./components/views/reputation-view";
 import { DisputedView } from "./components/views/disputed-view";
 import { ArchiveView } from "./components/views/archive-view";
 import { DocsView } from "./components/views/docs-view";
+import { MarketplaceView } from "./components/views/marketplace-view";
 
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
@@ -79,6 +82,7 @@ function formatMediatedOnchainError(
 
 const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
   workbench:  { eyebrow: "Workspace",       title: "Audit Workbench",    desc: "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine." },
+  marketplace:{ eyebrow: "Marketplace",     title: "Bounty Marketplace", desc: "Preview bounty request configuration, V1 eligibility filters, and side-by-side claim comparison without overstating what the protocol enforces today." },
   published:  { eyebrow: "Published Claims", title: "Published",          desc: "Claims that have been staked and published on-chain. These can be challenged within the challenge window." },
   disputed:   { eyebrow: "Disputed Claims",  title: "Disputed",           desc: "Claims that have been challenged and are awaiting resolution through the advisory verifier or manual review." },
   reputation: { eyebrow: "Trust Network",    title: "Auditor Reputation", desc: "View trust scores, resolved challenges, and reputation metrics for auditor agents." },
@@ -87,6 +91,7 @@ const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string
 
 const VIEW_STATUS_MAP: Record<string, string[]> = {
   workbench:  [],
+  marketplace: [],
   published:  ["published"],
   disputed:   ["challenged"],
   reputation: ["resolved"],
@@ -141,11 +146,20 @@ export function AuditWorkbench() {
   const [sourceBundleUri, setSourceBundleUri] = useState("");
   const [sourceBundleLabel, setSourceBundleLabel] = useState("");
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
+  const [marketplaceContractAddress, setMarketplaceContractAddress] = useState("");
+  const [marketplaceBountyEth, setMarketplaceBountyEth] = useState("0.750");
+  const [marketplaceProtocolFeeEth, setMarketplaceProtocolFeeEth] = useState("0.050");
+  const [marketplaceMinimumStakeEth, setMarketplaceMinimumStakeEth] = useState("");
+  const [marketplaceWhitelistMode, setMarketplaceWhitelistMode] = useState<"open" | "allowlist">("open");
+  const [marketplaceAllowedServiceIds, setMarketplaceAllowedServiceIds] = useState<string[]>([]);
+  const [marketplaceRequiredIdentityServiceId, setMarketplaceRequiredIdentityServiceId] = useState("");
 
   /* ── data ───────────────────────────────────────────── */
   const [demoFixtures, setDemoFixtures] = useState<DemoFixture[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
   const [targetComparison, setTargetComparison] = useState<TargetComparisonResponse | null>(null);
+  const [marketplacePreview, setMarketplacePreview] = useState<MarketplacePreviewResponse | null>(null);
+  const [marketplaceComparison, setMarketplaceComparison] = useState<TargetComparisonResponse | null>(null);
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
   const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(null);
   const [auditorService, setAuditorService] = useState<AuditorServiceRecord | null>(null);
@@ -155,8 +169,11 @@ export function AuditWorkbench() {
   /* ── ui state ───────────────────────────────────────── */
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isComparisonLoaded, setIsComparisonLoaded] = useState(false);
+  const [isMarketplacePreviewLoaded, setIsMarketplacePreviewLoaded] = useState(false);
+  const [isMarketplaceComparisonLoaded, setIsMarketplaceComparisonLoaded] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [isUploadingSourceBundle, setIsUploadingSourceBundle] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -227,6 +244,59 @@ export function AuditWorkbench() {
     }
   }, [demoFixturesEnabled, submissionMode]);
 
+  useEffect(() => {
+    const candidate = activeAudit?.contract_address ?? contractAddress;
+    if (!candidate) {
+      return;
+    }
+    setMarketplaceContractAddress((current) => current || candidate);
+  }, [activeAudit?.contract_address, contractAddress]);
+
+  useEffect(() => {
+    if (!contractConfig?.required_stake_wei) {
+      return;
+    }
+    setMarketplaceMinimumStakeEth((current) => {
+      if (current.trim().length > 0) {
+        return current;
+      }
+      return (contractConfig.required_stake_wei / 1e18).toFixed(3);
+    });
+  }, [contractConfig?.required_stake_wei]);
+
+  useEffect(() => {
+    const trimmedContractAddress = marketplaceContractAddress.trim();
+    if (!trimmedContractAddress) {
+      setMarketplacePreview(null);
+      setMarketplaceComparison(null);
+      setMarketplaceError(null);
+      setIsMarketplacePreviewLoaded(true);
+      setIsMarketplaceComparisonLoaded(true);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      startTransition(() => {
+        void loadMarketplacePreview(trimmedContractAddress, abortController.signal);
+        void loadMarketplaceComparison(trimmedContractAddress, abortController.signal);
+      });
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      abortController.abort();
+    };
+  }, [
+    marketplaceAllowedServiceIds,
+    marketplaceBountyEth,
+    marketplaceContractAddress,
+    marketplaceMinimumStakeEth,
+    marketplaceProtocolFeeEth,
+    marketplaceRequiredIdentityServiceId,
+    marketplaceWhitelistMode,
+  ]);
+
   async function loadWorkbench() {
     setLoadError(null);
     try {
@@ -278,6 +348,56 @@ export function AuditWorkbench() {
       setTargetComparison(null);
     } finally {
       setIsComparisonLoaded(true);
+    }
+  }
+
+  async function loadMarketplacePreview(addr: string, signal?: AbortSignal) {
+    setIsMarketplacePreviewLoaded(false);
+    setMarketplaceError(null);
+    try {
+      setMarketplacePreview(await apiFetch<MarketplacePreviewResponse>("/marketplace/preview", {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          contract_address: addr,
+          bounty_wei: parseEthInputToWei(marketplaceBountyEth),
+          protocol_fee_wei: parseEthInputToWei(marketplaceProtocolFeeEth),
+          filters: {
+            minimum_stake_wei: parseEthInputToWei(marketplaceMinimumStakeEth),
+            whitelist_mode: marketplaceWhitelistMode,
+            allowed_service_ids: marketplaceAllowedServiceIds,
+            required_identity_service_id: marketplaceRequiredIdentityServiceId || null,
+          },
+        }),
+      }));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+      setMarketplacePreview(null);
+      setMarketplaceError(err instanceof Error ? err.message : "Failed to load marketplace preview");
+    } finally {
+      if (signal?.aborted) {
+        return;
+      }
+      setIsMarketplacePreviewLoaded(true);
+    }
+  }
+
+  async function loadMarketplaceComparison(addr: string, signal?: AbortSignal) {
+    setIsMarketplaceComparisonLoaded(false);
+    try {
+      setMarketplaceComparison(await apiFetch<TargetComparisonResponse>(`/targets/${addr}/comparison`, { signal }));
+    } catch {
+      if (signal?.aborted) {
+        return;
+      }
+      setMarketplaceComparison(null);
+    } finally {
+      if (signal?.aborted) {
+        return;
+      }
+      setIsMarketplaceComparisonLoaded(true);
     }
   }
 
@@ -596,6 +716,36 @@ export function AuditWorkbench() {
 
 
           </>
+        ) : activeView === "marketplace" ? (
+          <MarketplaceView
+            contractAddress={marketplaceContractAddress}
+            bountyEth={marketplaceBountyEth}
+            protocolFeeEth={marketplaceProtocolFeeEth}
+            minimumStakeEth={marketplaceMinimumStakeEth}
+            whitelistMode={marketplaceWhitelistMode}
+            allowedServiceIds={marketplaceAllowedServiceIds}
+            requiredIdentityServiceId={marketplaceRequiredIdentityServiceId}
+            auditorServices={auditorServices}
+            preview={marketplacePreview}
+            comparison={marketplaceComparison}
+            selectedAudit={
+              activeAudit?.contract_address.toLowerCase() === marketplaceContractAddress.trim().toLowerCase()
+                ? activeAudit
+                : null
+            }
+            config={contractConfig}
+            isPreviewLoaded={isMarketplacePreviewLoaded}
+            isComparisonLoaded={isMarketplaceComparisonLoaded}
+            previewError={marketplaceError}
+            onContractAddressChange={setMarketplaceContractAddress}
+            onBountyEthChange={setMarketplaceBountyEth}
+            onProtocolFeeEthChange={setMarketplaceProtocolFeeEth}
+            onMinimumStakeEthChange={setMarketplaceMinimumStakeEth}
+            onWhitelistModeChange={setMarketplaceWhitelistMode}
+            onAllowedServiceIdsChange={setMarketplaceAllowedServiceIds}
+            onRequiredIdentityServiceIdChange={setMarketplaceRequiredIdentityServiceId}
+            onSelectAudit={syncAudit}
+          />
         ) : activeView === "published" ? (
           scopedActiveAudit ? (
             <PublishedView audit={scopedActiveAudit} allAudits={filteredAudits} onSelect={syncAudit} />

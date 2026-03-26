@@ -83,6 +83,11 @@ export type AuditorReputation = {
   published_claim_count: number;
   draft_claim_count: number;
   last_resolved_at?: string | null;
+  source?: string | null;
+  registry_address?: string | null;
+  agent_id?: number | null;
+  total_stake_wei?: number | null;
+  last_update?: number | null;
   formula: string;
 };
 
@@ -208,6 +213,7 @@ export type AuditRecord = {
   };
   onchain: null | {
     audit_id?: number;
+    published_at?: string | null;
     network: string;
     chain_id: number;
     contract_address?: string | null;
@@ -291,6 +297,56 @@ export type TargetComparisonResponse = {
     max_severity: number;
   };
   items: AuditRecord[];
+};
+
+export type MarketplacePreviewFilters = {
+  minimum_stake_wei: number;
+  whitelist_mode: "open" | "allowlist";
+  allowed_service_ids: string[];
+  required_identity_service_id?: string | null;
+  required_identity_agent_id?: number | null;
+  required_identity_registry?: string | null;
+};
+
+export type MarketplacePreviewAuditorMatch = {
+  service_id: string;
+  name: string;
+  agent_id?: number | null;
+  agent_registry?: string | null;
+  reputation?: AuditorReputation | null;
+  stake_preview_wei?: number | null;
+  eligibility: {
+    matches: boolean;
+    approximate: boolean;
+    reasons: string[];
+  };
+};
+
+export type MarketplacePreviewResponse = {
+  target_contract?: string | null;
+  request_state: "preview_only";
+  chain_context: {
+    authority: "chain_authoritative";
+    network: string;
+    chain_id: number;
+    required_stake_wei: number;
+    challenge_window_seconds: number;
+  };
+  cost_breakdown: {
+    authority: "api_preview";
+    bounty_wei: number;
+    protocol_fee_wei: number;
+    total_wei: number;
+  };
+  filters: MarketplacePreviewFilters;
+  eligibility_summary: {
+    authority: "api_preview";
+    total_auditors: number;
+    eligible_auditors: number;
+    approximate: boolean;
+  };
+  auditor_matches: MarketplacePreviewAuditorMatch[];
+  preview_disclaimer: string;
 };
 
 export type DemoFixture = {

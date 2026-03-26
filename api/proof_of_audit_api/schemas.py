@@ -160,6 +160,7 @@ class AuditReportModel(BaseModel):
 
 class OnchainPublicationModel(BaseModel):
     audit_id: int | None = None
+    published_at: str | None = None
     network: str
     chain_id: int
     contract_address: str | None = None
@@ -407,6 +408,73 @@ class TargetComparisonResponse(BaseModel):
     target_key: str
     summary: TargetComparisonSummaryModel
     items: list[AuditRecordModel]
+
+
+class MarketplacePreviewFiltersModel(BaseModel):
+    minimum_stake_wei: int = 0
+    whitelist_mode: Literal["open", "allowlist"] = "open"
+    allowed_service_ids: list[str] = Field(default_factory=list)
+    required_identity_service_id: str | None = None
+    required_identity_agent_id: int | None = None
+    required_identity_registry: str | None = None
+
+
+class MarketplacePreviewRequest(BaseModel):
+    contract_address: str | None = None
+    bounty_wei: int = 0
+    protocol_fee_wei: int = 0
+    filters: MarketplacePreviewFiltersModel = Field(
+        default_factory=MarketplacePreviewFiltersModel
+    )
+
+
+class MarketplacePreviewChainContextModel(BaseModel):
+    authority: Literal["chain_authoritative"] = "chain_authoritative"
+    network: str
+    chain_id: int
+    required_stake_wei: int
+    challenge_window_seconds: int
+
+
+class MarketplacePreviewCostBreakdownModel(BaseModel):
+    authority: Literal["api_preview"] = "api_preview"
+    bounty_wei: int
+    protocol_fee_wei: int
+    total_wei: int
+
+
+class MarketplacePreviewAuditorEligibilityModel(BaseModel):
+    matches: bool
+    approximate: bool = True
+    reasons: list[str] = Field(default_factory=list)
+
+
+class MarketplacePreviewAuditorMatchModel(BaseModel):
+    service_id: str
+    name: str
+    agent_id: int | None = None
+    agent_registry: str | None = None
+    reputation: AuditorReputationModel | None = None
+    stake_preview_wei: int | None = None
+    eligibility: MarketplacePreviewAuditorEligibilityModel
+
+
+class MarketplacePreviewEligibilitySummaryModel(BaseModel):
+    authority: Literal["api_preview"] = "api_preview"
+    total_auditors: int
+    eligible_auditors: int
+    approximate: bool = True
+
+
+class MarketplacePreviewResponse(BaseModel):
+    target_contract: str | None = None
+    request_state: Literal["preview_only"] = "preview_only"
+    chain_context: MarketplacePreviewChainContextModel
+    cost_breakdown: MarketplacePreviewCostBreakdownModel
+    filters: MarketplacePreviewFiltersModel
+    eligibility_summary: MarketplacePreviewEligibilitySummaryModel
+    auditor_matches: list[MarketplacePreviewAuditorMatchModel]
+    preview_disclaimer: str
 
 
 ChallengerEventKind = Literal[

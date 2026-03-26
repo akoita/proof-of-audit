@@ -32,6 +32,8 @@ from proof_of_audit_api.schemas import (
     DemoFixtureListResponse,
     ErrorResponse,
     HealthResponse,
+    MarketplacePreviewRequest,
+    MarketplacePreviewResponse,
     PublicContractConfigResponse,
     PublishAuditRequest,
     ResolveAuditRequest,
@@ -286,6 +288,20 @@ def create_app(
         service = _service(request)
         return TargetComparisonResponse.model_validate(
             service.build_target_comparison(contract_address)
+        )
+
+    @app.post(
+        "/marketplace/preview",
+        response_model=MarketplacePreviewResponse,
+        responses={status.HTTP_200_OK: {"model": MarketplacePreviewResponse}},
+    )
+    def marketplace_preview(
+        payload: MarketplacePreviewRequest,
+        request: Request,
+    ) -> MarketplacePreviewResponse:
+        service = _service(request)
+        return MarketplacePreviewResponse.model_validate(
+            service.build_marketplace_preview(payload.model_dump())
         )
 
     @app.get(

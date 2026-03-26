@@ -8,6 +8,7 @@ type SidebarProps = {
 
 const NAV_ITEMS = [
   { id: "workbench",  label: "Workbench",  icon: "📝" },
+  { id: "marketplace", label: "Marketplace", icon: "🏪" },
   { id: "published",  label: "Published",  icon: "✓" },
   { id: "disputed",   label: "Disputed",   icon: "⚖" },
   { id: "reputation", label: "Reputation", icon: "🛡" },
