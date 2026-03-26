@@ -12,6 +12,7 @@ import tempfile
 from urllib import parse, request
 import zipfile
 
+from proof_of_audit_agent.agent_forge_service_client import AgentForgeServiceClient
 from proof_of_audit_agent.auditor_backend import (
     AuditExecution,
     AuditExecutionResult,
@@ -41,6 +42,18 @@ class AgentForgeRuntimeConfig:
     model: str | None = None
     max_iterations: int | None = None
     runs_home: Path | None = None
+    service_base_url: str | None = None
+    service_api_token: str | None = None
+    service_profile_id: str = "proof-of-audit-solidity-v1"
+    service_report_schema: str = "proof-of-audit-report-v1"
+    service_poll_interval_seconds: float = 0.25
+    service_poll_timeout_seconds: float = 60.0
+    service_request_timeout_seconds: float = 30.0
+    service_source_storage_kind: str = "local"
+    service_source_gcs_bucket: str | None = None
+    service_source_gcs_prefix: str = "source-bundles"
+    service_source_ipfs_api_url: str | None = None
+    service_source_ipfs_auth_header: str | None = None
     sourcify_base_url: str = DEFAULT_SOURCIFY_BASE_URL
     explorer_api_url: str | None = DEFAULT_EXPLORER_API_URL
     explorer_api_key: str | None = None
@@ -59,6 +72,10 @@ class AgentForgeRuntimeConfig:
     @property
     def strict_live_mode(self) -> bool:
         return self.mode == "agent_forge"
+
+    @property
+    def hosted_service_enabled(self) -> bool:
+        return bool(self.service_base_url)
 
 
 class AgentForgeExecutionError(ValueError):
@@ -84,6 +101,17 @@ class AgentForgeBackend:
             sourcify_base_url=runtime.sourcify_base_url,
             explorer_api_url=runtime.explorer_api_url,
             explorer_api_key=runtime.explorer_api_key,
+        )
+        self.service_client = (
+            AgentForgeServiceClient(
+                base_url=runtime.service_base_url,
+                api_token=runtime.service_api_token,
+                request_timeout_seconds=runtime.service_request_timeout_seconds,
+                poll_interval_seconds=runtime.service_poll_interval_seconds,
+                poll_timeout_seconds=runtime.service_poll_timeout_seconds,
+            )
+            if runtime.service_base_url
+            else None
         )
 
     @property
@@ -133,16 +161,9 @@ class AgentForgeBackend:
                     )
                 return None
 
-            command = shlex.split(self.runtime.command)
-            if not command:
-                raise AgentForgeExecutionError("agent-forge command is not configured")
-
             if submission.audit_id is None:
                 raise AgentForgeExecutionError("agent-forge submissions require an audit_id")
-            workspace_dir = self._prepare_workspace(submission.audit_id, source_path)
             task_prompt = self._build_task_prompt(entry_contract=effective_entry_contract)
-            report_path = workspace_dir / REPORT_FILE
-            before_runs = self._snapshot_runs()
             execution_source_path = (
                 downloaded_source.source_identifier
                 if downloaded_source is not None and downloaded_source.source_identifier
@@ -154,6 +175,64 @@ class AgentForgeBackend:
                 if downloaded_source is not None and submission.source_bundle_uri
                 else str(source_path)
             )
+            if self.service_client is not None:
+                archive_path, source_digest = self._prepare_service_source_archive(
+                    submission.audit_id,
+                    source_path,
+                )
+                source_uri = self._store_service_source_archive(
+                    submission.audit_id,
+                    archive_path,
+                )
+                remote_result = self.service_client.run(
+                    payload=self._build_service_request(
+                        submission=submission,
+                        source_uri=source_uri,
+                        entry_contract=effective_entry_contract,
+                        source_digest=source_digest,
+                    )
+                )
+                report = self._load_hosted_service_report(
+                    remote_result.report_payload,
+                    source_path=source_path,
+                    entry_contract=effective_entry_contract,
+                    contract_address=submission.contract_address,
+                )
+                logs_payload = remote_result.logs_payload or {}
+                artifacts = logs_payload.get("artifacts")
+                run_dir = (
+                    str(artifacts.get("run_dir"))
+                    if isinstance(artifacts, dict) and artifacts.get("run_dir")
+                    else None
+                )
+                execution = AuditExecution(
+                    backend=self.backend_name,
+                    mode=self.runtime.mode,
+                    status="completed",
+                    source="agent_forge_service",
+                    live_attempted=True,
+                    fallback_used=False,
+                    task_prompt=task_prompt,
+                    workspace_dir=str(archive_path.parent),
+                    source_path=execution_source_path,
+                    report_path=remote_result.report_url,
+                    run_id=remote_result.run_id,
+                    run_dir=run_dir,
+                    status_url=remote_result.status_url,
+                    logs_url=remote_result.logs_url,
+                    source_digest=source_digest,
+                    profile_id=self.runtime.service_profile_id,
+                    provider=self.runtime.provider,
+                    model=self.runtime.model,
+                )
+                return AuditExecutionResult(report=report, execution=execution)
+
+            command = shlex.split(self.runtime.command)
+            if not command:
+                raise AgentForgeExecutionError("agent-forge command is not configured")
+            workspace_dir = self._prepare_workspace(submission.audit_id, source_path)
+            report_path = workspace_dir / REPORT_FILE
+            before_runs = self._snapshot_runs()
 
             self._invoke(command, workspace_dir, task_prompt)
             report = self._load_report(
@@ -380,6 +459,80 @@ class AgentForgeBackend:
         (workspace_dir / ".proof-of-audit").mkdir(parents=True, exist_ok=True)
         return workspace_dir
 
+    def _prepare_service_source_archive(
+        self,
+        audit_id: str,
+        source_path: Path,
+    ) -> tuple[Path, str]:
+        target_root = self.workspace_root / "agent-forge-service" / audit_id
+        if target_root.exists():
+            shutil.rmtree(target_root)
+        target_root.mkdir(parents=True, exist_ok=True)
+        archive_path = target_root / "source.zip"
+        if source_path.is_file() and source_path.suffix.lower() == ".zip":
+            shutil.copy2(source_path, archive_path)
+        else:
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                if source_path.is_dir():
+                    for item in sorted(source_path.rglob("*")):
+                        if item.is_dir():
+                            continue
+                        archive.write(item, arcname=str(item.relative_to(source_path)))
+                else:
+                    archive.write(source_path, arcname=source_path.name)
+        digest = sha256(archive_path.read_bytes()).hexdigest()
+        return archive_path, f"sha256:{digest}"
+
+    def _store_service_source_archive(self, audit_id: str, archive_path: Path) -> str:
+        try:
+            from proof_of_audit_api.source_bundle_storage import (
+                SourceBundleStorageError,
+                build_source_bundle_storage,
+            )
+        except ImportError as exc:
+            raise AgentForgeExecutionError(
+                "hosted agent-forge source upload requires proof_of_audit_api.source_bundle_storage"
+            ) from exc
+
+        env = {
+            "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND": self.runtime.service_source_storage_kind,
+        }
+        if self.runtime.service_source_gcs_bucket:
+            env["PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_BUCKET"] = self.runtime.service_source_gcs_bucket
+        if self.runtime.service_source_gcs_prefix:
+            env["PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_PREFIX"] = self.runtime.service_source_gcs_prefix
+        if self.runtime.service_source_ipfs_api_url:
+            env["PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_API_URL"] = (
+                self.runtime.service_source_ipfs_api_url
+            )
+        if self.runtime.service_source_ipfs_auth_header:
+            env["PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_AUTH_HEADER"] = (
+                self.runtime.service_source_ipfs_auth_header
+            )
+        try:
+            storage = build_source_bundle_storage(
+                workspace_root=self.workspace_root,
+                env=env,
+            )
+        except SourceBundleStorageError as exc:
+            raise AgentForgeExecutionError(
+                f"hosted agent-forge source upload is misconfigured: {exc}"
+            ) from exc
+        if getattr(storage, "storage_backend", "local") == "local":
+            raise AgentForgeExecutionError(
+                "hosted agent-forge service requires non-local source bundle storage; configure GCS or IPFS storage"
+            )
+        try:
+            stored = storage.store(
+                original_filename=f"{audit_id}.zip",
+                content=archive_path.read_bytes(),
+            )
+        except SourceBundleStorageError as exc:
+            raise AgentForgeExecutionError(
+                f"hosted agent-forge source upload failed: {exc}"
+            ) from exc
+        return stored.source_bundle_uri
+
     def _invoke(self, command: list[str], workspace_dir: Path, task_prompt: str) -> None:
         env = os.environ.copy()
         if self.runtime.runs_home is not None:
@@ -458,6 +611,76 @@ class AgentForgeBackend:
             findings=findings,
             confidence=str(payload.get("confidence") or "medium"),
         )
+
+    def _load_hosted_service_report(
+        self,
+        payload: dict[str, object],
+        *,
+        source_path: Path,
+        entry_contract: str | None,
+        contract_address: str | None,
+    ) -> AuditReport:
+        target = payload.get("target")
+        report_contract_address = contract_address
+        if report_contract_address is None and isinstance(target, dict):
+            resolved_address = self._optional_string(target.get("contract_address"))
+            if resolved_address is not None:
+                report_contract_address = resolved_address
+        workspace_dir = source_path if source_path.is_dir() else source_path.parent
+        return self._load_report(
+            report_path=self._write_hosted_report_cache(payload),
+            workspace_dir=workspace_dir,
+            source_path=source_path,
+            entry_contract=entry_contract,
+            contract_address=report_contract_address,
+        )
+
+    def _write_hosted_report_cache(self, payload: dict[str, object]) -> Path:
+        cache_root = self.workspace_root / "agent-forge-service-report-cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        digest = sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+        path = cache_root / f"{digest}.json"
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
+
+    def _build_service_request(
+        self,
+        *,
+        submission: AuditSubmission,
+        source_uri: str,
+        entry_contract: str | None,
+        source_digest: str,
+    ) -> dict[str, object]:
+        return {
+            "schema_version": "agent-forge-run-request-v1",
+            "client": {
+                "name": "proof-of-audit",
+                "request_id": submission.audit_id,
+                "service_id": "proof-of-audit-auditor",
+            },
+            "profile": {
+                "id": self.runtime.service_profile_id,
+                "report_schema": self.runtime.service_report_schema,
+                "max_iterations": self.runtime.max_iterations,
+            },
+            "source": {
+                "kind": "archive_uri",
+                "uri": source_uri,
+                "archive_format": "zip",
+                "entry_contract": entry_contract,
+                "source_digest": source_digest,
+            },
+            "target": {
+                "submission_kind": submission.input_kind,
+                "network": submission.network,
+                "chain_id": submission.chain_id,
+                "contract_address": submission.contract_address,
+            },
+            "artifacts": {
+                "result_delivery": "pull",
+                "include_logs": True,
+            },
+        }
 
     def _build_task_prompt(self, *, entry_contract: str | None) -> str:
         entry_clause = (

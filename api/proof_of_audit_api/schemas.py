@@ -267,6 +267,10 @@ class ExecutionArtifactModel(BaseModel):
     report_path: str | None = None
     run_id: str | None = None
     run_dir: str | None = None
+    status_url: str | None = None
+    logs_url: str | None = None
+    source_digest: str | None = None
+    profile_id: str | None = None
     provider: str | None = None
     model: str | None = None
     error: str | None = None

@@ -81,6 +81,18 @@ class AuditService:
                 agent_forge_model=self.contract_config.agent_forge_model,
                 agent_forge_max_iterations=self.contract_config.agent_forge_max_iterations,
                 agent_forge_runs_home=self.contract_config.agent_forge_runs_home,
+                agent_forge_service_url=self.contract_config.agent_forge_service_url,
+                agent_forge_service_token=self.contract_config.agent_forge_service_token,
+                agent_forge_service_profile_id=self.contract_config.agent_forge_service_profile_id,
+                agent_forge_service_report_schema=self.contract_config.agent_forge_service_report_schema,
+                agent_forge_service_poll_interval_seconds=self.contract_config.agent_forge_service_poll_interval_seconds,
+                agent_forge_service_poll_timeout_seconds=self.contract_config.agent_forge_service_poll_timeout_seconds,
+                agent_forge_service_request_timeout_seconds=self.contract_config.agent_forge_service_request_timeout_seconds,
+                source_bundle_storage_kind=self.contract_config.source_bundle_storage_kind,
+                source_bundle_gcs_bucket=self.contract_config.source_bundle_gcs_bucket,
+                source_bundle_gcs_prefix=self.contract_config.source_bundle_gcs_prefix,
+                source_bundle_ipfs_api_url=self.contract_config.source_bundle_ipfs_api_url,
+                source_bundle_ipfs_auth_header=self.contract_config.source_bundle_ipfs_auth_header,
                 sourcify_base_url=self.contract_config.sourcify_base_url,
                 explorer_api_url=self.contract_config.explorer_api_url,
                 explorer_api_key=self.contract_config.explorer_api_key,
@@ -1520,6 +1532,7 @@ class AuditService:
             if key
             in {
                 "input_kind",
+                "network",
                 "chain_id",
                 "contract_address",
                 "fixture_id",
@@ -2122,6 +2135,7 @@ class AuditService:
             return {
                 "input_kind": "demo_fixture",
                 "service_id": service_id,
+                "network": self.contract_config.network,
                 "chain_id": chain_id or self.contract_config.chain_id,
                 "contract_address": fixture.address,
                 "fixture_id": fixture.fixture_id,
@@ -2137,6 +2151,7 @@ class AuditService:
             return {
                 "input_kind": "source_bundle",
                 "service_id": service_id,
+                "network": self.contract_config.network,
                 "chain_id": chain_id,
                 "contract_address": self.worker.synthetic_contract_address(
                     source_bundle_uri,
@@ -2155,6 +2170,7 @@ class AuditService:
             return {
                 "input_kind": "repository_url",
                 "service_id": service_id,
+                "network": self.contract_config.network,
                 "chain_id": chain_id,
                 "contract_address": f"0x{sha256(repository_url.encode('utf-8')).hexdigest()[:40]}",
                 "fixture_id": fixture_id,
@@ -2170,6 +2186,7 @@ class AuditService:
         return {
             "input_kind": "deployed_address",
             "service_id": service_id,
+            "network": self.contract_config.network,
             "chain_id": chain_id or self.contract_config.chain_id,
             "contract_address": contract_address.lower(),
             "fixture_id": fixture_id,

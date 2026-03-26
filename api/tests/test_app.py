@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import zipfile
 import tempfile as tempfile_module
 
+import httpx
 from fastapi.testclient import TestClient
 
 from proof_of_audit_api.app import create_app
@@ -60,6 +61,37 @@ sys.exit({exit_code})
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
     return path
+
+
+class FakeHostedHttpClient:
+    def __init__(
+        self,
+        responses: list[dict[str, object]],
+        requests: list[dict[str, object]],
+    ) -> None:
+        self._responses = responses
+        self.requests = requests
+
+    def __enter__(self) -> "FakeHostedHttpClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        del exc_type, exc, tb
+        return False
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        json: dict[str, object] | None = None,
+    ) -> httpx.Response:
+        self.requests.append({"method": method, "url": url, "json": json})
+        payload = self._responses.pop(0)
+        return httpx.Response(
+            int(payload.get("status_code", 200)),
+            json=payload.get("json"),
+            request=httpx.Request(method, url, json=json),
+        )
 
 
 class AuditApiAppTest(unittest.TestCase):
@@ -176,7 +208,15 @@ class AuditApiAppTest(unittest.TestCase):
                 return self.last_bucket
 
         fake_storage_client = FakeStorageClient()
-        with patch("google.cloud.storage.Client", return_value=fake_storage_client):
+        fake_storage_module = type(
+            "FakeStorageModule",
+            (),
+            {"Client": lambda self=None: fake_storage_client},
+        )()
+        with patch(
+            "proof_of_audit_api.source_bundle_storage._require_gcs_storage",
+            return_value=fake_storage_module,
+        ):
             client = TestClient(
                 create_app(Path(self.tempdir.name) / "gcs-data", env_file=env_file)
             )
@@ -1076,20 +1116,31 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
-    def _create_client(self, *, mode: str, command: Path, runs_home: Path) -> TestClient:
-        env_file = self.root / f".env.{mode}.{command.name}"
-        env_file.write_text(
-            "\n".join(
+    def _create_client(
+        self,
+        *,
+        mode: str,
+        command: Path | None,
+        runs_home: Path,
+        service_url: str | None = None,
+    ) -> TestClient:
+        name = command.name if command is not None else "service"
+        env_file = self.root / f".env.{mode}.{name}"
+        lines = [
+            f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={self.fixtures_file}",
+            f"PROOF_OF_AUDIT_WORKER_RUNTIME_MODE={mode}",
+            f"PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME={runs_home}",
+        ]
+        if command is not None:
+            lines.append(f"PROOF_OF_AUDIT_AGENT_FORGE_COMMAND={command}")
+        if service_url is not None:
+            lines.extend(
                 [
-                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={self.fixtures_file}",
-                    f"PROOF_OF_AUDIT_WORKER_RUNTIME_MODE={mode}",
-                    f"PROOF_OF_AUDIT_AGENT_FORGE_COMMAND={command}",
-                    f"PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME={runs_home}",
+                    f"PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL={service_url}",
+                    "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_INTERVAL_SECONDS=0",
                 ]
             )
-            + "\n",
-            encoding="utf-8",
-        )
+        env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return TestClient(create_app(self.data_root, env_file=env_file))
 
     def test_repository_submission_hybrid_persists_live_execution_metadata(self) -> None:
@@ -1397,6 +1448,181 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["report"]["benchmark_id"], "reentrancy-bank")
         self.assertEqual(payload["report"]["finding_count"], 1)
+
+    def test_deployed_address_submission_hybrid_uses_hosted_agent_forge_service(self) -> None:
+        runs_home = self.root / "home-deployed-service"
+        client = self._create_client(
+            mode="hybrid",
+            command=None,
+            runs_home=runs_home,
+            service_url="http://agent-forge.test",
+        )
+        source_tempdir = tempfile_module.TemporaryDirectory(prefix="proof-of-audit-test-service-")
+        source_root = Path(source_tempdir.name) / "source"
+        (source_root / "src").mkdir(parents=True, exist_ok=True)
+        (source_root / "src" / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+        captured_requests: list[dict[str, object]] = []
+        fake_client = FakeHostedHttpClient(
+            responses=[
+                {
+                    "status_code": 202,
+                    "json": {
+                        "schema_version": "agent-forge-run-v1",
+                        "run_id": "run_service_123",
+                        "status": "accepted",
+                        "status_url": "/v1/runs/run_service_123",
+                        "report_url": "/v1/runs/run_service_123/report",
+                        "logs_url": "/v1/runs/run_service_123/logs",
+                        "created_at": "2026-03-25T10:30:00Z",
+                    },
+                },
+                {
+                    "status_code": 200,
+                    "json": {
+                        "schema_version": "agent-forge-run-v1",
+                        "run_id": "run_service_123",
+                        "status": "completed",
+                        "status_url": "/v1/runs/run_service_123",
+                        "report_url": "/v1/runs/run_service_123/report",
+                        "logs_url": "/v1/runs/run_service_123/logs",
+                        "created_at": "2026-03-25T10:30:00Z",
+                        "completed_at": "2026-03-25T10:30:06Z",
+                    },
+                },
+                {
+                    "status_code": 200,
+                    "json": {
+                        "schema_version": "proof-of-audit-report-v1",
+                        "run_id": "run_service_123",
+                        "summary": "Hosted service completed a live deployed-address review.",
+                        "confidence": "medium",
+                        "benchmark_id": "agent-forge-service-live",
+                        "target": {
+                            "submission_kind": "deployed_address",
+                            "network": "base-sepolia",
+                            "chain_id": 84532,
+                            "contract_address": "0xabc0000000000000000000000000000000000000",
+                            "entry_contract": "Vault",
+                        },
+                        "findings": [
+                            {
+                                "finding_id": "finding-1",
+                                "title": "Unchecked external call",
+                                "severity": "medium",
+                                "category": "unchecked_external_call",
+                                "description": "Return value ignored.",
+                                "impact": "Silent failure may mask execution problems.",
+                                "recommendation": "Check the returned boolean.",
+                                "confidence": "medium",
+                                "detector": "agent_forge.service.unchecked_call",
+                                "source_path": "src/Vault.sol",
+                            }
+                        ],
+                        "stats": {
+                            "finding_count": 1,
+                            "max_severity": "medium",
+                            "severity_breakdown": {
+                                "critical": 0,
+                                "high": 0,
+                                "medium": 1,
+                                "low": 0,
+                            },
+                        },
+                        "provenance": {
+                            "profile_id": "proof-of-audit-solidity-v1",
+                            "source_digest": "sha256:placeholder",
+                        },
+                    },
+                },
+                {
+                    "status_code": 200,
+                    "json": {
+                        "run_id": "run_service_123",
+                        "artifacts": {
+                            "run_dir": "/tmp/agent-forge/runs/run_service_123",
+                        },
+                    },
+                },
+            ],
+            requests=captured_requests,
+        )
+        uploaded_archives: list[tuple[str, Path]] = []
+
+        def fake_store_service_source_archive(
+            _: object,
+            audit_id: str,
+            archive_path: Path,
+        ) -> str:
+            uploaded_archives.append((audit_id, archive_path))
+            return "gs://proof-of-audit-source-bundles/run_service_123.zip"
+
+        with (
+            patch(
+                "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+                return_value=type(
+                    "ResolvedSource",
+                    (),
+                    {
+                        "path": source_root,
+                        "tempdir": source_tempdir,
+                        "entry_contract": "Vault",
+                        "source_uri": "sourcify://84532/0xabc0000000000000000000000000000000000000",
+                    },
+                )(),
+            ),
+            patch(
+                "proof_of_audit_agent.agent_forge_service_client.httpx.Client",
+                return_value=fake_client,
+            ),
+            patch(
+                "proof_of_audit_agent.agent_forge_backend.AgentForgeBackend._store_service_source_archive",
+                autospec=True,
+                side_effect=fake_store_service_source_archive,
+            ),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-service-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["source"], "agent_forge_service")
+        self.assertEqual(
+            payload["execution"]["status_url"],
+            "http://agent-forge.test/v1/runs/run_service_123",
+        )
+        self.assertEqual(
+            payload["execution"]["report_path"],
+            "http://agent-forge.test/v1/runs/run_service_123/report",
+        )
+        self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-service-live")
+        self.assertEqual(payload["report"]["finding_count"], 1)
+        self.assertEqual(
+            payload["report"]["contract_address"],
+            "0xabc0000000000000000000000000000000000000",
+        )
+
+        create_run_request = captured_requests[0]
+        request_payload = create_run_request["json"]
+        assert isinstance(request_payload, dict)
+        self.assertEqual(request_payload["target"]["submission_kind"], "deployed_address")
+        self.assertEqual(request_payload["target"]["network"], "base-sepolia")
+        self.assertEqual(
+            request_payload["source"]["uri"],
+            "gs://proof-of-audit-source-bundles/run_service_123.zip",
+        )
+        self.assertTrue(uploaded_archives)
+        _, archive_path = uploaded_archives[0]
+        self.assertTrue(archive_path.exists())
+        with zipfile.ZipFile(archive_path) as archive:
+            self.assertIn("src/Vault.sol", archive.namelist())
 
 
 class AuditApiOnchainPublishTest(unittest.TestCase):

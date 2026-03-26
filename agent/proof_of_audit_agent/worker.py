@@ -55,6 +55,7 @@ class AuditWorker:
         *,
         audit_id: str | None = None,
         input_kind: str,
+        network: str | None = None,
         chain_id: int | None = None,
         contract_address: str | None = None,
         fixture_id: str | None = None,
@@ -66,6 +67,7 @@ class AuditWorker:
         submission = AuditSubmission(
             audit_id=audit_id,
             input_kind=input_kind,
+            network=network,
             chain_id=chain_id,
             contract_address=contract_address,
             fixture_id=fixture_id,

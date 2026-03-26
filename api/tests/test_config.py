@@ -171,6 +171,8 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.runtime_api_base_url, "http://127.0.0.1:9999")
         self.assertEqual(config.worker_runtime_mode, "hybrid")
         self.assertEqual(config.agent_forge_command, "/tmp/agent-forge")
+        self.assertIsNone(config.agent_forge_service_url)
+        self.assertEqual(config.source_bundle_storage_kind, "local")
         self.assertEqual(
             config.challenge_claim_extractor_command,
             "/tmp/challenge-claim-extractor",
@@ -182,6 +184,45 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(
             config.transaction_url("0x123"),
             "https://sepolia.basescan.org/tx/0x123",
+        )
+
+    def test_reads_hosted_agent_forge_service_settings(self) -> None:
+        config = ContractConfig.from_env(
+            {
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL": "https://agent-forge.example",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_TOKEN": "token-123",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_PROFILE_ID": "proof-of-audit-solidity-v2",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_REPORT_SCHEMA": "proof-of-audit-report-v2",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_INTERVAL_SECONDS": "0.5",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_TIMEOUT_SECONDS": "120",
+                "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_REQUEST_TIMEOUT_SECONDS": "15",
+                "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND": "gcs",
+                "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_BUCKET": "proof-of-audit-source-bundles",
+                "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_PREFIX": "uploads/agent-forge",
+            }
+        )
+
+        self.assertEqual(config.agent_forge_service_url, "https://agent-forge.example")
+        self.assertEqual(config.agent_forge_service_token, "token-123")
+        self.assertEqual(
+            config.agent_forge_service_profile_id,
+            "proof-of-audit-solidity-v2",
+        )
+        self.assertEqual(
+            config.agent_forge_service_report_schema,
+            "proof-of-audit-report-v2",
+        )
+        self.assertEqual(config.agent_forge_service_poll_interval_seconds, 0.5)
+        self.assertEqual(config.agent_forge_service_poll_timeout_seconds, 120.0)
+        self.assertEqual(config.agent_forge_service_request_timeout_seconds, 15.0)
+        self.assertEqual(config.source_bundle_storage_kind, "gcs")
+        self.assertEqual(
+            config.source_bundle_gcs_bucket,
+            "proof-of-audit-source-bundles",
+        )
+        self.assertEqual(
+            config.source_bundle_gcs_prefix,
+            "uploads/agent-forge",
         )
 
     def test_reads_env_file_when_present(self) -> None:

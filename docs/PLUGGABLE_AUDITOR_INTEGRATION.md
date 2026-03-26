@@ -26,6 +26,12 @@ They should not be conflated.
 An external auditor must accept a Proof-of-Audit-style submission and return a
 Proof-of-Audit-compatible report.
 
+The dedicated hosted `agent-forge` path is a special case of this boundary and is
+described in:
+
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_CONTRACT.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_INTEGRATION.md`
+
 The minimum request shape is:
 
 - `service_id`

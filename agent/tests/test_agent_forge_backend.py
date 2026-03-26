@@ -2,8 +2,10 @@ import io
 import json
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 import zipfile
 
+import httpx
 import pytest
 
 from proof_of_audit_agent.agent_forge_backend import (
@@ -12,6 +14,37 @@ from proof_of_audit_agent.agent_forge_backend import (
     AgentForgeRuntimeConfig,
 )
 from proof_of_audit_agent.auditor_backend import AuditSubmission
+
+
+class FakeHostedHttpClient:
+    def __init__(
+        self,
+        responses: list[dict[str, object]],
+        requests: list[dict[str, object]],
+    ) -> None:
+        self._responses = responses
+        self.requests = requests
+
+    def __enter__(self) -> "FakeHostedHttpClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        del exc_type, exc, tb
+        return False
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        json: dict[str, object] | None = None,
+    ) -> httpx.Response:
+        self.requests.append({"method": method, "url": url, "json": json})
+        payload = self._responses.pop(0)
+        return httpx.Response(
+            int(payload.get("status_code", 200)),
+            json=payload.get("json"),
+            request=httpx.Request(method, url, json=json),
+        )
 
 
 def _write_fake_agent_forge_script(
@@ -56,11 +89,14 @@ def _runtime(
     *,
     mode: str = "agent_forge",
     command: str,
+    service_url: str | None = None,
 ) -> AgentForgeRuntimeConfig:
     return AgentForgeRuntimeConfig(
         mode=mode,
         command=command,
         runs_home=tmp_path / "home",
+        service_base_url=service_url,
+        service_poll_interval_seconds=0.0,
     )
 
 
@@ -278,6 +314,194 @@ def test_run_submission_supports_empty_and_partial_findings(tmp_path: Path) -> N
     assert finding.start_line is None
     assert finding.detector == "agent_forge.llm"
     assert finding.confidence == "medium"
+
+
+def test_run_submission_uses_hosted_service_when_configured(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    source_file = repo_dir / "src" / "Vault.sol"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("contract Vault {}\n", encoding="utf-8")
+    captured_requests: list[dict[str, object]] = []
+    fake_client = FakeHostedHttpClient(
+        responses=[
+            {
+                "status_code": 202,
+                "json": {
+                    "schema_version": "agent-forge-run-v1",
+                    "run_id": "run_remote_123",
+                    "status": "accepted",
+                    "status_url": "/v1/runs/run_remote_123",
+                    "report_url": "/v1/runs/run_remote_123/report",
+                    "logs_url": "/v1/runs/run_remote_123/logs",
+                    "created_at": "2026-03-25T10:30:00Z",
+                },
+            },
+            {
+                "status_code": 200,
+                "json": {
+                    "schema_version": "agent-forge-run-v1",
+                    "run_id": "run_remote_123",
+                    "status": "completed",
+                    "status_url": "/v1/runs/run_remote_123",
+                    "report_url": "/v1/runs/run_remote_123/report",
+                    "logs_url": "/v1/runs/run_remote_123/logs",
+                    "created_at": "2026-03-25T10:30:00Z",
+                    "completed_at": "2026-03-25T10:30:05Z",
+                },
+            },
+            {
+                "status_code": 200,
+                "json": {
+                    "schema_version": "proof-of-audit-report-v1",
+                    "run_id": "run_remote_123",
+                    "summary": "Hosted service detected a reentrancy issue.",
+                    "confidence": "medium",
+                    "benchmark_id": "agent-forge-service-live",
+                    "target": {
+                        "submission_kind": "repository_url",
+                        "entry_contract": "Vault",
+                    },
+                    "findings": [
+                        {
+                            "finding_id": "finding-1",
+                            "title": "Reentrancy in withdraw()",
+                            "severity": "high",
+                            "category": "reentrancy",
+                            "description": "External call happens before state update.",
+                            "impact": "Funds can be drained recursively.",
+                            "recommendation": "Apply checks-effects-interactions.",
+                            "confidence": "medium",
+                            "detector": "agent_forge.service.reentrancy",
+                            "source_path": "src/Vault.sol",
+                            "start_line": 1,
+                            "end_line": 1,
+                        }
+                    ],
+                    "stats": {
+                        "finding_count": 1,
+                        "max_severity": "high",
+                        "severity_breakdown": {
+                            "critical": 0,
+                            "high": 1,
+                            "medium": 0,
+                            "low": 0,
+                        },
+                    },
+                    "provenance": {
+                        "profile_id": "proof-of-audit-solidity-v1",
+                        "source_digest": "sha256:placeholder",
+                    },
+                },
+            },
+            {
+                "status_code": 200,
+                "json": {
+                    "run_id": "run_remote_123",
+                    "artifacts": {
+                        "run_dir": "/tmp/agent-forge/runs/run_remote_123",
+                    },
+                },
+            },
+        ],
+        requests=captured_requests,
+    )
+    backend = AgentForgeBackend(
+        _runtime(
+            tmp_path,
+            command="python -m agent_forge.cli",
+            service_url="http://agent-forge.test",
+        ),
+        tmp_path / "runtime",
+    )
+
+    uploaded_archives: list[tuple[str, Path]] = []
+
+    def fake_store_service_source_archive(
+        _: AgentForgeBackend,
+        audit_id: str,
+        archive_path: Path,
+    ) -> str:
+        uploaded_archives.append((audit_id, archive_path))
+        return "gs://proof-of-audit-source-bundles/audit-service-123.zip"
+
+    with (
+        patch(
+            "proof_of_audit_agent.agent_forge_service_client.httpx.Client",
+            return_value=fake_client,
+        ),
+        patch.object(
+            AgentForgeBackend,
+            "_store_service_source_archive",
+            autospec=True,
+            side_effect=fake_store_service_source_archive,
+        ),
+    ):
+        result = backend.run_submission(
+            AuditSubmission(
+                audit_id="audit-service-123",
+                input_kind="repository_url",
+                network="base-sepolia",
+                repository_url=str(repo_dir),
+                entry_contract="Vault",
+            )
+        )
+
+    assert result is not None
+    assert result.execution is not None
+    assert result.execution.backend == "agent_forge"
+    assert result.execution.source == "agent_forge_service"
+    assert result.execution.run_id == "run_remote_123"
+    assert result.execution.status_url == "http://agent-forge.test/v1/runs/run_remote_123"
+    assert result.execution.report_path == "http://agent-forge.test/v1/runs/run_remote_123/report"
+    assert result.execution.logs_url == "http://agent-forge.test/v1/runs/run_remote_123/logs"
+    assert result.execution.profile_id == "proof-of-audit-solidity-v1"
+    assert result.execution.source_digest is not None
+    assert result.report.benchmark_id == "agent-forge-service-live"
+    assert result.report.findings[0].source_path == "src/Vault.sol"
+    assert uploaded_archives
+    upload_audit_id, upload_archive_path = uploaded_archives[0]
+    assert upload_audit_id == "audit-service-123"
+    assert upload_archive_path.exists()
+    with zipfile.ZipFile(upload_archive_path) as archive:
+        assert "src/Vault.sol" in archive.namelist()
+
+    create_run_request = captured_requests[0]
+    assert create_run_request["method"] == "POST"
+    request_payload = create_run_request["json"]
+    assert isinstance(request_payload, dict)
+    assert request_payload["profile"]["id"] == "proof-of-audit-solidity-v1"
+    assert request_payload["target"]["network"] == "base-sepolia"
+    assert request_payload["source"]["uri"] == "gs://proof-of-audit-source-bundles/audit-service-123.zip"
+
+
+def test_run_submission_rejects_hosted_service_with_local_source_storage(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+    backend = AgentForgeBackend(
+        _runtime(
+            tmp_path,
+            command="python -m agent_forge.cli",
+            service_url="http://agent-forge.test",
+        ),
+        tmp_path / "runtime",
+    )
+
+    with pytest.raises(
+        AgentForgeExecutionError,
+        match="requires non-local source bundle storage",
+    ):
+        backend.run_submission(
+            AuditSubmission(
+                audit_id="audit-service-local-storage",
+                input_kind="repository_url",
+                repository_url=str(repo_dir),
+                entry_contract="Vault",
+            )
+        )
 
 
 def test_resolve_source_path_supports_file_uri_absolute_relative_and_missing(

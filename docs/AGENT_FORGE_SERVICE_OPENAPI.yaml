@@ -1,0 +1,554 @@
+openapi: 3.1.0
+info:
+  title: Agent-Forge Hosted Service API
+  version: 1.0.0-draft
+  description: >
+    Draft service contract for a hosted agent-forge deployment consumed by
+    external clients such as Proof-of-Audit.
+servers:
+  - url: https://agent-forge.example.com
+security:
+  - bearerAuth: []
+paths:
+  /v1/runs:
+    post:
+      summary: Submit a hosted run
+      operationId: createRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunRequest"
+      responses:
+        "202":
+          description: Run accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunStatus"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Policy denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Quota exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/runs/{run_id}:
+    get:
+      summary: Read run status
+      operationId: getRun
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunStatus"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/runs/{run_id}/report:
+    get:
+      summary: Read completed report artifact
+      operationId: getRunReport
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Machine-readable report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProofOfAuditReport"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Run is not yet completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/runs/{run_id}/logs:
+    get:
+      summary: Read or redirect to run logs
+      operationId: getRunLogs
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run logs metadata or inline content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RunRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - client
+        - profile
+        - source
+      properties:
+        schema_version:
+          type: string
+          const: agent-forge-run-request-v1
+        client:
+          $ref: "#/components/schemas/ClientRef"
+        profile:
+          $ref: "#/components/schemas/ProfileRef"
+        source:
+          $ref: "#/components/schemas/SourceRef"
+        target:
+          $ref: "#/components/schemas/TargetRef"
+        artifacts:
+          $ref: "#/components/schemas/ArtifactPolicy"
+    ClientRef:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - request_id
+      properties:
+        name:
+          type: string
+        request_id:
+          type: string
+        service_id:
+          type:
+            - string
+            - "null"
+    ProfileRef:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - report_schema
+      properties:
+        id:
+          type: string
+        report_schema:
+          type: string
+        max_iterations:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+    SourceRef:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - uri
+      properties:
+        kind:
+          type: string
+          enum:
+            - archive_uri
+            - repository_uri
+            - git_repository
+            - local_path
+        uri:
+          type: string
+        archive_format:
+          type:
+            - string
+            - "null"
+          enum:
+            - zip
+            - tar.gz
+            - "null"
+        entry_contract:
+          type:
+            - string
+            - "null"
+        source_digest:
+          type:
+            - string
+            - "null"
+    TargetRef:
+      type: object
+      additionalProperties: false
+      properties:
+        submission_kind:
+          type:
+            - string
+            - "null"
+          enum:
+            - deployed_address
+            - source_bundle
+            - repository_url
+            - "null"
+        network:
+          type:
+            - string
+            - "null"
+        chain_id:
+          type:
+            - integer
+            - "null"
+        contract_address:
+          type:
+            - string
+            - "null"
+    ArtifactPolicy:
+      type: object
+      additionalProperties: false
+      properties:
+        result_delivery:
+          type:
+            - string
+            - "null"
+          enum:
+            - pull
+            - callback
+            - "null"
+        include_logs:
+          type:
+            - boolean
+            - "null"
+    RunStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - run_id
+        - status
+        - created_at
+      properties:
+        schema_version:
+          type: string
+          const: agent-forge-run-v1
+        run_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - accepted
+            - queued
+            - running
+            - completed
+            - failed
+            - cancelled
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        completed_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        client:
+          anyOf:
+            - $ref: "#/components/schemas/ClientRef"
+            - type: "null"
+        profile:
+          anyOf:
+            - $ref: "#/components/schemas/ProfileRef"
+            - type: "null"
+        status_url:
+          type:
+            - string
+            - "null"
+        report_url:
+          type:
+            - string
+            - "null"
+        logs_url:
+          type:
+            - string
+            - "null"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/RunError"
+            - type: "null"
+    RunError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid_request
+            - unsupported_profile
+            - unsupported_source_kind
+            - source_fetch_failed
+            - sandbox_start_failed
+            - sandbox_execution_failed
+            - report_generation_failed
+            - policy_denied
+            - unauthorized
+            - quota_exceeded
+        message:
+          type: string
+        retryable:
+          type: boolean
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/RunError"
+    ProofOfAuditReport:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - run_id
+        - summary
+        - confidence
+        - findings
+        - stats
+      properties:
+        schema_version:
+          type: string
+          const: proof-of-audit-report-v1
+        run_id:
+          type: string
+        summary:
+          type: string
+        confidence:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+        benchmark_id:
+          type:
+            - string
+            - "null"
+        target:
+          anyOf:
+            - $ref: "#/components/schemas/ReportTarget"
+            - type: "null"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        stats:
+          $ref: "#/components/schemas/ReportStats"
+        provenance:
+          anyOf:
+            - $ref: "#/components/schemas/ReportProvenance"
+            - type: "null"
+    ReportTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        submission_kind:
+          type:
+            - string
+            - "null"
+        network:
+          type:
+            - string
+            - "null"
+        chain_id:
+          type:
+            - integer
+            - "null"
+        contract_address:
+          type:
+            - string
+            - "null"
+        entry_contract:
+          type:
+            - string
+            - "null"
+    Finding:
+      type: object
+      additionalProperties: false
+      required:
+        - finding_id
+        - title
+        - severity
+        - category
+        - description
+        - impact
+        - recommendation
+        - confidence
+      properties:
+        finding_id:
+          type: string
+        title:
+          type: string
+        severity:
+          type: string
+          enum:
+            - critical
+            - high
+            - medium
+            - low
+        category:
+          type: string
+        description:
+          type: string
+        impact:
+          type: string
+        recommendation:
+          type: string
+        confidence:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+        detector:
+          type:
+            - string
+            - "null"
+        affected_function:
+          type:
+            - string
+            - "null"
+        source_path:
+          type:
+            - string
+            - "null"
+        start_line:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+        end_line:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+        evidence_uri:
+          type:
+            - string
+            - "null"
+    ReportStats:
+      type: object
+      additionalProperties: false
+      required:
+        - finding_count
+        - max_severity
+        - severity_breakdown
+      properties:
+        finding_count:
+          type: integer
+          minimum: 0
+        max_severity:
+          type:
+            - string
+            - "null"
+          enum:
+            - critical
+            - high
+            - medium
+            - low
+            - "null"
+        severity_breakdown:
+          $ref: "#/components/schemas/SeverityBreakdown"
+    SeverityBreakdown:
+      type: object
+      additionalProperties: false
+      required:
+        - critical
+        - high
+        - medium
+        - low
+      properties:
+        critical:
+          type: integer
+          minimum: 0
+        high:
+          type: integer
+          minimum: 0
+        medium:
+          type: integer
+          minimum: 0
+        low:
+          type: integer
+          minimum: 0
+    ReportProvenance:
+      type: object
+      additionalProperties: false
+      properties:
+        profile_id:
+          type:
+            - string
+            - "null"
+        source_digest:
+          type:
+            - string
+            - "null"
+    LogsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        run_id:
+          type: string
+        inline:
+          type:
+            - string
+            - "null"
+        logs_url:
+          type:
+            - string
+            - "null"
