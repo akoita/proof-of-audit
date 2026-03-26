@@ -10,13 +10,14 @@ from proof_of_audit_agent.agent_forge_backend import AgentForgeRuntimeConfig
 class WorkerRuntimeConfig:
     mode: str = "deterministic"
     agent_forge: AgentForgeRuntimeConfig = AgentForgeRuntimeConfig()
+    allow_deployed_address_deterministic_fallback: bool = True
 
     @classmethod
     def from_values(
         cls,
         *,
         mode: str = "deterministic",
-        agent_forge_command: str = "python -m agent_forge.cli",
+        agent_forge_command: str = "python -m proof_of_audit_agent.agent_forge_cli",
         agent_forge_provider: str | None = None,
         agent_forge_model: str | None = None,
         agent_forge_max_iterations: int | None = None,
@@ -36,6 +37,7 @@ class WorkerRuntimeConfig:
         sourcify_base_url: str = "https://sourcify.dev/server",
         explorer_api_url: str | None = "https://api.etherscan.io/v2/api",
         explorer_api_key: str | None = None,
+        allow_deployed_address_deterministic_fallback: bool = True,
     ) -> "WorkerRuntimeConfig":
         normalized_mode = (
             mode if mode in {"deterministic", "hybrid", "agent_forge"} else "deterministic"
@@ -66,5 +68,8 @@ class WorkerRuntimeConfig:
                 sourcify_base_url=sourcify_base_url,
                 explorer_api_url=explorer_api_url,
                 explorer_api_key=explorer_api_key,
+            ),
+            allow_deployed_address_deterministic_fallback=(
+                allow_deployed_address_deterministic_fallback
             ),
         )

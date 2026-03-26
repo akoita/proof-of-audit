@@ -108,6 +108,10 @@ class ContractConfigTest(unittest.TestCase):
             / "deployments"
             / "demo-fixtures.base-sepolia.json",
         )
+        self.assertEqual(
+            config.agent_forge_command,
+            "python -m proof_of_audit_agent.agent_forge_cli",
+        )
         self.assertFalse(config.deployment_ready)
 
     def test_reads_environment_overrides(self) -> None:

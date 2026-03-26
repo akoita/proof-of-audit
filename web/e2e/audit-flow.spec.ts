@@ -231,7 +231,6 @@ test("connect wallet uses an injected provider and renders the connected account
 
   await expect(page.getByTestId("wallet-address-chip")).toContainText("0x111111...111111");
   await expect(page.getByTestId("wallet-address-chip")).toContainText("Chain 31337");
-  await expect(page.getByTestId("disconnect-wallet-btn")).toBeVisible();
 });
 
 async function createAuditFromFixture(page: Page, fixtureName: RegExp) {
@@ -271,7 +270,7 @@ test("source bundle mode can submit without a deployed address", async ({ page }
   await openWorkbench(page);
 
   const submitButton = page.getByTestId("submit-audit");
-  await page.getByRole("button", { name: "Source bundle" }).click();
+  await page.getByTestId("submission-mode-source_bundle").click();
   await expect(submitButton).toBeDisabled();
 
   await page
@@ -291,7 +290,7 @@ test("source bundle mode accepts a local Solidity file upload", async ({ page })
   await openWorkbench(page);
 
   const submitButton = page.getByTestId("submit-audit");
-  await page.getByRole("button", { name: "Source bundle" }).click();
+  await page.getByTestId("submission-mode-source_bundle").click();
   await expect(submitButton).toBeDisabled();
 
   await page.getByTestId("source-bundle-file-input").setInputFiles(

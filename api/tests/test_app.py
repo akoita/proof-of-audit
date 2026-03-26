@@ -123,7 +123,14 @@ class AuditApiAppTest(unittest.TestCase):
         )
         env_file = Path(self.tempdir.name) / ".env.local"
         env_file.write_text(
-            f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}\n",
+            "\n".join(
+                [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
+                ]
+            )
+            + "\n",
             encoding="utf-8",
         )
         app = create_app(
@@ -356,13 +363,12 @@ class AuditApiAppTest(unittest.TestCase):
         store.close.assert_called_once()
 
     def test_public_config_endpoint(self) -> None:
-        manifest = load_base_sepolia_manifest()
         response = self.client.get("/config")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["network"], "base-sepolia")
-        self.assertEqual(payload["chain_id"], 84532)
+        self.assertEqual(payload["network"], "anvil-local")
+        self.assertEqual(payload["chain_id"], 31337)
         self.assertEqual(payload["auditor"]["id"], "proof-of-audit-auditor")
         self.assertEqual(
             payload["auditor"]["manifest_schema"],
@@ -386,26 +392,11 @@ class AuditApiAppTest(unittest.TestCase):
             payload["auditor_service"]["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(
-            payload["auditor_service"]["agent_id"],
-            manifest["auditor_identity"]["agent_id"],
-        )
-        self.assertEqual(
-            payload["auditor_service"]["agent_registry"],
-            manifest["auditor_identity"]["registry_address"],
-        )
-        self.assertEqual(
-            payload["auditor_service"]["identity_source"],
-            manifest["auditor_identity"]["source"],
-        )
-        self.assertEqual(
-            payload["auditor_service"]["validation_registry_address"],
-            manifest["validation_bridge"]["registry_address"],
-        )
-        self.assertEqual(
-            payload["auditor_service"]["validation_source"],
-            "erc8004-official",
-        )
+        self.assertIsNone(payload["auditor_service"]["agent_id"])
+        self.assertIsNone(payload["auditor_service"]["agent_registry"])
+        self.assertIsNone(payload["auditor_service"]["identity_source"])
+        self.assertIsNone(payload["auditor_service"]["validation_registry_address"])
+        self.assertIsNone(payload["auditor_service"]["validation_source"])
         self.assertEqual(
             payload["auditor_service"]["reputation_path_template"],
             "/auditors/{id}/reputation",
@@ -447,7 +438,6 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertFalse(payload["deployment_ready"])
 
     def test_auditor_endpoint_returns_service_record(self) -> None:
-        manifest = load_base_sepolia_manifest()
         response = self.client.get("/auditor")
 
         self.assertEqual(response.status_code, 200)
@@ -459,23 +449,11 @@ class AuditApiAppTest(unittest.TestCase):
             payload["registration_uri"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(
-            payload["agent_id"],
-            manifest["auditor_identity"]["agent_id"],
-        )
-        self.assertEqual(
-            payload["agent_registry"],
-            manifest["auditor_identity"]["registry_address"],
-        )
-        self.assertEqual(
-            payload["identity_source"],
-            manifest["auditor_identity"]["source"],
-        )
-        self.assertEqual(
-            payload["validation_registry_address"],
-            manifest["validation_bridge"]["registry_address"],
-        )
-        self.assertEqual(payload["validation_source"], "erc8004-official")
+        self.assertIsNone(payload["agent_id"])
+        self.assertIsNone(payload["agent_registry"])
+        self.assertIsNone(payload["identity_source"])
+        self.assertIsNone(payload["validation_registry_address"])
+        self.assertIsNone(payload["validation_source"])
         self.assertEqual(
             payload["submission_modes"],
             ["demo_fixture", "deployed_address", "source_bundle", "repository_url"],
@@ -655,7 +633,6 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(missing.json()["error"], "auditor_not_found")
 
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
-        manifest = load_base_sepolia_manifest()
         response = self.client.get("/auditor/registration")
 
         self.assertEqual(response.status_code, 200)
@@ -670,14 +647,9 @@ class AuditApiAppTest(unittest.TestCase):
             payload["services"][1]["endpoint"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
         )
-        self.assertEqual(
-            payload["registrations"][0]["agentRegistry"],
-            manifest["auditor_identity"]["registry_address"],
-        )
-        self.assertEqual(
-            payload["x-proof-of-audit"]["validationRegistryAddress"],
-            manifest["validation_bridge"]["registry_address"],
-        )
+        self.assertEqual(payload["registrations"], [])
+        self.assertEqual(payload["x-proof-of-audit"]["network"], "anvil-local")
+        self.assertEqual(payload["x-proof-of-audit"]["chainId"], 31337)
 
     def test_challenger_feed_endpoint_returns_recent_lifecycle_events(self) -> None:
         onchain = build_onchain_test_context()
@@ -1401,7 +1373,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(payload["error"], "invalid_payload")
         self.assertIn("require live agent-forge analysis", payload["message"])
 
-    def test_deployed_address_submission_hybrid_allows_configured_fixture_addresses(self) -> None:
+    def test_deployed_address_submission_hybrid_rejects_fixture_benchmark_fallbacks(self) -> None:
         self.fixtures_file.write_text(
             json.dumps(
                 {
@@ -1444,9 +1416,94 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
                 },
             )
 
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertEqual(payload["error"], "invalid_payload")
+        self.assertIn("require live agent-forge analysis", payload["message"])
+
+    def test_deployed_address_submission_trims_fixture_address_whitespace_for_live_execution(self) -> None:
+        self.fixtures_file.write_text(
+            json.dumps(
+                {
+                    "fixtures": [
+                        {
+                            "id": "vulnerable-bank",
+                            "label": "Vulnerable Bank",
+                            "contract_name": "VulnerableBank",
+                            "entry_contract": "VulnerableBank",
+                            "benchmark_id": "reentrancy-bank",
+                            "address": "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
+                            "challenge_proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                            "note": "High-confidence reentrancy finding",
+                            "source_path": "demo/contracts/VulnerableBank.sol",
+                        }
+                    ]
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        runs_home = self.root / "home-deployed-fixture-trimmed"
+        script = write_fake_agent_forge_script(
+            self.root / "agent-forge-deployed-fixture-trimmed",
+            report_payload={
+                "benchmark_id": "agent-forge-live",
+                "summary": "Live deployed-address audit completed.",
+                "confidence": "medium",
+                "findings": [
+                    {
+                        "title": "Potential reentrancy after external call",
+                        "severity": "high",
+                        "category": "reentrancy",
+                        "description": "External interaction occurs before balance state is updated.",
+                        "impact": "A malicious callee can re-enter before balances are reduced.",
+                        "recommendation": "Apply checks-effects-interactions.",
+                        "source_path": "src/VulnerableBank.sol",
+                    }
+                ],
+            },
+        )
+        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+        source_tempdir = tempfile_module.TemporaryDirectory(prefix="proof-of-audit-test-")
+        source_root = Path(source_tempdir.name) / "source"
+        (source_root / "src").mkdir(parents=True, exist_ok=True)
+        (source_root / "src" / "VulnerableBank.sol").write_text(
+            "contract VulnerableBank {}\n",
+            encoding="utf-8",
+        )
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            return_value=type(
+                "ResolvedSource",
+                (),
+                {
+                    "path": source_root,
+                    "tempdir": source_tempdir,
+                    "entry_contract": "VulnerableBank",
+                    "source_uri": "explorer://84532/0xebb43aa379270bcbbffdf33656ac37ebd7c81a11",
+                },
+            )(),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": " 0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11 ",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
         self.assertEqual(response.status_code, 201)
         payload = response.json()
-        self.assertEqual(payload["report"]["benchmark_id"], "reentrancy-bank")
+        self.assertEqual(
+            payload["contract_address"],
+            "0xebb43aa379270bcbbffdf33656ac37ebd7c81a11",
+        )
+        self.assertEqual(payload["execution"]["backend"], "agent_forge")
+        self.assertEqual(payload["execution"]["status"], "completed")
+        self.assertEqual(payload["report"]["benchmark_id"], "agent-forge-live")
         self.assertEqual(payload["report"]["finding_count"], 1)
 
     def test_deployed_address_submission_hybrid_uses_hosted_agent_forge_service(self) -> None:

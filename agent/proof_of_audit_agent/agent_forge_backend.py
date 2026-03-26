@@ -37,7 +37,7 @@ _DOWNLOAD_CHUNK_SIZE = 64 * 1024
 @dataclass(frozen=True)
 class AgentForgeRuntimeConfig:
     mode: str = "deterministic"
-    command: str = "python -m agent_forge.cli"
+    command: str = "python -m proof_of_audit_agent.agent_forge_cli"
     provider: str | None = None
     model: str | None = None
     max_iterations: int | None = None

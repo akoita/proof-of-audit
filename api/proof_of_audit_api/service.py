@@ -50,6 +50,18 @@ from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import AuditStore, CloudSqlPostgresConfig, create_store
 
 
+def _network_is_local(network: str | None) -> bool:
+    normalized = str(network or "").strip().lower()
+    return (
+        "anvil" in normalized
+        or "localhost" in normalized
+        or "eth-tester" in normalized
+        or normalized == "eth_tester"
+        or normalized == "tester"
+        or normalized == "local"
+    )
+
+
 class AuditService:
     def __init__(
         self,
@@ -96,6 +108,9 @@ class AuditService:
                 sourcify_base_url=self.contract_config.sourcify_base_url,
                 explorer_api_url=self.contract_config.explorer_api_url,
                 explorer_api_key=self.contract_config.explorer_api_key,
+                allow_deployed_address_deterministic_fallback=_network_is_local(
+                    self.contract_config.network
+                ),
             ),
             workspace_root=data_root,
         )
@@ -208,11 +223,7 @@ class AuditService:
         contract_address = self._normalize_target_key(
             normalized_submission.get("contract_address")
         )
-        if (
-            self._is_local_network()
-            or contract_address in LEGACY_BENCHMARK_ADDRESSES
-            or self._is_configured_fixture_address(contract_address)
-        ):
+        if self._is_local_network() or contract_address in LEGACY_BENCHMARK_ADDRESSES:
             return
 
         execution = getattr(execution_result, "execution", None)
@@ -229,15 +240,7 @@ class AuditService:
         )
 
     def _is_local_network(self) -> bool:
-        network = self.contract_config.network.strip().lower()
-        return (
-            "anvil" in network
-            or "localhost" in network
-            or "eth-tester" in network
-            or network == "eth_tester"
-            or network == "tester"
-            or network == "local"
-        )
+        return _network_is_local(self.contract_config.network)
 
     def _is_configured_fixture_address(self, contract_address: str) -> bool:
         return any(
@@ -2188,7 +2191,7 @@ class AuditService:
             "service_id": service_id,
             "network": self.contract_config.network,
             "chain_id": chain_id or self.contract_config.chain_id,
-            "contract_address": contract_address.lower(),
+            "contract_address": str(contract_address).strip().lower(),
             "fixture_id": fixture_id,
             "entry_contract": entry_contract,
             "source_bundle_uri": source_bundle_uri,

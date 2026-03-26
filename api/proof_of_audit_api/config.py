@@ -864,7 +864,7 @@ class ContractConfig:
             ),
             agent_forge_command=source.get(
                 "PROOF_OF_AUDIT_AGENT_FORGE_COMMAND",
-                "python -m agent_forge.cli",
+                "python -m proof_of_audit_agent.agent_forge_cli",
             ),
             agent_forge_provider=source.get("PROOF_OF_AUDIT_AGENT_FORGE_PROVIDER")
             or None,
