@@ -302,6 +302,145 @@ class AuditService:
             "items": items,
         }
 
+    def build_marketplace_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
+        filters = payload.get("filters")
+        if not isinstance(filters, dict):
+            filters = {}
+
+        minimum_stake_wei = max(int(filters.get("minimum_stake_wei") or 0), 0)
+        whitelist_mode = str(filters.get("whitelist_mode") or "open").strip().lower()
+        if whitelist_mode not in {"open", "allowlist"}:
+            whitelist_mode = "open"
+        allowed_service_ids = sorted(
+            {
+                str(service_id).strip()
+                for service_id in filters.get("allowed_service_ids", [])
+                if str(service_id).strip()
+            }
+        )
+        required_identity_service_id = str(
+            filters.get("required_identity_service_id") or ""
+        ).strip() or None
+        required_identity_agent_id = filters.get("required_identity_agent_id")
+        if required_identity_agent_id in ("", None):
+            required_identity_agent_id = None
+        else:
+            required_identity_agent_id = int(required_identity_agent_id)
+        required_identity_registry = str(
+            filters.get("required_identity_registry") or ""
+        ).strip() or None
+        normalized_registry = (
+            required_identity_registry.lower() if required_identity_registry else None
+        )
+
+        bounty_wei = max(int(payload.get("bounty_wei") or 0), 0)
+        protocol_fee_wei = max(int(payload.get("protocol_fee_wei") or 0), 0)
+        contract_address = str(payload.get("contract_address") or "").strip() or None
+        target_contract = (
+            self._normalize_target_key(contract_address) if contract_address else None
+        )
+
+        auditor_matches: list[dict[str, Any]] = []
+        for service in self.list_auditor_services():
+            reputation = service.get("reputation")
+            stake_preview_wei = None
+            if isinstance(reputation, dict):
+                raw_stake_preview = reputation.get("total_stake_wei")
+                if raw_stake_preview is not None:
+                    stake_preview_wei = int(raw_stake_preview)
+
+            reasons: list[str] = []
+            if minimum_stake_wei > 0:
+                if stake_preview_wei is None:
+                    reasons.append(
+                        "Stake preview unavailable for the minimum commitment filter."
+                    )
+                elif stake_preview_wei < minimum_stake_wei:
+                    reasons.append("Observed stake preview is below the requested minimum.")
+
+            if whitelist_mode == "allowlist":
+                if not allowed_service_ids:
+                    reasons.append(
+                        "Allowlist mode is enabled but no auditor services are selected."
+                    )
+                elif service["service_id"] not in allowed_service_ids:
+                    reasons.append("Auditor is outside the current allowlist preview.")
+
+            if required_identity_service_id and (
+                service["service_id"] != required_identity_service_id
+            ):
+                reasons.append("Service ID does not match the required registered identity.")
+
+            if required_identity_agent_id is not None and (
+                service.get("agent_id") != required_identity_agent_id
+            ):
+                reasons.append("Agent ID does not match the required registered identity.")
+
+            service_registry = str(service.get("agent_registry") or "").strip().lower()
+            if normalized_registry and service_registry != normalized_registry:
+                reasons.append(
+                    "Agent registry does not match the required registered identity."
+                )
+
+            matches = len(reasons) == 0
+            auditor_matches.append(
+                {
+                    "service_id": service["service_id"],
+                    "name": service["name"],
+                    "agent_id": service.get("agent_id"),
+                    "agent_registry": service.get("agent_registry"),
+                    "reputation": reputation if isinstance(reputation, dict) else None,
+                    "stake_preview_wei": stake_preview_wei,
+                    "eligibility": {
+                        "matches": matches,
+                        "approximate": True,
+                        "reasons": reasons or ["Matches the current preview filters."],
+                    },
+                }
+            )
+
+        eligible_count = sum(
+            1
+            for item in auditor_matches
+            if bool(item["eligibility"]["matches"])
+        )
+        return {
+            "target_contract": target_contract,
+            "request_state": "preview_only",
+            "chain_context": {
+                "authority": "chain_authoritative",
+                "network": self.contract_config.network,
+                "chain_id": self.contract_config.chain_id,
+                "required_stake_wei": self.contract_config.required_stake_wei,
+                "challenge_window_seconds": self.contract_config.challenge_window_seconds,
+            },
+            "cost_breakdown": {
+                "authority": "api_preview",
+                "bounty_wei": bounty_wei,
+                "protocol_fee_wei": protocol_fee_wei,
+                "total_wei": bounty_wei + protocol_fee_wei,
+            },
+            "filters": {
+                "minimum_stake_wei": minimum_stake_wei,
+                "whitelist_mode": whitelist_mode,
+                "allowed_service_ids": allowed_service_ids,
+                "required_identity_service_id": required_identity_service_id,
+                "required_identity_agent_id": required_identity_agent_id,
+                "required_identity_registry": required_identity_registry,
+            },
+            "eligibility_summary": {
+                "authority": "api_preview",
+                "total_auditors": len(auditor_matches),
+                "eligible_auditors": eligible_count,
+                "approximate": True,
+            },
+            "auditor_matches": auditor_matches,
+            "preview_disclaimer": (
+                "Eligible auditor counts are API-derived previews only. Chain-authoritative "
+                "enforcement for marketplace requests is not implemented in this client yet."
+            ),
+        }
+
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
         return self.worker.list_demo_fixtures()
 

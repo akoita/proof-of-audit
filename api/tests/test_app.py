@@ -632,6 +632,144 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"], "auditor_not_found")
 
+    def test_marketplace_preview_endpoint_returns_filtered_auditor_matches(self) -> None:
+        catalog_file = Path(self.tempdir.name) / "auditors.catalog.json"
+        catalog_file.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "service": {
+                                "service_id": "external-auditor",
+                                "name": "External Auditor",
+                                "manifest_schema": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "manifest_hash": "deadbeef",
+                                "registration_kind": "offchain_manifest",
+                                "registration_type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "registration_endpoint": "/auditors/external-auditor/registration",
+                                "registration_uri": "https://example.invalid/external-auditor.json",
+                                "agent_id": 7,
+                                "agent_registry": "0x123",
+                                "identity_source": "erc8004-official",
+                                "capability": "audit_contract",
+                                "discovery_path": "/auditors/external-auditor",
+                                "submit_path": "/audits",
+                                "execution_mode": "remote_http",
+                                "execution_endpoint": "https://example.invalid/audits",
+                                "publish_path_template": "/audits/{id}/publish",
+                                "challenge_path_template": "/audits/{id}/challenge",
+                                "network": "base-sepolia",
+                                "active": True,
+                                "supported_trust": ["crypto-economic"],
+                                "settlement_mode": "adapter_delegated",
+                                "publication_mode": "api_mediated",
+                                "staking_adapter_kind": "proof_of_audit_stake_adapter",
+                                "staking_adapter_address": "0xfeed",
+                                "staking_adapter_method": "publishStakedAudit",
+                                "publication_scope": "submit_selected_claim",
+                                "registry_contract_address": "0x456",
+                                "validation_registry_address": "0x789",
+                                "validation_source": "erc8004-official",
+                                "validation_request_path_template": "/audits/{id}/validation/request",
+                                "validation_response_path_template": "/audits/{id}/validation/response",
+                                "reputation_registry_address": "0xabc",
+                                "reputation_source": "project-local-custom",
+                                "reputation_path_template": "/auditors/{id}/reputation",
+                                "submission_modes": ["deployed_address"],
+                                "resolution_modes": ["manual_fallback"],
+                                "deterministic_resolution_supported": False,
+                                "manual_fallback_supported": True,
+                            },
+                            "registration_document": {
+                                "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                                "name": "External Auditor",
+                                "description": "External auditor entry",
+                                "image": "https://example.invalid/external-auditor.png",
+                                "services": [
+                                    {
+                                        "name": "registration",
+                                        "endpoint": "https://example.invalid/external-auditor.json",
+                                    }
+                                ],
+                                "x402Support": False,
+                                "active": True,
+                                "registrations": [
+                                    {
+                                        "agentId": 7,
+                                        "agentRegistry": "0x123",
+                                    }
+                                ],
+                                "supportedTrust": ["crypto-economic"],
+                                "x-proof-of-audit": {
+                                    "id": "external-auditor",
+                                    "version": "1.0.0",
+                                    "serviceType": "audit_contract",
+                                    "capabilities": ["audit_contract"],
+                                    "operator": "External",
+                                    "resolutionPolicy": "manual",
+                                },
+                            },
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        catalog_env_file = Path(self.tempdir.name) / "catalog-preview.env.local"
+        catalog_env_file.write_text(
+            "\n".join(
+                [
+                    f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={Path(self.tempdir.name) / 'demo-fixtures.localhost.json'}",
+                    f"PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE={catalog_file}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        client = TestClient(
+            create_app(
+                Path(self.tempdir.name) / "catalog-preview-data",
+                env_file=catalog_env_file,
+            )
+        )
+
+        response = client.post(
+            "/marketplace/preview",
+            json={
+                "contract_address": "0xABCDEF",
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "protocol_fee_wei": 100_000_000_000_000_000,
+                "filters": {
+                    "whitelist_mode": "allowlist",
+                    "allowed_service_ids": ["external-auditor"],
+                    "required_identity_service_id": "external-auditor",
+                    "required_identity_agent_id": 7,
+                    "required_identity_registry": "0x123",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["target_contract"], "0xabcdef")
+        self.assertEqual(payload["request_state"], "preview_only")
+        self.assertEqual(payload["chain_context"]["authority"], "chain_authoritative")
+        self.assertEqual(payload["cost_breakdown"]["authority"], "api_preview")
+        self.assertEqual(payload["cost_breakdown"]["total_wei"], 2_100_000_000_000_000_000)
+        self.assertEqual(payload["filters"]["whitelist_mode"], "allowlist")
+        self.assertEqual(payload["eligibility_summary"]["total_auditors"], 2)
+        self.assertEqual(payload["eligibility_summary"]["eligible_auditors"], 1)
+        matches = {item["service_id"]: item for item in payload["auditor_matches"]}
+        self.assertFalse(matches["proof-of-audit-auditor"]["eligibility"]["matches"])
+        self.assertIn(
+            "outside the current allowlist preview",
+            " ".join(matches["proof-of-audit-auditor"]["eligibility"]["reasons"]).lower(),
+        )
+        self.assertTrue(matches["external-auditor"]["eligibility"]["matches"])
+        self.assertEqual(matches["external-auditor"]["agent_id"], 7)
+        self.assertEqual(matches["external-auditor"]["agent_registry"], "0x123")
+        self.assertIn("API-derived previews", payload["preview_disclaimer"])
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")
 

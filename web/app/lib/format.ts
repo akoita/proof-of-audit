@@ -4,12 +4,25 @@ export function formatEth(wei: number): string {
   return `${(wei / 1e18).toFixed(3)} ETH`;
 }
 
+export function parseEthInputToWei(value: string): number {
+  const numeric = Number(value.trim());
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  return Math.round(numeric * 1e18);
+}
+
 export function titleCase(value: string): string {
   return value
     .split(/[_\s-]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function confidenceLabel(value: string | null | undefined): string {
+  if (!value) return "Unknown";
+  return titleCase(value.replaceAll("_", " "));
 }
 
 export function shortenHex(value: string, start = 6, end = 4): string {
