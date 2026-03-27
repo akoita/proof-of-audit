@@ -951,6 +951,69 @@ class AuditApiAppTest(unittest.TestCase):
             "proof-of-audit-auditor",
         )
 
+    def test_request_claim_endpoint_round_trips_challenge_policy(self) -> None:
+        onchain = build_onchain_test_context()
+        service = AuditService(
+            Path(self.tempdir.name) / "request-claim-policy-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        created_request = client.post(
+            "/requests",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "response_window_seconds": 3600,
+                "filters": {},
+            },
+        )
+        self.assertEqual(created_request.status_code, 201)
+        request_id = created_request.json()["request_id"]
+
+        draft = client.post(
+            "/audits",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "submitted_by": "market-auditor",
+            },
+        )
+        self.assertEqual(draft.status_code, 201)
+        audit_id = draft.json()["id"]
+
+        claimed = client.post(
+            f"/requests/{request_id}/claims",
+            json={
+                "audit_id": audit_id,
+                "stake_wei": 10**16,
+                "challenge_policy": {
+                    "allowed_evidence_types": ["deterministic_fixture"],
+                    "min_severity_threshold": "high",
+                    "allow_informational_only": False,
+                },
+            },
+        )
+        self.assertEqual(claimed.status_code, 200)
+        claimed_payload = claimed.json()
+        self.assertEqual(
+            claimed_payload["onchain"]["challenge_policy"]["allowed_evidence_types"],
+            ["deterministic_fixture"],
+        )
+        self.assertEqual(
+            claimed_payload["onchain"]["challenge_policy"]["min_severity_threshold"],
+            "high",
+        )
+
+        claims = client.get(f"/requests/{request_id}/claims")
+        self.assertEqual(claims.status_code, 200)
+        claims_payload = claims.json()
+        self.assertEqual(
+            claims_payload["items"][0]["challenge_policy"]["allow_informational_only"],
+            False,
+        )
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")
 
@@ -2080,6 +2143,87 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         audit_record = self.onchain.contract.functions.getAudit(1).call()
         self.assertEqual(int(audit_record[10]), 2)
         self.assertEqual(int(audit_record[11]), 0)
+
+    def test_publish_round_trips_challenge_policy_and_blocks_upheld_resolution(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        audit_id = created.json()["id"]
+
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={
+                "stake_wei": 10**16,
+                "challenge_policy": {
+                    "allowed_evidence_types": ["deterministic_fixture"],
+                    "admissibility_mode": "strict",
+                    "requires_material_incorrectness": True,
+                },
+            },
+        )
+        self.assertEqual(published.status_code, 200)
+        published_payload = published.json()
+        self.assertEqual(
+            published_payload["onchain"]["challenge_policy"]["admissibility_mode"],
+            "strict",
+        )
+        self.assertEqual(
+            published_payload["onchain"]["challenge_policy"][
+                "requires_material_incorrectness"
+            ],
+            True,
+        )
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "ipfs://reentrancy-bank/withdraw-drain",
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 200)
+        challenge_payload = challenged.json()
+        self.assertEqual(
+            challenge_payload["challenge"]["verification_status"],
+            "inadmissible_policy_scope",
+        )
+        self.assertEqual(
+            challenge_payload["challenge"]["policy_admissibility_status"],
+            "inadmissible_policy_scope",
+        )
+        self.assertEqual(
+            challenge_payload["challenge"]["verification_dossier"]["policy"][
+                "admissibility_status"
+            ],
+            "inadmissible_policy_scope",
+        )
+        self.assertEqual(
+            challenge_payload["challenge"]["verification_dossier"]["policy"][
+                "effective_policy"
+            ]["admissibility_mode"],
+            "strict",
+        )
+
+        invalid_resolution = self.client.post(
+            f"/audits/{audit_id}/resolve",
+            json={"upheld": True, "resolved_by": "integration-arbiter"},
+        )
+        self.assertEqual(invalid_resolution.status_code, 400)
+        self.assertEqual(invalid_resolution.json()["error"], "invalid_payload")
+
+        resolved = self.client.post(
+            f"/audits/{audit_id}/resolve",
+            json={"upheld": False, "resolved_by": "integration-arbiter"},
+        )
+        self.assertEqual(resolved.status_code, 200)
+        resolved_payload = resolved.json()
+        self.assertEqual(resolved_payload["status"], "resolved")
+        self.assertEqual(resolved_payload["challenge"]["status"], "rejected")
 
     def test_invalid_challenge_evidence_stays_open(self) -> None:
         created = self.client.post(

@@ -210,7 +210,14 @@ Example:
 ```json
 {
   "audit_id": "draft-audit-id",
-  "stake_wei": 10000000000000000
+  "stake_wei": 10000000000000000,
+  "challenge_policy": {
+    "allowed_evidence_types": ["deterministic_fixture"],
+    "min_severity_threshold": "medium",
+    "allow_informational_only": false,
+    "requires_material_incorrectness": true,
+    "admissibility_mode": "strict"
+  }
 }
 ```
 
@@ -221,7 +228,12 @@ This path:
 - enforces one claim per canonical auditor identity per request
 - enforces minimum stake, request allowlist membership, and required registered
   identity on-chain at claim submission time
+- persists a machine-readable `challenge_policy` onto the published claim record
 - preserves the legacy `POST /audits/{id}/publish` path for non-marketplace publication
+
+The stored claim metadata now includes `challenge_policy`, and the same policy is
+copied into claim-facing metadata documents so verifiers and downstream clients
+can inspect the admissibility scope without reinterpreting prose.
 
 ## Reputation
 
@@ -247,7 +259,14 @@ Example:
 
 ```json
 {
-  "stake_wei": 10000000000000000
+  "stake_wei": 10000000000000000,
+  "challenge_policy": {
+    "allowed_evidence_types": ["deterministic_fixture", "executable_test"],
+    "min_severity_threshold": "info",
+    "allow_informational_only": true,
+    "requires_material_incorrectness": false,
+    "admissibility_mode": "broad"
+  }
 }
 ```
 
@@ -265,10 +284,14 @@ And gains:
 
 - `onchain.publish_tx_hash`
 - `onchain.audit_id`
+- `onchain.challenge_policy`
 - `validation.request_hash`
 - `validation.request_uri`
 - `reputation_trail.claim_hash`
 - `reputation_trail.claim_uri`
+
+The validation-request and reputation-claim documents also expose the effective
+`challengePolicy` for the published claim.
 
 ### Open a challenge
 
@@ -314,6 +337,15 @@ On success:
 - plain `proof_uri` evidence is recorded for manual review
 - validation and reputation resolution stay pending until an arbiter resolves the case
 
+Challenge verification now performs a second pass against the published
+`challenge_policy` before any final resolution logic runs:
+
+- inadmissible challenges expose `challenge.policy_admissibility_status`
+- the verifier dossier mirrors that as `policy.admissibility_status`
+- the verifier dossier also includes `policy.effective_policy`
+- inadmissible challenges are distinct from admissible-but-unsuccessful challenges
+- inadmissible challenges cannot be manually resolved as `upheld`
+
 Only non-advisory verifier paths can auto-resolve on-chain, and the built-in
 deterministic benchmark verifier has been retired.
 
@@ -333,6 +365,8 @@ Executable evidence notes:
 - when configured, the Cloud Run backend stages the archive through GCS first and sends the runner a `gs://` object reference instead of embedding the entire zip in the request body
 
 See [Executable evidence bundle format](./EXECUTABLE_EVIDENCE_BUNDLE.md) for the manifest shape and backward-compatibility rules.
+See [Challenge policy grammar](./CHALLENGE_POLICY.md) for the supported
+machine-checkable fields and explicit out-of-scope cases.
 
 ### Resolve a fallback case
 

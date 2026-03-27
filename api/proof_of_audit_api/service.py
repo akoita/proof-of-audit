@@ -69,6 +69,23 @@ _CHALLENGER_EVENT_PRIORITY = {
     "audit_published": 1,
 }
 
+_SEVERITY_RANKING = {
+    "info": 0,
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "critical": 4,
+}
+
+_DEFAULT_CHALLENGE_POLICY = {
+    "policy_version": "challenge-policy/v1",
+    "allowed_evidence_types": ["deterministic_fixture", "executable_test"],
+    "min_severity_threshold": "info",
+    "allow_informational_only": True,
+    "requires_material_incorrectness": False,
+    "admissibility_mode": "broad",
+}
+
 
 class AuditService:
     def __init__(
@@ -397,6 +414,7 @@ class AuditService:
         *,
         audit_id: str,
         stake_wei: int,
+        challenge_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_record = self.get_audit_request(request_id)
         if request_record is None:
@@ -461,6 +479,7 @@ class AuditService:
             "agent_id": onchain_claim.agent_id,
             "agent_registry": onchain_claim.agent_registry.lower(),
             "auditor_address": onchain_claim.auditor_address.lower(),
+            "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         self.store.write(audit_id, updated_record)
         return self.get_audit(audit_id) or updated_record
@@ -797,6 +816,11 @@ class AuditService:
             ),
             "status": str(record.get("status") or "draft"),
             "target_contract": record["contract_address"],
+            "challenge_policy": (
+                deepcopy(onchain.get("challenge_policy"))
+                if isinstance(onchain.get("challenge_policy"), dict)
+                else self._normalize_challenge_policy(None)
+            ),
         }
 
     def _upsert_audit_request_record(self, record: dict[str, Any]) -> None:
@@ -1168,8 +1192,279 @@ class AuditService:
         reputation_index = self._build_reputation_index(self._all_normalized_records())
         return self._build_service_payload(service, reputation_index)
 
+    def _normalize_challenge_policy(
+        self, policy: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        payload = deepcopy(policy) if isinstance(policy, dict) else {}
+        normalized = deepcopy(_DEFAULT_CHALLENGE_POLICY)
+        normalized["policy_version"] = str(
+            payload.get("policy_version") or normalized["policy_version"]
+        )
+
+        allowed_evidence_types = payload.get("allowed_evidence_types")
+        if isinstance(allowed_evidence_types, list) and allowed_evidence_types:
+            normalized_types = sorted(
+                {
+                    str(item).strip()
+                    for item in allowed_evidence_types
+                    if str(item).strip() in {"deterministic_fixture", "executable_test"}
+                }
+            )
+            if not normalized_types:
+                raise ValueError(
+                    "challenge_policy.allowed_evidence_types must include supported evidence types"
+                )
+            normalized["allowed_evidence_types"] = normalized_types
+
+        threshold = str(
+            payload.get("min_severity_threshold")
+            or normalized["min_severity_threshold"]
+        ).strip().lower()
+        if threshold == "informational":
+            threshold = "info"
+        if threshold not in _SEVERITY_RANKING:
+            raise ValueError(
+                "challenge_policy.min_severity_threshold must be one of info, low, medium, high, or critical"
+            )
+        normalized["min_severity_threshold"] = threshold
+
+        normalized["allow_informational_only"] = bool(
+            payload.get(
+                "allow_informational_only", normalized["allow_informational_only"]
+            )
+        )
+        normalized["requires_material_incorrectness"] = bool(
+            payload.get(
+                "requires_material_incorrectness",
+                normalized["requires_material_incorrectness"],
+            )
+        )
+        admissibility_mode = str(
+            payload.get("admissibility_mode") or normalized["admissibility_mode"]
+        ).strip().lower()
+        if admissibility_mode not in {"broad", "strict"}:
+            raise ValueError(
+                "challenge_policy.admissibility_mode must be broad or strict"
+            )
+        normalized["admissibility_mode"] = admissibility_mode
+        return normalized
+
+    def _challenge_policy_for_record(self, record: dict[str, Any]) -> dict[str, Any]:
+        onchain = record.get("onchain")
+        if isinstance(onchain, dict):
+            return self._normalize_challenge_policy(onchain.get("challenge_policy"))
+        return self._normalize_challenge_policy(None)
+
+    def _admissible_material_incorrectness(
+        self, verification_dossier: dict[str, Any] | None
+    ) -> bool:
+        comparison = (
+            verification_dossier.get("comparison")
+            if isinstance(verification_dossier, dict)
+            and isinstance(verification_dossier.get("comparison"), dict)
+            else {}
+        )
+        return str(comparison.get("status") or "") in {
+            "likely_new_issue",
+            "contradicts_audit_claim",
+        }
+
+    def _estimate_challenge_severity(
+        self,
+        *,
+        record: dict[str, Any],
+        verification_result: Any | None,
+        verification_dossier: dict[str, Any] | None,
+    ) -> str | None:
+        report = record.get("report")
+        findings = report.get("findings") if isinstance(report, dict) else None
+        finding_index: dict[str, str] = {}
+        if isinstance(findings, list):
+            for finding in findings:
+                if not isinstance(finding, dict):
+                    continue
+                finding_id = str(finding.get("finding_id") or "").strip()
+                severity = str(finding.get("severity") or "info").strip().lower()
+                if severity == "informational":
+                    severity = "info"
+                if finding_id:
+                    finding_index[finding_id] = severity
+
+        matched_ids = getattr(verification_result, "matched_findings", None)
+        if not isinstance(matched_ids, list) and isinstance(verification_dossier, dict):
+            comparison = verification_dossier.get("comparison")
+            if isinstance(comparison, dict):
+                matched_ids = comparison.get("matched_finding_ids")
+        matched_severities = [
+            finding_index.get(str(finding_id).strip())
+            for finding_id in (matched_ids or [])
+            if finding_index.get(str(finding_id).strip()) is not None
+        ]
+        if matched_severities:
+            return max(matched_severities, key=self._severity_rank)
+
+        comparison_status = ""
+        if isinstance(verification_dossier, dict):
+            comparison = verification_dossier.get("comparison")
+            if isinstance(comparison, dict):
+                comparison_status = str(comparison.get("status") or "")
+        claim = getattr(verification_result, "challenge_claim", None)
+        claim_type = (
+            str(getattr(claim, "claim_type", "") or "").strip().lower()
+            if claim is not None
+            else ""
+        )
+        if claim_type in {"reentrancy", "access_control"}:
+            return "high"
+        if claim_type == "unchecked_external_call":
+            return "medium"
+        if comparison_status == "contradicts_audit_claim":
+            return "high"
+        if comparison_status == "likely_new_issue":
+            return "medium"
+        return None
+
+    def _severity_rank(self, severity: str) -> int:
+        normalized = str(severity or "info").strip().lower()
+        if normalized == "informational":
+            normalized = "info"
+        return _SEVERITY_RANKING.get(normalized, 0)
+
+    def _evaluate_challenge_policy(
+        self,
+        *,
+        record: dict[str, Any],
+        challenge_policy: dict[str, Any],
+        evidence_type: str,
+        verification_result: Any | None,
+        verification_dossier: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        allowed_evidence_types = set(challenge_policy["allowed_evidence_types"])
+        if evidence_type not in allowed_evidence_types:
+            return {
+                "admissible": False,
+                "status": "inadmissible_evidence_type",
+                "rationale": (
+                    f"Challenge evidence type {evidence_type} is outside the published challenge policy."
+                ),
+                "summary": "Challenge evidence type is outside the published challenge policy.",
+                "detail": (
+                    "The published claim only accepts "
+                    + ", ".join(sorted(allowed_evidence_types))
+                    + f", but {evidence_type} was submitted."
+                ),
+            }
+
+        verification_status = str(
+            getattr(verification_result, "status", "") or ""
+        ).strip()
+        if (
+            challenge_policy["admissibility_mode"] == "strict"
+            and verification_status != "verified"
+        ):
+            return {
+                "admissible": False,
+                "status": "inadmissible_policy_scope",
+                "rationale": (
+                    "Strict challenge policy only admits verifier-confirmed challenges."
+                ),
+                "summary": "Challenge falls outside the published challenge policy.",
+                "detail": (
+                    "The published claim uses strict admissibility, so challenges that do "
+                    "not reach verifier-confirmed status are not admitted."
+                ),
+            }
+
+        if (
+            challenge_policy["requires_material_incorrectness"]
+            and not self._admissible_material_incorrectness(verification_dossier)
+        ):
+            return {
+                "admissible": False,
+                "status": "inadmissible_policy_scope",
+                "rationale": (
+                    "Published challenge policy requires material incorrectness."
+                ),
+                "summary": "Challenge falls outside the published challenge policy.",
+                "detail": (
+                    "The published claim only admits challenges that demonstrate material "
+                    "incorrectness, but this verifier result did not reach that threshold."
+                ),
+            }
+
+        estimated_severity = self._estimate_challenge_severity(
+            record=record,
+            verification_result=verification_result,
+            verification_dossier=verification_dossier,
+        )
+        if (
+            not challenge_policy["allow_informational_only"]
+            and estimated_severity == "info"
+        ):
+            return {
+                "admissible": False,
+                "status": "inadmissible_severity_below_threshold",
+                "rationale": (
+                    "Published challenge policy excludes informational-only disagreements."
+                ),
+                "summary": "Challenge severity is below the published challenge policy threshold.",
+                "detail": (
+                    "The verifier could only support an informational disagreement, which "
+                    "this claim's challenge policy does not admit."
+                ),
+            }
+
+        min_threshold = str(challenge_policy["min_severity_threshold"])
+        if (
+            estimated_severity is None
+            and self._severity_rank(min_threshold) > self._severity_rank("info")
+        ):
+            return {
+                "admissible": False,
+                "status": "inadmissible_severity_below_threshold",
+                "rationale": (
+                    "Verifier output did not establish a challenge severity high enough "
+                    "for the published threshold."
+                ),
+                "summary": "Challenge severity is below the published challenge policy threshold.",
+                "detail": (
+                    "The challenge policy requires severity "
+                    f"{min_threshold} or above, but the verifier could not determine a "
+                    "supported severity at that level."
+                ),
+            }
+        if (
+            estimated_severity is not None
+            and self._severity_rank(estimated_severity)
+            < self._severity_rank(min_threshold)
+        ):
+            return {
+                "admissible": False,
+                "status": "inadmissible_severity_below_threshold",
+                "rationale": (
+                    "Verifier-supported challenge severity is below the published threshold."
+                ),
+                "summary": "Challenge severity is below the published challenge policy threshold.",
+                "detail": (
+                    "The challenge policy requires severity "
+                    f"{min_threshold} or above, but the verifier-supported severity was "
+                    f"{estimated_severity}."
+                ),
+            }
+        return {
+            "admissible": True,
+            "status": "admissible",
+            "rationale": "Challenge is within the published challenge policy.",
+            "summary": "Challenge is within the published challenge policy.",
+            "detail": "Challenge admissibility checks passed.",
+        }
+
     def publish_audit(
-        self, audit_id: str, stake_wei: int, agent_identity: str | None
+        self,
+        audit_id: str,
+        stake_wei: int,
+        agent_identity: str | None,
+        challenge_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         record = self._require_audit(audit_id)
         if record["status"] != "draft":
@@ -1215,6 +1510,7 @@ class AuditService:
             "publish_tx_url": self.contract_config.transaction_url(
                 publish_result.tx_hash
             ),
+            "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         record["validation"] = self._submit_validation_request(record)
         record["reputation_trail"] = self._submit_reputation_claim(record)
@@ -1235,6 +1531,7 @@ class AuditService:
             raise ValueError("audit has already been challenged")
         if record["status"] != "published" or record["onchain"] is None:
             raise ValueError("audit must be published before challenge")
+        challenge_policy = self._challenge_policy_for_record(record)
         if (
             evidence_type == "executable_test"
             and record["submission"]["input_kind"] != "deployed_address"
@@ -1301,59 +1598,172 @@ class AuditService:
         record["challenge"] = challenge_record
         self.store.write(audit_id, record)
 
-        verification_result = verifier.verify(
-            EvidenceContext(
-                proof_uri=proof_uri,
-                benchmark_id=str(record["report"].get("benchmark_id") or "unknown"),
-                target_contract=record["contract_address"],
-                published_report=deepcopy(record["report"]),
-                evidence_type=evidence_type,
-                execution_env=execution_env,
-                evidence_manifest=deepcopy(evidence_manifest),
-                chain_id=int(
-                    record["onchain"].get("chain_id") or self.contract_config.chain_id
-                ),
-                rpc_url=self.contract_config.rpc_url,
-                committed_evidence_hash=evidence_hash,
-            )
+        verification_result = None
+        verification_dossier: dict[str, Any]
+        policy_decision = self._evaluate_challenge_policy(
+            record=record,
+            challenge_policy=challenge_policy,
+            evidence_type=evidence_type,
+            verification_result=None,
+            verification_dossier=None,
         )
+        if policy_decision["status"] == "inadmissible_evidence_type":
+            verification_dossier = self._normalize_verification_dossier(
+                {
+                    "schema_version": "challenge-verifier-dossier/v1",
+                    "verifier_version": str(challenge_record.get("verifier") or ""),
+                    "evidence_type": evidence_type,
+                    "integrity": {
+                        "status": "valid",
+                        "committed_evidence_hash": challenge_result.evidence_hash,
+                    },
+                    "execution": {
+                        "status": (
+                            "not_executed"
+                            if evidence_type == "deterministic_fixture"
+                            else "unknown"
+                        ),
+                        "execution_env": execution_env,
+                    },
+                    "claim": None,
+                    "comparison": {
+                        "status": "not_assessed",
+                        "confidence": "unknown",
+                        "rationale": None,
+                        "matched_finding_ids": [],
+                        "matched_findings": [],
+                        "unmatched_signals": [],
+                        "disagreement_status": "not_checked",
+                        "disagreement_detail": None,
+                    },
+                    "policy": {
+                        "status": "rejected",
+                        "advisory_only": False,
+                        "recommended_resolution": "rejected",
+                        "abstained": False,
+                        "confidence": "high",
+                        "rationale": policy_decision["rationale"],
+                        "admissibility_status": policy_decision["status"],
+                        "effective_policy": challenge_policy,
+                    },
+                    "model_metadata": {},
+                },
+                challenge=challenge_record,
+            )
+        else:
+            verification_result = verifier.verify(
+                EvidenceContext(
+                    proof_uri=proof_uri,
+                    benchmark_id=str(record["report"].get("benchmark_id") or "unknown"),
+                    target_contract=record["contract_address"],
+                    published_report=deepcopy(record["report"]),
+                    evidence_type=evidence_type,
+                    execution_env=execution_env,
+                    evidence_manifest=deepcopy(evidence_manifest),
+                    chain_id=int(
+                        record["onchain"].get("chain_id") or self.contract_config.chain_id
+                    ),
+                    rpc_url=self.contract_config.rpc_url,
+                    committed_evidence_hash=evidence_hash,
+                )
+            )
+            verification_dossier = self._verification_dossier_payload(
+                verification_result=verification_result,
+                challenge_defaults={
+                    "evidence_type": evidence_type,
+                    "execution_env": execution_env,
+                    "proof_uri": proof_uri,
+                    "evidence_hash": challenge_result.evidence_hash,
+                    "matched_findings": verification_result.matched_findings,
+                    "unmatched_findings": verification_result.unmatched_findings,
+                    "advisory_verdict": (
+                        verification_result.resolution
+                        if verification_result.advisory_only
+                        else None
+                    ),
+                    "verification_status": verification_result.status,
+                    "verifier": verification_result.verifier,
+                },
+            )
+            policy_decision = self._evaluate_challenge_policy(
+                record=record,
+                challenge_policy=challenge_policy,
+                evidence_type=evidence_type,
+                verification_result=verification_result,
+                verification_dossier=verification_dossier,
+            )
+
+        dossier_policy = (
+            verification_dossier["policy"]
+            if isinstance(verification_dossier.get("policy"), dict)
+            else {}
+        )
+        dossier_policy["admissibility_status"] = policy_decision["status"]
+        dossier_policy["effective_policy"] = challenge_policy
+        if not policy_decision["admissible"]:
+            dossier_policy["status"] = "rejected"
+            dossier_policy["recommended_resolution"] = "rejected"
+            dossier_policy["abstained"] = False
+            dossier_policy["rationale"] = policy_decision["rationale"]
+            dossier_policy["confidence"] = "high"
+        verification_dossier["policy"] = dossier_policy
+
         challenge_record.update(
             {
-                "verifier": verification_result.verifier,
-                "verification_status": verification_result.status,
-                "verification_summary": verification_result.summary,
-                "verification_detail": verification_result.detail,
-                "verification_case_id": verification_result.case_id,
+                "verifier": (
+                    verification_result.verifier
+                    if verification_result is not None
+                    else challenge_record["verifier"]
+                ),
+                "verification_status": (
+                    verification_result.status
+                    if verification_result is not None and policy_decision["admissible"]
+                    else policy_decision["status"]
+                ),
+                "verification_summary": (
+                    verification_result.summary
+                    if verification_result is not None and policy_decision["admissible"]
+                    else policy_decision["summary"]
+                ),
+                "verification_detail": (
+                    verification_result.detail
+                    if verification_result is not None and policy_decision["admissible"]
+                    else policy_decision["detail"]
+                ),
+                "verification_case_id": (
+                    verification_result.case_id if verification_result is not None else None
+                ),
+                "policy_admissibility_status": policy_decision["status"],
+                "policy_admissibility_rationale": policy_decision["rationale"],
                 "advisory_verdict": (
-                    verification_result.resolution if verification_result.advisory_only else None
+                    verification_result.resolution
+                    if verification_result is not None and verification_result.advisory_only
+                    else None
                 ),
-                "execution_log": verification_result.execution_log,
-                "matched_findings": verification_result.matched_findings,
-                "unmatched_findings": verification_result.unmatched_findings,
-                "verification_dossier": self._verification_dossier_payload(
-                    verification_result=verification_result,
-                    challenge_defaults={
-                        "evidence_type": evidence_type,
-                        "execution_env": execution_env,
-                        "proof_uri": proof_uri,
-                        "evidence_hash": challenge_result.evidence_hash,
-                        "matched_findings": verification_result.matched_findings,
-                        "unmatched_findings": verification_result.unmatched_findings,
-                        "advisory_verdict": (
-                            verification_result.resolution
-                            if verification_result.advisory_only
-                            else None
-                        ),
-                        "verification_status": verification_result.status,
-                        "verifier": verification_result.verifier,
-                    },
+                "execution_log": (
+                    verification_result.execution_log
+                    if verification_result is not None
+                    else None
                 ),
+                "matched_findings": (
+                    verification_result.matched_findings
+                    if verification_result is not None
+                    else []
+                ),
+                "unmatched_findings": (
+                    verification_result.unmatched_findings
+                    if verification_result is not None
+                    else []
+                ),
+                "verification_dossier": verification_dossier,
                 "verification_dossier_path": f"/audits/{audit_id}/challenge/dossier",
             }
         )
 
         if (
-            verification_result.status == "verified"
+            verification_result is not None
+            and policy_decision["admissible"]
+            and verification_result.status == "verified"
             and verification_result.upheld is not None
             and not verification_result.advisory_only
             and self.arbiter_client is not None
@@ -1401,6 +1811,11 @@ class AuditService:
         record = self._require_audit(audit_id)
         if record["status"] != "challenged" or record["challenge"] is None:
             raise ValueError("audit must be challenged before resolution")
+        challenge = record["challenge"]
+        if upheld and str(challenge.get("policy_admissibility_status") or "").startswith(
+            "inadmissible_"
+        ):
+            raise ValueError("inadmissible challenges cannot be upheld")
         onchain_audit_id = record.get("onchain", {}).get("audit_id")
         if not isinstance(onchain_audit_id, int):
             raise ValueError("challenged audit is missing its on-chain audit id")
@@ -1413,7 +1828,6 @@ class AuditService:
             audit_id=onchain_audit_id,
             upheld=upheld,
         )
-        challenge = record["challenge"]
         challenge.update(
             {
                 "status": resolution_result.resolution,
@@ -1545,6 +1959,9 @@ class AuditService:
             onchain.setdefault("published_at", normalized.get("created_at"))
             onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
             onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
+            onchain["challenge_policy"] = self._normalize_challenge_policy(
+                onchain.get("challenge_policy")
+            )
             normalized["onchain"] = onchain
         challenge = normalized.get("challenge")
         if isinstance(challenge, dict):
@@ -2072,6 +2489,7 @@ class AuditService:
                 "publishTxHash": onchain.get("publish_tx_hash"),
                 "publishedAuditId": onchain.get("audit_id"),
                 "stakeWei": onchain.get("stake_wei"),
+                "challengePolicy": self._challenge_policy_for_record(record),
             },
             "service": {
                 "registrationUri": service.get("registration_uri"),
@@ -2214,6 +2632,7 @@ class AuditService:
                 "summary": report["summary"],
                 "maxSeverity": report["max_severity"],
                 "findingCount": report["finding_count"],
+                "challengePolicy": self._challenge_policy_for_record(record),
             },
             "submission": record["submission"],
             "settlement": {
@@ -2296,6 +2715,16 @@ class AuditService:
         payload = deepcopy(challenge) if isinstance(challenge, dict) else {}
         payload["evidence_type"] = str(
             payload.get("evidence_type") or "deterministic_fixture"
+        )
+        payload["policy_admissibility_status"] = (
+            str(payload.get("policy_admissibility_status"))
+            if payload.get("policy_admissibility_status") is not None
+            else None
+        )
+        payload["policy_admissibility_rationale"] = (
+            str(payload.get("policy_admissibility_rationale"))
+            if payload.get("policy_admissibility_rationale") is not None
+            else None
         )
         execution_env = payload.get("execution_env")
         payload["execution_env"] = str(execution_env) if execution_env is not None else None
@@ -2947,6 +3376,14 @@ class AuditService:
                 str(policy.get("rationale"))
                 if policy.get("rationale") is not None
                 else None
+            ),
+            "admissibility_status": (
+                str(policy.get("admissibility_status"))
+                if policy.get("admissibility_status") is not None
+                else None
+            ),
+            "effective_policy": self._normalize_challenge_policy(
+                policy.get("effective_policy")
             ),
         }
         model_metadata = payload.get("model_metadata")

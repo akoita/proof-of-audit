@@ -158,6 +158,33 @@ class AuditReportModel(BaseModel):
     severity_breakdown: dict[str, int]
 
 
+class ChallengePolicyModel(BaseModel):
+    policy_version: Literal["challenge-policy/v1"] = "challenge-policy/v1"
+    allowed_evidence_types: list[Literal["deterministic_fixture", "executable_test"]] = (
+        Field(default_factory=lambda: ["deterministic_fixture", "executable_test"])
+    )
+    min_severity_threshold: str = "info"
+    allow_informational_only: bool = True
+    requires_material_incorrectness: bool = False
+    admissibility_mode: Literal["broad", "strict"] = "broad"
+
+    @model_validator(mode="after")
+    def validate_policy_fields(self) -> "ChallengePolicyModel":
+        normalized_types = sorted({str(item) for item in self.allowed_evidence_types})
+        if not normalized_types:
+            raise ValueError("allowed_evidence_types must include at least one evidence type")
+        self.allowed_evidence_types = normalized_types
+        normalized_threshold = str(self.min_severity_threshold or "info").strip().lower()
+        if normalized_threshold == "informational":
+            normalized_threshold = "info"
+        if normalized_threshold not in {"info", "low", "medium", "high", "critical"}:
+            raise ValueError(
+                "min_severity_threshold must be one of info, low, medium, high, or critical"
+            )
+        self.min_severity_threshold = normalized_threshold
+        return self
+
+
 class OnchainPublicationModel(BaseModel):
     audit_id: int | None = None
     request_id: int | None = None
@@ -184,6 +211,7 @@ class OnchainPublicationModel(BaseModel):
     agent_id: int | None = None
     agent_registry: str | None = None
     auditor_address: str | None = None
+    challenge_policy: ChallengePolicyModel | None = None
 
 
 class ChallengeModel(BaseModel):
@@ -204,6 +232,8 @@ class ChallengeModel(BaseModel):
     verification_summary: str | None = None
     verification_detail: str | None = None
     verification_case_id: str | None = None
+    policy_admissibility_status: str | None = None
+    policy_admissibility_rationale: str | None = None
     advisory_verdict: Literal["upheld", "rejected"] | None = None
     execution_log: str | None = None
     matched_findings: list[str] = Field(default_factory=list)
@@ -338,6 +368,8 @@ class VerificationPolicyModel(BaseModel):
     abstained: bool = False
     confidence: str = "unknown"
     rationale: str | None = None
+    admissibility_status: str | None = None
+    effective_policy: ChallengePolicyModel | None = None
 
 
 class VerificationDossierModel(BaseModel):
@@ -542,6 +574,7 @@ class AuditRequestClaimModel(BaseModel):
     tx_url: str | None = None
     status: str
     target_contract: str
+    challenge_policy: ChallengePolicyModel | None = None
 
 
 class AuditRequestClaimListResponse(BaseModel):
@@ -560,6 +593,7 @@ class CreateAuditMarketplaceRequest(BaseModel):
 class SubmitAuditRequestClaimRequest(BaseModel):
     audit_id: str
     stake_wei: int = Field(..., ge=0)
+    challenge_policy: ChallengePolicyModel = Field(default_factory=ChallengePolicyModel)
 
 
 ChallengerEventKind = Literal[
@@ -693,6 +727,7 @@ class CreateAuditRequest(AuditSubmissionModel):
 class PublishAuditRequest(BaseModel):
     stake_wei: int = Field(default=10_000_000_000_000_000, ge=0)
     agent_identity: str | None = None
+    challenge_policy: ChallengePolicyModel = Field(default_factory=ChallengePolicyModel)
 
 
 EvidenceType = Literal["deterministic_fixture", "executable_test"]

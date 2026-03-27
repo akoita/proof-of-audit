@@ -36,6 +36,51 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
+    def test_publish_audit_persists_challenge_policy_and_claim_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+
+            published = service.publish_audit(
+                created["id"],
+                10**16,
+                None,
+                challenge_policy={
+                    "allowed_evidence_types": ["deterministic_fixture"],
+                    "min_severity_threshold": "medium",
+                    "allow_informational_only": False,
+                    "requires_material_incorrectness": True,
+                    "admissibility_mode": "strict",
+                },
+            )
+
+            expected_policy = {
+                "policy_version": "challenge-policy/v1",
+                "allowed_evidence_types": ["deterministic_fixture"],
+                "min_severity_threshold": "medium",
+                "allow_informational_only": False,
+                "requires_material_incorrectness": True,
+                "admissibility_mode": "strict",
+            }
+            self.assertEqual(published["onchain"]["challenge_policy"], expected_policy)
+            validation_document = service.get_validation_request_document(created["id"])
+            self.assertIsNotNone(validation_document)
+            assert validation_document is not None
+            self.assertEqual(validation_document["claim"]["challengePolicy"], expected_policy)
+            reputation_document = service.get_reputation_claim_document(created["id"])
+            self.assertIsNotNone(reputation_document)
+            assert reputation_document is not None
+            self.assertEqual(reputation_document["claim"]["challengePolicy"], expected_policy)
+
     def test_submit_audit_request_claim_binds_draft_audit_to_request(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
@@ -82,6 +127,56 @@ class AuditServiceTest(unittest.TestCase):
                     audit_id=duplicate_draft["id"],
                     stake_wei=10**16,
                 )
+
+    def test_submit_audit_request_claim_persists_challenge_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            request_record = service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                submitted_by="market-user",
+            )
+            draft = service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor",
+            )
+
+            published = service.submit_audit_request_claim(
+                request_record["request_id"],
+                audit_id=draft["id"],
+                stake_wei=10**16,
+                challenge_policy={
+                    "allowed_evidence_types": ["executable_test", "deterministic_fixture"],
+                    "min_severity_threshold": "high",
+                    "allow_informational_only": False,
+                },
+            )
+
+            self.assertEqual(
+                published["onchain"]["challenge_policy"]["min_severity_threshold"],
+                "high",
+            )
+            self.assertFalse(
+                published["onchain"]["challenge_policy"]["allow_informational_only"]
+            )
+            claims = service.list_audit_request_claims(request_record["request_id"])
+            self.assertEqual(len(claims), 1)
+            self.assertEqual(
+                claims[0]["challenge_policy"]["allowed_evidence_types"],
+                ["deterministic_fixture", "executable_test"],
+            )
+            self.assertEqual(
+                claims[0]["challenge_policy"]["min_severity_threshold"],
+                "high",
+            )
 
     def test_create_audit_request_persists_and_syncs_onchain_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -710,6 +805,212 @@ class AuditServiceTest(unittest.TestCase):
             challenged_record = onchain.contract.functions.getAudit(1).call()
             self.assertEqual(int(challenged_record[10]), 2)
             self.assertEqual(int(challenged_record[11]), 0)
+
+    def test_strict_challenge_policy_marks_plain_proof_inadmissible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000003",
+                submitted_by="judge",
+            )
+            service.publish_audit(
+                created["id"],
+                10**16,
+                "auditor-agent-v1",
+                challenge_policy={"admissibility_mode": "strict"},
+            )
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://clean-vault/missed-reentrancy",
+                challenger="whitehat",
+            )
+
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "inadmissible_policy_scope",
+            )
+            self.assertEqual(
+                challenged["challenge"]["policy_admissibility_status"],
+                "inadmissible_policy_scope",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"][
+                    "admissibility_status"
+                ],
+                "inadmissible_policy_scope",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"][
+                    "effective_policy"
+                ]["admissibility_mode"],
+                "strict",
+            )
+            with self.assertRaisesRegex(
+                ValueError, "inadmissible challenges cannot be upheld"
+            ):
+                service.resolve_audit(
+                    created["id"],
+                    upheld=True,
+                    resolved_by="arbiter-operator",
+                )
+
+            resolved = service.resolve_audit(
+                created["id"],
+                upheld=False,
+                resolved_by="arbiter-operator",
+            )
+            self.assertEqual(resolved["status"], "resolved")
+            self.assertEqual(resolved["challenge"]["status"], "rejected")
+
+    def test_disallowed_evidence_type_is_inadmissible_without_verifier(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            evidence_path = Path(tmpdir) / "ChallengeEvidence.t.sol"
+            evidence_path.write_text(
+                "contract ChallengeEvidenceTest {}\n",
+                encoding="utf-8",
+            )
+            executable_verifier = RecordingVerifier(
+                ChallengeVerificationResult(
+                    verifier="unexpected-executable-verifier",
+                    status="verified",
+                    summary="unexpected verifier run",
+                    detail="this verifier should not have been called",
+                    resolution="upheld",
+                    advisory_only=False,
+                )
+            )
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                challenge_verifiers={
+                    "deterministic_fixture": service_default_deterministic_verifier(),
+                    "executable_test": executable_verifier,
+                },
+            )
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+            service.publish_audit(
+                created["id"],
+                10**16,
+                "auditor-agent-v1",
+                challenge_policy={"allowed_evidence_types": ["deterministic_fixture"]},
+            )
+
+            challenged = service.challenge_audit(
+                created["id"],
+                evidence_path.as_uri(),
+                challenger="whitehat",
+                evidence_type="executable_test",
+                execution_env="foundry",
+                evidence_manifest={
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": onchain.contract_config.chain_id,
+                },
+            )
+
+            self.assertIsNone(executable_verifier.last_context)
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "inadmissible_evidence_type",
+            )
+            self.assertEqual(
+                challenged["challenge"]["policy_admissibility_status"],
+                "inadmissible_evidence_type",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"]["status"],
+                "rejected",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"][
+                    "admissibility_status"
+                ],
+                "inadmissible_evidence_type",
+            )
+
+    def test_severity_threshold_marks_below_threshold_challenge_inadmissible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            created_service = AuditService(
+                Path(tmpdir) / "seed",
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            seeded = created_service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+            high_severity_finding_id = seeded["report"]["findings"][0]["finding_id"]
+            verifier = RecordingVerifier(
+                ChallengeVerificationResult(
+                    verifier="deterministic-match-v1",
+                    status="verified",
+                    summary="verifier found a supported high-severity disagreement",
+                    detail="matched an existing high-severity finding",
+                    resolution="upheld",
+                    advisory_only=False,
+                    matched_findings=[high_severity_finding_id],
+                    unmatched_findings=[],
+                )
+            )
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                challenge_verifiers={"deterministic_fixture": verifier},
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+            service.publish_audit(
+                created["id"],
+                10**16,
+                "auditor-agent-v1",
+                challenge_policy={"min_severity_threshold": "critical"},
+            )
+
+            challenged = service.challenge_audit(
+                created["id"],
+                "ipfs://reentrancy-bank/withdraw-drain",
+                challenger="whitehat",
+            )
+
+            self.assertIsNotNone(verifier.last_context)
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(
+                challenged["challenge"]["verification_status"],
+                "inadmissible_severity_below_threshold",
+            )
+            self.assertEqual(
+                challenged["challenge"]["policy_admissibility_status"],
+                "inadmissible_severity_below_threshold",
+            )
+            self.assertEqual(
+                challenged["challenge"]["verification_dossier"]["policy"][
+                    "admissibility_status"
+                ],
+                "inadmissible_severity_below_threshold",
+            )
+            self.assertEqual(challenged["challenge"]["status"], "opened")
+            self.assertIsNone(challenged["challenge"].get("resolution"))
 
     def test_manual_resolution_still_records_rejected_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
