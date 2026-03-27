@@ -1130,6 +1130,9 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(payload["service_id"], "proof-of-audit-auditor")
         self.assertEqual(payload["reputation"]["score"], 50)
         self.assertEqual(payload["reputation"]["band"], "provisional")
+        self.assertEqual(payload["reputation"]["challenge_openness_score"], 50)
+        self.assertEqual(payload["reputation"]["challenge_accuracy_score"], 50)
+        self.assertEqual(payload["reputation"]["inadmissible_challenge_count"], 0)
 
     def test_fixtures_endpoint_returns_generated_manifest(self) -> None:
         response = self.client.get("/fixtures")
@@ -1301,6 +1304,12 @@ class AuditApiAppTest(unittest.TestCase):
             reputation_summary = client.get("/auditor/reputation")
             self.assertEqual(reputation_summary.status_code, 200)
             self.assertEqual(reputation_summary.json()["reputation"]["score"], 100)
+            self.assertEqual(
+                reputation_summary.json()["reputation"]["challenge_openness_score"], 100
+            )
+            self.assertEqual(
+                reputation_summary.json()["reputation"]["challenge_accuracy_score"], 100
+            )
 
     def test_validation_error_is_structured(self) -> None:
         response = self.client.post("/audits", json={"submitted_by": "missing-address"})

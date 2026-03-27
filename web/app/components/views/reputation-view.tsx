@@ -23,6 +23,10 @@ export function ReputationView({ config, audits, auditorService }: ReputationVie
   const lastClaimAt = audits[0]?.created_at ?? null;
   const trustScore = reputation?.score ?? null;
   const trustBand = reputation?.band ?? null;
+  const opennessScore = reputation?.challenge_openness_score ?? null;
+  const opennessBand = reputation?.challenge_openness_band ?? null;
+  const accuracyScore = reputation?.challenge_accuracy_score ?? null;
+  const accuracyBand = reputation?.challenge_accuracy_band ?? null;
   const circumference = 2 * Math.PI * 42;
   const dashArray =
     trustScore === null ? `0 ${circumference}` : `${(trustScore / 100) * circumference} ${circumference}`;
@@ -138,12 +142,12 @@ export function ReputationView({ config, audits, auditorService }: ReputationVie
         <div className="stat-card">
           <div className="stat-big-value">
             {reputation
-              ? `${reputation.challenge_rejected_count}/${reputation.resolved_challenge_count}`
+              ? `${reputation.admissible_challenge_rejected_count}/${reputation.admissible_resolved_challenge_count}`
               : `${resolvedCount}`}
           </div>
           <div className="stat-big-label">DISPUTE RESOLUTION</div>
           <div className="muted" style={{ fontSize: "0.6rem", marginTop: 4 }}>
-            {reputation ? "Rejected / total resolved challenges" : "Historical challenge data unavailable"}
+            {reputation ? "Rejected / admissible resolved challenges" : "Historical challenge data unavailable"}
           </div>
         </div>
       </div>
@@ -181,9 +185,40 @@ export function ReputationView({ config, audits, auditorService }: ReputationVie
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: 6 }}>
+                <span className="section-label">OPENNESS SCORE</span>
+                <span style={{ color: "var(--secondary)", fontWeight: 600 }}>
+                  {opennessScore !== null
+                    ? `${opennessScore}/100 ${titleCase(opennessBand ?? "provisional")}`
+                    : "Unavailable"}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: 6 }}>
+                <span className="section-label">ACCURACY SCORE</span>
+                <span style={{ color: "var(--primary)", fontWeight: 600 }}>
+                  {accuracyScore !== null
+                    ? `${accuracyScore}/100 ${titleCase(accuracyBand ?? "provisional")}`
+                    : "Unavailable"}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: 6 }}>
                 <span className="section-label">REPUTATION BAND</span>
                 <span style={{ color: "var(--secondary)", fontWeight: 600 }}>
                   {trustBand ? titleCase(trustBand) : "Unavailable"}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: 6 }}>
+                <span className="section-label">INADMISSIBLE CHALLENGES</span>
+                <span style={{ color: "var(--tertiary)", fontWeight: 600 }}>
+                  {reputation?.inadmissible_challenge_count ?? "Unavailable"}
                 </span>
               </div>
             </div>
@@ -199,6 +234,12 @@ export function ReputationView({ config, audits, auditorService }: ReputationVie
 
             <p className="muted" style={{ fontSize: "0.7rem", marginTop: 20, lineHeight: 1.6 }}>
               {reputation?.formula ?? "The backend did not provide a published reputation formula for this deployment."}
+            </p>
+            <p className="muted" style={{ fontSize: "0.7rem", marginTop: 12, lineHeight: 1.6 }}>
+              {reputation?.challenge_openness_formula ?? "The backend did not provide an openness formula for this deployment."}
+            </p>
+            <p className="muted" style={{ fontSize: "0.7rem", marginTop: 12, lineHeight: 1.6 }}>
+              {reputation?.challenge_accuracy_formula ?? "The backend did not provide an accuracy formula for this deployment."}
             </p>
           </div>
         </div>

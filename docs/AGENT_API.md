@@ -239,9 +239,10 @@ can inspect the admissibility scope without reinterpreting prose.
 
 Discovery records now include a `reputation` block with:
 
-- a neutral `50/100` score when there are no resolved challenges
-- otherwise `round(100 * challenge_rejected_count / resolved_challenge_count)`
-- the raw counts used to compute that score
+- a backward-compatible aggregate `score`
+- separate `challenge_openness_score` and `challenge_accuracy_score`
+- explicit admissible-vs-inadmissible challenge counters
+- formula metadata for the aggregate, openness, and accuracy calculations
 - when configured, on-chain reputation registry metadata and cumulative staked value
 
 You can also read the current summary directly:

@@ -76,9 +76,18 @@ export type VerificationDossier = {
 export type AuditorReputation = {
   score: number;
   band: "provisional" | "trusted" | "mixed" | "contested";
+  challenge_openness_score: number;
+  challenge_openness_band: "provisional" | "open" | "balanced" | "restrictive";
+  challenge_accuracy_score: number;
+  challenge_accuracy_band: "provisional" | "strong" | "mixed" | "weak";
+  policy_openness_weight: number;
   resolved_challenge_count: number;
   challenge_rejected_count: number;
   challenge_upheld_count: number;
+  admissible_resolved_challenge_count: number;
+  admissible_challenge_rejected_count: number;
+  admissible_challenge_upheld_count: number;
+  inadmissible_challenge_count: number;
   open_challenge_count: number;
   published_claim_count: number;
   draft_claim_count: number;
@@ -89,6 +98,8 @@ export type AuditorReputation = {
   total_stake_wei?: number | null;
   last_update?: number | null;
   formula: string;
+  challenge_openness_formula: string;
+  challenge_accuracy_formula: string;
 };
 
 export type AuditorProfile = {

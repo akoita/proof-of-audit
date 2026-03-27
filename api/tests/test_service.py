@@ -530,9 +530,65 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(reputation["resolved_challenge_count"], 2)
             self.assertEqual(reputation["challenge_rejected_count"], 1)
             self.assertEqual(reputation["challenge_upheld_count"], 1)
-            self.assertEqual(reputation["score"], 50)
+            self.assertEqual(reputation["admissible_resolved_challenge_count"], 2)
+            self.assertEqual(reputation["admissible_challenge_rejected_count"], 1)
+            self.assertEqual(reputation["admissible_challenge_upheld_count"], 1)
+            self.assertEqual(reputation["inadmissible_challenge_count"], 0)
+            self.assertEqual(reputation["challenge_openness_score"], 100)
+            self.assertEqual(reputation["challenge_openness_band"], "open")
+            self.assertEqual(reputation["challenge_accuracy_score"], 50)
+            self.assertEqual(reputation["challenge_accuracy_band"], "mixed")
+            self.assertEqual(reputation["score"], 68)
             self.assertEqual(reputation["band"], "mixed")
-            self.assertIn("round(100 * challenge_rejected_count", reputation["formula"])
+            self.assertIn("challenge_openness_score", reputation["formula"])
+            self.assertIn(
+                "admissible_challenge_rejected_count",
+                reputation["challenge_accuracy_formula"],
+            )
+
+    def test_inadmissible_challenges_are_tracked_separately_from_accuracy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                "0x1000000000000000000000000000000000000001",
+                submitted_by="judge",
+            )
+            service.publish_audit(
+                created["id"],
+                10**16,
+                None,
+                challenge_policy={"admissibility_mode": "strict"},
+            )
+            service.challenge_audit(
+                created["id"],
+                "ipfs://reentrancy-bank/withdraw-drain",
+                challenger="whitehat",
+            )
+            service.resolve_audit(
+                created["id"],
+                upheld=False,
+                resolved_by="arbiter-operator",
+            )
+
+            reputation = service.list_audits()[0]["agent"]["reputation"]
+
+            self.assertEqual(reputation["resolved_challenge_count"], 1)
+            self.assertEqual(reputation["challenge_rejected_count"], 1)
+            self.assertEqual(reputation["inadmissible_challenge_count"], 1)
+            self.assertEqual(reputation["admissible_resolved_challenge_count"], 0)
+            self.assertEqual(reputation["admissible_challenge_rejected_count"], 0)
+            self.assertEqual(reputation["challenge_accuracy_score"], 50)
+            self.assertEqual(reputation["challenge_accuracy_band"], "provisional")
+            self.assertEqual(reputation["challenge_openness_score"], 91)
+            self.assertEqual(reputation["challenge_openness_band"], "open")
+            self.assertEqual(reputation["score"], 64)
+            self.assertEqual(reputation["band"], "mixed")
 
     def test_create_publish_and_challenge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
