@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerificationResult,
@@ -610,6 +611,15 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(created["agent"]["id"], "proof-of-audit-auditor")
             self.assertEqual(created["report"]["benchmark_id"], "unknown")
             self.assertEqual(created["report"]["finding_count"], 0)
+            self.assertIsInstance(created["submission"]["snapshot_block_number"], int)
+            self.assertTrue(
+                str(created["submission"]["snapshot_block_hash"]).startswith("0x")
+            )
+            self.assertTrue(
+                str(created["submission"]["target_code_hash_at_snapshot"]).startswith(
+                    "0x"
+                )
+            )
 
             published = service.publish_audit(created["id"], 10**16, None)
             self.assertEqual(published["status"], "published")
@@ -622,6 +632,18 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 published["onchain"]["contract_address"],
                 onchain.contract_config.contract_address,
+            )
+            self.assertEqual(
+                published["onchain"]["snapshot_block_number"],
+                created["submission"]["snapshot_block_number"],
+            )
+            self.assertEqual(
+                published["onchain"]["snapshot_block_hash"],
+                created["submission"]["snapshot_block_hash"],
+            )
+            self.assertEqual(
+                published["onchain"]["target_code_hash_at_snapshot"],
+                created["submission"]["target_code_hash_at_snapshot"],
             )
             self.assertTrue(
                 published["onchain"]["publish_tx_url"].startswith(
@@ -668,6 +690,28 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 onchain.web3.to_hex(reputation_claims[0]),
                 published["reputation_trail"]["claim_hash"],
+            )
+            validation_document = service.get_validation_request_document(created["id"])
+            self.assertIsNotNone(validation_document)
+            assert validation_document is not None
+            self.assertEqual(
+                validation_document["claim"]["snapshotBlockNumber"],
+                created["submission"]["snapshot_block_number"],
+            )
+            self.assertEqual(
+                validation_document["claim"]["snapshotBlockHash"],
+                created["submission"]["snapshot_block_hash"],
+            )
+            reputation_document = service.get_reputation_claim_document(created["id"])
+            self.assertIsNotNone(reputation_document)
+            assert reputation_document is not None
+            self.assertEqual(
+                reputation_document["claim"]["snapshotBlockNumber"],
+                created["submission"]["snapshot_block_number"],
+            )
+            self.assertEqual(
+                reputation_document["claim"]["targetCodeHashAtSnapshot"],
+                created["submission"]["target_code_hash_at_snapshot"],
             )
 
             challenged = service.challenge_audit(
@@ -1268,7 +1312,6 @@ class AuditServiceTest(unittest.TestCase):
                     "execution_env": "foundry",
                     "entrypoint": "ChallengeEvidence.t.sol",
                     "target_chain_id": onchain.contract_config.chain_id,
-                    "pinned_block_number": 42,
                 },
             )
 
@@ -1314,7 +1357,7 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(hydrated["challenge"]["execution_env"], "foundry")
             self.assertEqual(
                 hydrated["challenge"]["evidence_manifest"]["pinned_block_number"],
-                42,
+                created["submission"]["snapshot_block_number"],
             )
             self.assertEqual(
                 hydrated["challenge"]["evidence_hash"],
@@ -1362,6 +1405,76 @@ class AuditServiceTest(unittest.TestCase):
                 executable_verifier.last_context.committed_evidence_hash,
                 challenged["challenge"]["evidence_hash"],
             )
+            self.assertEqual(
+                executable_verifier.last_context.snapshot_block_number,
+                created["submission"]["snapshot_block_number"],
+            )
+
+    def test_publish_rejects_deployed_address_code_drift_after_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+
+            with patch.object(
+                service,
+                "_capture_deployed_address_snapshot",
+                return_value={
+                    "snapshot_block_number": created["submission"]["snapshot_block_number"],
+                    "snapshot_block_hash": created["submission"]["snapshot_block_hash"],
+                    "target_code_hash_at_snapshot": "0x" + "12" * 32,
+                },
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "target code changed since audit start",
+                ):
+                    service.publish_audit(created["id"], 10**16, None)
+
+    def test_executable_challenge_rejects_conflicting_snapshot_block(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+            service.publish_audit(created["id"], 10**16, None)
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "executable challenge evidence must use the audit snapshot block",
+            ):
+                service.challenge_audit(
+                    created["id"],
+                    "file:///tmp/ChallengeEvidence.t.sol",
+                    challenger="whitehat",
+                    evidence_type="executable_test",
+                    execution_env="foundry",
+                    evidence_manifest={
+                        "bundle_format": "proof-of-audit-executable-evidence/v1",
+                        "execution_env": "foundry",
+                        "entrypoint": "ChallengeEvidence.t.sol",
+                        "target_chain_id": onchain.contract_config.chain_id,
+                        "pinned_block_number": created["submission"][
+                            "snapshot_block_number"
+                        ]
+                        + 1,
+                    },
+                )
 
     def test_executable_evidence_requires_deployed_address_audit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

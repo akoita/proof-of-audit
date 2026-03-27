@@ -2101,7 +2101,17 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             },
         )
         self.assertEqual(created.status_code, 201)
-        audit_id = created.json()["id"]
+        created_payload = created.json()
+        self.assertIsInstance(created_payload["submission"]["snapshot_block_number"], int)
+        self.assertTrue(
+            created_payload["submission"]["snapshot_block_hash"].startswith("0x")
+        )
+        self.assertTrue(
+            created_payload["submission"]["target_code_hash_at_snapshot"].startswith(
+                "0x"
+            )
+        )
+        audit_id = created_payload["id"]
 
         published = self.client.post(
             f"/audits/{audit_id}/publish",
@@ -2121,6 +2131,18 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertTrue(payload["onchain"]["publish_tx_hash"].startswith("0x"))
         self.assertEqual(payload["onchain"]["stake_wei"], 10**16)
         self.assertEqual(payload["onchain"]["chain_id"], self.chain_id)
+        self.assertEqual(
+            payload["onchain"]["snapshot_block_number"],
+            created_payload["submission"]["snapshot_block_number"],
+        )
+        self.assertEqual(
+            payload["onchain"]["snapshot_block_hash"],
+            created_payload["submission"]["snapshot_block_hash"],
+        )
+        self.assertEqual(
+            payload["onchain"]["target_code_hash_at_snapshot"],
+            created_payload["submission"]["target_code_hash_at_snapshot"],
+        )
 
         challenged = self.client.post(
             f"/audits/{audit_id}/challenge",
@@ -2152,6 +2174,40 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         audit_record = self.onchain.contract.functions.getAudit(1).call()
         self.assertEqual(int(audit_record[10]), 2)
         self.assertEqual(int(audit_record[11]), 0)
+
+    def test_publish_rejects_snapshot_code_drift(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        created_payload = created.json()
+        audit_id = created_payload["id"]
+        service = self.client.app.state.audit_service
+
+        with patch.object(
+            service,
+            "_capture_deployed_address_snapshot",
+            return_value={
+                "snapshot_block_number": created_payload["submission"][
+                    "snapshot_block_number"
+                ],
+                "snapshot_block_hash": created_payload["submission"][
+                    "snapshot_block_hash"
+                ],
+                "target_code_hash_at_snapshot": "0x" + "34" * 32,
+            },
+        ):
+            published = self.client.post(
+                f"/audits/{audit_id}/publish",
+                json={"stake_wei": 10**16},
+            )
+
+        self.assertEqual(published.status_code, 400)
+        self.assertEqual(published.json()["error"], "invalid_payload")
 
     def test_publish_round_trips_challenge_policy_and_blocks_upheld_resolution(self) -> None:
         created = self.client.post(
@@ -2404,7 +2460,6 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
                     "execution_env": "foundry",
                     "entrypoint": "ChallengeEvidence.t.sol",
                     "target_chain_id": self.chain_id,
-                    "pinned_block_number": 42,
                 },
                 "challenger": "whitehat-demo",
             },
@@ -2454,7 +2509,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         self.assertEqual(fetched_payload["challenge"]["execution_env"], "foundry")
         self.assertEqual(
             fetched_payload["challenge"]["evidence_manifest"]["pinned_block_number"],
-            42,
+            created.json()["submission"]["snapshot_block_number"],
         )
         self.assertEqual(
             fetched_payload["challenge"]["verification_dossier"]["comparison"]["matched_finding_ids"],
@@ -2467,6 +2522,50 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             recording_verifier.last_context.committed_evidence_hash,
             payload["challenge"]["evidence_hash"],
         )
+        self.assertEqual(
+            recording_verifier.last_context.snapshot_block_number,
+            created.json()["submission"]["snapshot_block_number"],
+        )
+
+    def test_executable_challenge_rejects_conflicting_snapshot_block(self) -> None:
+        created = self.client.post(
+            "/audits",
+            json={
+                "contract_address": self.target_address,
+                "submitted_by": "integration-test",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        created_payload = created.json()
+        audit_id = created_payload["id"]
+
+        published = self.client.post(
+            f"/audits/{audit_id}/publish",
+            json={"stake_wei": 10**16},
+        )
+        self.assertEqual(published.status_code, 200)
+
+        challenged = self.client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "file:///tmp/ChallengeEvidence.t.sol",
+                "evidence_type": "executable_test",
+                "execution_env": "foundry",
+                "evidence_manifest": {
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": self.chain_id,
+                    "pinned_block_number": created_payload["submission"][
+                        "snapshot_block_number"
+                    ]
+                    + 1,
+                },
+                "challenger": "whitehat-demo",
+            },
+        )
+        self.assertEqual(challenged.status_code, 400)
+        self.assertEqual(challenged.json()["error"], "invalid_payload")
 
     def test_deterministic_evidence_rejects_execution_env_payload(self) -> None:
         created = self.client.post(

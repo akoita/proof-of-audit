@@ -79,6 +79,46 @@ def test_runner_uses_manifest_pinned_block_number() -> None:
         assert command[block_index + 1] == "424242"
 
 
+def test_runner_uses_context_snapshot_block_when_manifest_omits_it() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        source_path = Path(tmpdir) / "ChallengeEvidence.t.sol"
+        source_path.write_text("contract ChallengeEvidenceTest {}", encoding="utf-8")
+        captured: dict[str, object] = {}
+
+        def executor(command, **kwargs):  # type: ignore[no-untyped-def]
+            captured["command"] = command
+            captured["kwargs"] = kwargs
+            return subprocess.CompletedProcess(command, 0, "ok", "")
+
+        runner = ExecutableEvidenceRunner(executor=executor)
+
+        result = runner.run(
+            EvidenceContext(
+                proof_uri=source_path.as_uri(),
+                benchmark_id=None,
+                target_contract="0x1000000000000000000000000000000000000001",
+                published_report={},
+                evidence_type="executable_test",
+                execution_env="foundry",
+                evidence_manifest={
+                    "bundle_format": "proof-of-audit-executable-evidence/v1",
+                    "execution_env": "foundry",
+                    "entrypoint": "ChallengeEvidence.t.sol",
+                    "target_chain_id": 31337,
+                },
+                chain_id=31337,
+                rpc_url="http://127.0.0.1:8545",
+                snapshot_block_number=515151,
+            )
+        )
+
+        assert result.outcome == "passed"
+        command = captured["command"]
+        assert "--fork-block-number" in command
+        block_index = command.index("--fork-block-number")
+        assert command[block_index + 1] == "515151"
+
+
 def test_runner_fetches_ipfs_evidence_before_execution() -> None:
     captured: dict[str, object] = {}
     payload = b"contract ChallengeEvidenceTest {}\n"
