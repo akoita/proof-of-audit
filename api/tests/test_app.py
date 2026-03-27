@@ -885,6 +885,62 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertTrue(eligibility.json()["eligible"])
         self.assertEqual(eligibility.json()["minimum_stake_wei"], 0)
 
+    def test_request_claim_endpoint_submits_draft_and_lists_request_claims(self) -> None:
+        onchain = build_onchain_test_context()
+        service = AuditService(
+            Path(self.tempdir.name) / "request-claim-endpoint-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        created_request = client.post(
+            "/requests",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "response_window_seconds": 3600,
+                "filters": {},
+            },
+        )
+        self.assertEqual(created_request.status_code, 201)
+        request_id = created_request.json()["request_id"]
+
+        draft = client.post(
+            "/audits",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "submitted_by": "market-auditor",
+            },
+        )
+        self.assertEqual(draft.status_code, 201)
+        audit_id = draft.json()["id"]
+
+        claimed = client.post(
+            f"/requests/{request_id}/claims",
+            json={
+                "audit_id": audit_id,
+                "stake_wei": 10**16,
+            },
+        )
+        self.assertEqual(claimed.status_code, 200)
+        claimed_payload = claimed.json()
+        self.assertEqual(claimed_payload["status"], "published")
+        self.assertEqual(claimed_payload["onchain"]["request_claim_id"], 1)
+        self.assertEqual(claimed_payload["onchain"]["claim_state"], "submitted")
+
+        claims = client.get(f"/requests/{request_id}/claims")
+        self.assertEqual(claims.status_code, 200)
+        claims_payload = claims.json()
+        self.assertEqual(len(claims_payload["items"]), 1)
+        self.assertEqual(claims_payload["items"][0]["claim_id"], "1")
+        self.assertEqual(claims_payload["items"][0]["audit_id"], audit_id)
+        self.assertEqual(
+            claims_payload["items"][0]["auditor_service_id"],
+            "proof-of-audit-auditor",
+        )
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")
 

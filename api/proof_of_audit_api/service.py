@@ -376,6 +376,100 @@ class AuditService:
             None,
         )
 
+    def submit_audit_request_claim(
+        self,
+        request_id: str,
+        *,
+        audit_id: str,
+        stake_wei: int,
+    ) -> dict[str, Any]:
+        request_record = self.get_audit_request(request_id)
+        if request_record is None:
+            raise KeyError(request_id)
+        record = self._require_audit(audit_id)
+        if record["status"] != "draft":
+            raise ValueError("audit must be in draft status before request claim submission")
+        if self.publisher is None:
+            raise OnchainConfigurationError(
+                "On-chain request claim submission is not configured for this API instance."
+            )
+        if record["contract_address"] != request_record["contract_address"]:
+            raise ValueError("audit target must match the audit request target")
+
+        service = self._record_auditor_service(record)
+        agent = self._record_agent_profile(record)
+        agent_id = service.get("agent_id")
+        agent_registry = service.get("agent_registry")
+        if not isinstance(agent_id, int) or not agent_registry:
+            raise ValueError(
+                "auditor service is missing the canonical on-chain identity required for request claims"
+            )
+
+        report = record["report"]
+        claim_result = self.publisher.submit_audit_request_claim(
+            request_id=int(request_record["request_id"]),
+            agent_registry=str(agent_registry),
+            agent_id=int(agent_id),
+            report_hash=str(report["report_hash"]),
+            metadata_hash=str(report["metadata_hash"]),
+            max_severity=int(report["max_severity"]),
+            finding_count=int(report["finding_count"]),
+            stake_wei=stake_wei,
+        )
+        onchain_claim = self.publisher.get_audit_request_claim(claim_result.claim_id)
+        updated_record = deepcopy(record)
+        updated_record["status"] = "published"
+        updated_record["onchain"] = {
+            "request_id": claim_result.request_id,
+            "request_claim_id": claim_result.claim_id,
+            "publication_mode": "audit_request_claim",
+            "claim_state": onchain_claim.state,
+            "claim_tx_hash": claim_result.tx_hash,
+            "claim_tx_url": self.contract_config.transaction_url(claim_result.tx_hash),
+            "publish_tx_hash": claim_result.tx_hash,
+            "publish_tx_url": self.contract_config.transaction_url(claim_result.tx_hash),
+            "published_at": self._isoformat_unix_timestamp(onchain_claim.submitted_at),
+            "network": self.contract_config.network,
+            "chain_id": claim_result.chain_id,
+            "contract_address": self.contract_config.contract_address,
+            "explorer_base_url": self.contract_config.explorer_base_url,
+            "agent_identity": str(agent.get("id") or self.contract_config.auditor.id),
+            "agent_name": str(agent.get("name") or self.contract_config.auditor.name),
+            "agent_version": str(
+                agent.get("version") or self.contract_config.auditor.version
+            ),
+            "stake_wei": onchain_claim.stake_wei,
+            "report_hash": report["report_hash"],
+            "metadata_hash": report["metadata_hash"],
+            "max_severity": int(report["max_severity"]),
+            "finding_count": int(report["finding_count"]),
+            "agent_id": onchain_claim.agent_id,
+            "agent_registry": onchain_claim.agent_registry.lower(),
+            "auditor_address": onchain_claim.auditor_address.lower(),
+        }
+        self.store.write(audit_id, updated_record)
+        return self.get_audit(audit_id) or updated_record
+
+    def list_audit_request_claims(self, request_id: str) -> list[dict[str, Any]]:
+        request_record = self.get_audit_request(request_id)
+        if request_record is None:
+            raise KeyError(request_id)
+
+        items: list[dict[str, Any]] = []
+        for record in self._all_normalized_records():
+            onchain = record.get("onchain")
+            if not isinstance(onchain, dict):
+                continue
+            if str(onchain.get("request_id") or "") != str(request_record["request_id"]):
+                continue
+            items.append(self._build_audit_request_claim_payload(record))
+
+        return sorted(
+            items,
+            key=lambda item: str(item.get("submitted_at") or ""),
+            reverse=True,
+        )
+
     def list_audit_requests(self, status: str | None = None) -> list[dict[str, Any]]:
         normalized_status = str(status or "").strip().lower() or None
         items = self._all_normalized_audit_requests()
@@ -613,6 +707,75 @@ class AuditService:
         metadata["onchain_eligibility"] = onchain_request.eligibility
         synced["metadata"] = metadata
         return synced
+
+    def _build_audit_request_claim_payload(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        onchain = deepcopy(record.get("onchain")) if isinstance(record.get("onchain"), dict) else {}
+        request_claim_id = onchain.get("request_claim_id")
+        if self.publisher is not None and request_claim_id is not None:
+            try:
+                onchain_claim = self.publisher.get_audit_request_claim(int(request_claim_id))
+            except Exception:
+                onchain_claim = None
+            else:
+                onchain["claim_state"] = onchain_claim.state
+                onchain["published_at"] = self._isoformat_unix_timestamp(
+                    onchain_claim.submitted_at
+                )
+                onchain["stake_wei"] = onchain_claim.stake_wei
+                onchain["agent_id"] = onchain_claim.agent_id
+                onchain["agent_registry"] = onchain_claim.agent_registry.lower()
+                onchain["auditor_address"] = onchain_claim.auditor_address.lower()
+
+        service = self._record_auditor_service(record)
+        report = record["report"]
+        return {
+            "claim_id": str(onchain.get("request_claim_id") or ""),
+            "request_id": str(onchain.get("request_id") or ""),
+            "audit_id": record["id"],
+            "claim_state": str(onchain.get("claim_state") or "submitted"),
+            "auditor_service_id": str(service.get("service_id") or ""),
+            "agent_id": (
+                int(onchain["agent_id"])
+                if onchain.get("agent_id") is not None
+                else (int(service["agent_id"]) if service.get("agent_id") is not None else None)
+            ),
+            "agent_registry": (
+                str(onchain.get("agent_registry"))
+                if onchain.get("agent_registry") is not None
+                else (
+                    str(service["agent_registry"])
+                    if service.get("agent_registry") is not None
+                    else None
+                )
+            ),
+            "auditor_address": (
+                str(onchain.get("auditor_address"))
+                if onchain.get("auditor_address") is not None
+                else None
+            ),
+            "stake_wei": int(onchain.get("stake_wei") or 0),
+            "submitted_at": (
+                str(onchain.get("published_at"))
+                if onchain.get("published_at") is not None
+                else None
+            ),
+            "report_hash": str(report.get("report_hash") or ""),
+            "metadata_hash": str(report.get("metadata_hash") or ""),
+            "max_severity": int(report.get("max_severity") or 0),
+            "finding_count": int(report.get("finding_count") or len(report.get("findings") or [])),
+            "tx_hash": (
+                str(onchain.get("claim_tx_hash") or onchain.get("publish_tx_hash") or "")
+                or None
+            ),
+            "tx_url": (
+                str(onchain.get("claim_tx_url") or onchain.get("publish_tx_url") or "")
+                or None
+            ),
+            "status": str(record.get("status") or "draft"),
+            "target_contract": record["contract_address"],
+        }
 
     def _upsert_audit_request_record(self, record: dict[str, Any]) -> None:
         path = self._audit_request_catalog_path()

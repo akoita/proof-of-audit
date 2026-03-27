@@ -6,6 +6,31 @@ from helpers import build_onchain_test_context
 
 
 class PublishVerificationRetryTest(unittest.TestCase):
+    def test_submit_audit_request_claim_returns_claim_metadata(self) -> None:
+        onchain = build_onchain_test_context()
+        created = onchain.publisher.create_audit_request(
+            target_address=onchain.web3.eth.accounts[3],
+            bounty_wei=2 * 10**17,
+            response_window_seconds=3600,
+        )
+
+        claim = onchain.publisher.submit_audit_request_claim(
+            request_id=created.request_id,
+            agent_registry=onchain.contract_config.auditor_agent_registry or "",
+            agent_id=onchain.contract_config.auditor_agent_id or 0,
+            report_hash="0x" + "11" * 32,
+            metadata_hash="0x" + "22" * 32,
+            max_severity=3,
+            finding_count=1,
+            stake_wei=10**16,
+        )
+
+        self.assertEqual(claim.request_id, created.request_id)
+        self.assertEqual(claim.claim_id, 1)
+        onchain_claim = onchain.publisher.get_audit_request_claim(claim.claim_id)
+        self.assertEqual(onchain_claim.state, "submitted")
+        self.assertEqual(onchain_claim.agent_id, onchain.contract_config.auditor_agent_id)
+
     def test_verify_published_record_retries_until_chain_state_catches_up(self) -> None:
         publisher = build_onchain_test_context().publisher
 

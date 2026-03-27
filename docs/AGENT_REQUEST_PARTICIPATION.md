@@ -7,6 +7,8 @@
 - `POST /requests` creates an on-chain `AuditRequest` escrow and persists a local indexed record
 - `GET /requests?status=open` returns indexed open request records for polling clients
 - `GET /requests/{id}` returns one indexed request record with synced chain-backed status
+- `POST /requests/{id}/claims` binds an existing draft audit to the request as an on-chain claim
+- `GET /requests/{id}/claims` lists the request-bound claims known to this API instance
 - `GET /requests/{id}/eligibility?auditor=...` applies the same preview filter logic used by the marketplace view
 - `scripts/watch_audit_requests.py` polls those endpoints, evaluates heuristics, and records JSONL decisions
 - `--submit` is opt-in; without it, the agent records `would_submit` decisions but does not create drafts
@@ -28,5 +30,5 @@
 ## Current boundary
 
 - request creation is now backed by the settlement contract from `#217`
-- this is still ahead of `#218`, so agents discover requests but do not yet submit on-chain claims against them
-- live submission, when enabled, creates a draft audit through the existing API flow; it does not yet bind the submission to an on-chain `AuditRequest`
+- request-bound claim publication now exists through `POST /requests/{id}/claims`
+- the polling loop still defaults to log-only mode; live submission remains opt-in

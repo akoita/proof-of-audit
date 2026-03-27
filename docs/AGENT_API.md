@@ -52,6 +52,11 @@ For marketplace-style participation loops, the service also exposes:
 - `GET /requests/{id}`
   - returns one indexed request record
   - re-syncs chain-backed request state when on-chain access is configured
+- `POST /requests/{id}/claims`
+  - submits an existing draft audit as a request-bound on-chain claim
+  - uses the auditor service's canonical `(agentRegistry, agentId)` identity
+- `GET /requests/{id}/claims`
+  - lists request-bound claims indexed by this API instance
 - `GET /requests/{id}/eligibility?auditor=<service-id>`
   - evaluates one auditor against the request filters before the agent spends capacity on a claim
 
@@ -183,6 +188,26 @@ Returns:
 - response-window metadata
 - tx hash and explorer URL
 - the indexed request filters used by polling clients
+
+### Submit a request-bound claim
+
+`POST /requests/{id}/claims`
+
+Example:
+
+```json
+{
+  "audit_id": "draft-audit-id",
+  "stake_wei": 10000000000000000
+}
+```
+
+This path:
+
+- reuses an existing draft audit record
+- publishes its hashes into the request-bound claim path
+- enforces one claim per canonical auditor identity per request
+- preserves the legacy `POST /audits/{id}/publish` path for non-marketplace publication
 
 ## Reputation
 

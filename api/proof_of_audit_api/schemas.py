@@ -160,6 +160,10 @@ class AuditReportModel(BaseModel):
 
 class OnchainPublicationModel(BaseModel):
     audit_id: int | None = None
+    request_id: int | None = None
+    request_claim_id: int | None = None
+    publication_mode: str | None = None
+    claim_state: str | None = None
     published_at: str | None = None
     network: str
     chain_id: int
@@ -175,6 +179,11 @@ class OnchainPublicationModel(BaseModel):
     finding_count: int
     publish_tx_hash: str
     publish_tx_url: str | None = None
+    claim_tx_hash: str | None = None
+    claim_tx_url: str | None = None
+    agent_id: int | None = None
+    agent_registry: str | None = None
+    auditor_address: str | None = None
 
 
 class ChallengeModel(BaseModel):
@@ -514,6 +523,31 @@ class AuditRequestEligibilityResponse(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class AuditRequestClaimModel(BaseModel):
+    claim_id: str
+    request_id: str
+    audit_id: str
+    claim_state: str
+    auditor_service_id: str
+    agent_id: int | None = None
+    agent_registry: str | None = None
+    auditor_address: str | None = None
+    stake_wei: int
+    submitted_at: str | None = None
+    report_hash: str
+    metadata_hash: str
+    max_severity: int
+    finding_count: int
+    tx_hash: str | None = None
+    tx_url: str | None = None
+    status: str
+    target_contract: str
+
+
+class AuditRequestClaimListResponse(BaseModel):
+    items: list[AuditRequestClaimModel]
+
+
 class CreateAuditMarketplaceRequest(BaseModel):
     contract_address: str
     bounty_wei: int = Field(..., gt=0)
@@ -521,6 +555,11 @@ class CreateAuditMarketplaceRequest(BaseModel):
     filters: MarketplacePreviewFiltersModel = Field(
         default_factory=MarketplacePreviewFiltersModel
     )
+
+
+class SubmitAuditRequestClaimRequest(BaseModel):
+    audit_id: str
+    stake_wei: int = Field(..., ge=0)
 
 
 ChallengerEventKind = Literal[

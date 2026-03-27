@@ -23,6 +23,7 @@ from proof_of_audit_api.publisher import (
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRequestEligibilityResponse,
+    AuditRequestClaimListResponse,
     AuditRequestListResponse,
     AuditRequestRecordModel,
     AuditRecordModel,
@@ -44,6 +45,7 @@ from proof_of_audit_api.schemas import (
     ResolveAuditRequest,
     SourceBundleUploadRequest,
     SourceBundleUploadResponse,
+    SubmitAuditRequestClaimRequest,
     TargetComparisonResponse,
     TargetAuditClaimsResponse,
     VerificationDossierModel,
@@ -361,6 +363,69 @@ def create_app(
                 detail={"error": "request_not_found"},
             )
         return AuditRequestRecordModel.model_validate(payload)
+
+    @app.get(
+        "/requests/{request_id}/claims",
+        response_model=AuditRequestClaimListResponse,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def list_request_claims(
+        request_id: str,
+        request: Request,
+    ) -> AuditRequestClaimListResponse:
+        service = _service(request)
+        try:
+            items = service.list_audit_request_claims(request_id)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "request_not_found"},
+            ) from None
+        return AuditRequestClaimListResponse(items=items)
+
+    @app.post(
+        "/requests/{request_id}/claims",
+        response_model=AuditRecordModel,
+        responses={
+            status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
+            status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
+        },
+    )
+    def submit_request_claim(
+        request_id: str,
+        payload: SubmitAuditRequestClaimRequest,
+        request: Request,
+    ) -> AuditRecordModel:
+        service = _service(request)
+        try:
+            record = service.submit_audit_request_claim(
+                request_id,
+                audit_id=payload.audit_id,
+                stake_wei=payload.stake_wei,
+            )
+        except KeyError as exc:
+            missing_key = str(exc.args[0]) if exc.args else ""
+            error_name = "request_not_found" if missing_key == request_id else "audit_not_found"
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": error_name},
+            ) from None
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        except OnchainConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "onchain_not_configured", "message": str(exc)},
+            ) from exc
+        except OnchainRequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "request_claim_failed", "message": str(exc)},
+            ) from exc
+        return AuditRecordModel.model_validate(record)
 
     @app.get(
         "/requests/{request_id}/eligibility",
