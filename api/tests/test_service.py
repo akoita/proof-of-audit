@@ -3,7 +3,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from web3 import Web3
 
 from proof_of_audit_agent.challenge_verifier import (
     ChallengeVerificationResult,
@@ -11,7 +12,11 @@ from proof_of_audit_agent.challenge_verifier import (
 )
 from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.publisher import OnchainConfigurationError, OnchainRequestError
-from proof_of_audit_api.service import AuditService
+from proof_of_audit_api.service import (
+    _EIP1967_BEACON_SLOT,
+    _EIP1967_IMPLEMENTATION_SLOT,
+    AuditService,
+)
 from helpers import build_onchain_test_context
 
 
@@ -620,6 +625,14 @@ class AuditServiceTest(unittest.TestCase):
                     "0x"
                 )
             )
+            self.assertEqual(
+                created["submission"]["proxy_resolution_status"],
+                "direct_target",
+            )
+            self.assertIsNone(created["submission"]["proxy_kind"])
+            self.assertIsNone(
+                created["submission"]["implementation_address_at_snapshot"]
+            )
 
             published = service.publish_audit(created["id"], 10**16, None)
             self.assertEqual(published["status"], "published")
@@ -644,6 +657,14 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 published["onchain"]["target_code_hash_at_snapshot"],
                 created["submission"]["target_code_hash_at_snapshot"],
+            )
+            self.assertEqual(
+                published["onchain"]["proxy_resolution_status"],
+                "direct_target",
+            )
+            self.assertIsNone(published["onchain"]["proxy_kind"])
+            self.assertIsNone(
+                published["onchain"]["implementation_address_at_snapshot"]
             )
             self.assertTrue(
                 published["onchain"]["publish_tx_url"].startswith(
@@ -702,6 +723,10 @@ class AuditServiceTest(unittest.TestCase):
                 validation_document["claim"]["snapshotBlockHash"],
                 created["submission"]["snapshot_block_hash"],
             )
+            self.assertEqual(
+                validation_document["claim"]["proxyResolutionStatus"],
+                "direct_target",
+            )
             reputation_document = service.get_reputation_claim_document(created["id"])
             self.assertIsNotNone(reputation_document)
             assert reputation_document is not None
@@ -712,6 +737,10 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(
                 reputation_document["claim"]["targetCodeHashAtSnapshot"],
                 created["submission"]["target_code_hash_at_snapshot"],
+            )
+            self.assertEqual(
+                reputation_document["claim"]["proxyResolutionStatus"],
+                "direct_target",
             )
 
             challenged = service.challenge_audit(
@@ -1410,6 +1439,152 @@ class AuditServiceTest(unittest.TestCase):
                 created["submission"]["snapshot_block_number"],
             )
 
+    def test_capture_snapshot_resolves_eip1967_proxy_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir), contract_config=ContractConfig.from_env({}))
+            web3 = Mock()
+            block_hash = bytes.fromhex("11" * 32)
+            target_address = "0x1000000000000000000000000000000000000001"
+            implementation_address = "0x2000000000000000000000000000000000000002"
+            proxy_code = b"\x60\x00\x60\x00"
+            implementation_code = b"\x60\x01\x60\x00"
+
+            web3.eth.get_block.return_value = {"number": 42, "hash": block_hash}
+            web3.eth.get_storage_at.side_effect = lambda address, slot, block_identifier=None: (
+                bytes.fromhex("00" * 12 + implementation_address[2:].lower())
+                if slot == _EIP1967_IMPLEMENTATION_SLOT
+                else b"\x00" * 32
+            )
+            web3.eth.get_code.side_effect = (
+                lambda address, block_identifier=None: (
+                    proxy_code
+                    if str(address).lower() == target_address.lower()
+                    else implementation_code
+                )
+            )
+
+            with patch.object(service, "_chain_web3_client", return_value=web3):
+                snapshot = service._capture_deployed_address_snapshot(
+                    {
+                        "input_kind": "deployed_address",
+                        "contract_address": target_address,
+                    }
+                )
+
+            self.assertEqual(snapshot["snapshot_block_number"], 42)
+            self.assertEqual(snapshot["snapshot_block_hash"], "0x" + "11" * 32)
+            self.assertEqual(snapshot["proxy_kind"], "eip1967")
+            self.assertEqual(snapshot["proxy_resolution_status"], "resolved")
+            self.assertEqual(
+                snapshot["implementation_address_at_snapshot"],
+                implementation_address,
+            )
+            self.assertEqual(
+                snapshot["implementation_code_hash_at_snapshot"],
+                Web3.to_hex(Web3.keccak(implementation_code)),
+            )
+
+    def test_capture_snapshot_marks_beacon_proxy_as_unsupported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AuditService(Path(tmpdir), contract_config=ContractConfig.from_env({}))
+            web3 = Mock()
+            target_address = "0x1000000000000000000000000000000000000001"
+            beacon_address = "0x3000000000000000000000000000000000000003"
+            proxy_code = b"\x60\x00\x60\x00"
+
+            web3.eth.get_block.return_value = {
+                "number": 84,
+                "hash": bytes.fromhex("22" * 32),
+            }
+            web3.eth.get_storage_at.side_effect = lambda address, slot, block_identifier=None: (
+                bytes.fromhex("00" * 12 + beacon_address[2:].lower())
+                if slot == _EIP1967_BEACON_SLOT
+                else b"\x00" * 32
+            )
+            web3.eth.get_code.return_value = proxy_code
+
+            with patch.object(service, "_chain_web3_client", return_value=web3):
+                snapshot = service._capture_deployed_address_snapshot(
+                    {
+                        "input_kind": "deployed_address",
+                        "contract_address": target_address,
+                    }
+                )
+
+            self.assertEqual(snapshot["proxy_kind"], "eip1967-beacon")
+            self.assertEqual(
+                snapshot["proxy_resolution_status"],
+                "unsupported_proxy_topology",
+            )
+            self.assertIn("beacon", snapshot["proxy_resolution_detail"].lower())
+            self.assertIsNone(snapshot["implementation_address_at_snapshot"])
+            self.assertIsNone(snapshot["implementation_code_hash_at_snapshot"])
+
+    def test_publish_round_trips_proxy_identity_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+                reputation_bridge=onchain.reputation_bridge,
+            )
+            proxy_snapshot = {
+                "snapshot_block_number": 42,
+                "snapshot_block_hash": "0x" + "11" * 32,
+                "target_code_hash_at_snapshot": "0x" + "22" * 32,
+                "proxy_kind": "eip1967",
+                "proxy_resolution_status": "resolved",
+                "proxy_resolution_detail": "Resolved implementation identity.",
+                "implementation_address_at_snapshot": "0x2000000000000000000000000000000000000002",
+                "implementation_code_hash_at_snapshot": "0x" + "33" * 32,
+            }
+
+            with patch.object(
+                service,
+                "_capture_deployed_address_snapshot",
+                return_value=proxy_snapshot,
+            ):
+                created = service.create_audit(
+                    onchain.web3.eth.accounts[2],
+                    submitted_by="judge",
+                )
+                published = service.publish_audit(created["id"], 10**16, None)
+
+            self.assertEqual(created["submission"]["proxy_kind"], "eip1967")
+            self.assertEqual(
+                published["onchain"]["proxy_resolution_status"],
+                "resolved",
+            )
+            self.assertEqual(
+                published["onchain"]["implementation_address_at_snapshot"],
+                proxy_snapshot["implementation_address_at_snapshot"],
+            )
+            validation_document = service.get_validation_request_document(created["id"])
+            self.assertIsNotNone(validation_document)
+            assert validation_document is not None
+            self.assertEqual(
+                validation_document["claim"]["proxyKind"],
+                "eip1967",
+            )
+            self.assertEqual(
+                validation_document["claim"]["implementationAddressAtSnapshot"],
+                proxy_snapshot["implementation_address_at_snapshot"],
+            )
+            reputation_document = service.get_reputation_claim_document(created["id"])
+            self.assertIsNotNone(reputation_document)
+            assert reputation_document is not None
+            self.assertEqual(
+                reputation_document["claim"]["proxyResolutionStatus"],
+                "resolved",
+            )
+            self.assertEqual(
+                reputation_document["claim"]["implementationCodeHashAtSnapshot"],
+                proxy_snapshot["implementation_code_hash_at_snapshot"],
+            )
+
     def test_publish_rejects_deployed_address_code_drift_after_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
@@ -1436,6 +1611,50 @@ class AuditServiceTest(unittest.TestCase):
                 with self.assertRaisesRegex(
                     ValueError,
                     "target code changed since audit start",
+                ):
+                    service.publish_audit(created["id"], 10**16, None)
+
+    def test_publish_rejects_proxy_implementation_drift_after_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            initial_snapshot = {
+                "snapshot_block_number": 42,
+                "snapshot_block_hash": "0x" + "11" * 32,
+                "target_code_hash_at_snapshot": "0x" + "22" * 32,
+                "proxy_kind": "eip1967",
+                "proxy_resolution_status": "resolved",
+                "proxy_resolution_detail": "Resolved implementation identity.",
+                "implementation_address_at_snapshot": "0x2000000000000000000000000000000000000002",
+                "implementation_code_hash_at_snapshot": "0x" + "33" * 32,
+            }
+            with patch.object(
+                service,
+                "_capture_deployed_address_snapshot",
+                return_value=initial_snapshot,
+            ):
+                created = service.create_audit(
+                    onchain.web3.eth.accounts[2],
+                    submitted_by="judge",
+                )
+
+            with patch.object(
+                service,
+                "_capture_deployed_address_snapshot",
+                return_value={
+                    **initial_snapshot,
+                    "implementation_address_at_snapshot": "0x4000000000000000000000000000000000000004",
+                    "implementation_code_hash_at_snapshot": "0x" + "44" * 32,
+                },
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "proxy implementation changed since audit start",
                 ):
                     service.publish_audit(created["id"], 10**16, None)
 

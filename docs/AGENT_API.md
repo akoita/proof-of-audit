@@ -130,9 +130,22 @@ Returns:
   - `submission.snapshot_block_number`
   - `submission.snapshot_block_hash`
   - `submission.target_code_hash_at_snapshot`
+  - proxy identity fields when applicable:
+    - `submission.proxy_kind`
+    - `submission.proxy_resolution_status`
+    - `submission.proxy_resolution_detail`
+    - `submission.implementation_address_at_snapshot`
+    - `submission.implementation_code_hash_at_snapshot`
 - the attached auditor profile
 - a deterministic report with findings, summary, and hashes
 - optional `execution` metadata when a live agent-forge pass runs or a fallback is recorded
+
+Proxy support notes:
+
+- v1 resolves EIP-1967 implementation-slot proxies
+- that covers the common Transparent/UUPS-style layout
+- EIP-1967 beacon proxies are detected but marked as unsupported, so callers can
+  see that the target identity guarantee is weaker
 
 Repository submission example:
 
@@ -283,6 +296,9 @@ Preconditions:
 - for `deployed_address` submissions, the live target code must still match the
   code hash captured at audit start; otherwise publish is rejected and a fresh
   audit is required
+- if the draft resolved a supported proxy implementation at audit start, the
+  live implementation address and implementation code hash must still match at
+  publish time
 
 On success, the record moves to:
 
@@ -295,6 +311,11 @@ And gains:
 - `onchain.snapshot_block_number`
 - `onchain.snapshot_block_hash`
 - `onchain.target_code_hash_at_snapshot`
+- `onchain.proxy_kind`
+- `onchain.proxy_resolution_status`
+- `onchain.proxy_resolution_detail`
+- `onchain.implementation_address_at_snapshot`
+- `onchain.implementation_code_hash_at_snapshot`
 - `onchain.challenge_policy`
 - `validation.request_hash`
 - `validation.request_uri`

@@ -95,6 +95,15 @@ _POLICY_OPENNESS_THRESHOLD_POINTS = {
     "critical": 4,
 }
 
+_EIP1967_IMPLEMENTATION_SLOT = int(
+    "360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC",
+    16,
+)
+_EIP1967_BEACON_SLOT = int(
+    "A3F0AD74E5423AEBFD80D3EF4346578335A9A72AEAEE59FF6CB3582B35133D50",
+    16,
+)
+
 
 class AuditService:
     def __init__(
@@ -274,6 +283,11 @@ class AuditService:
             "snapshot_block_number": None,
             "snapshot_block_hash": None,
             "target_code_hash_at_snapshot": None,
+            "proxy_kind": None,
+            "proxy_resolution_status": None,
+            "proxy_resolution_detail": None,
+            "implementation_address_at_snapshot": None,
+            "implementation_code_hash_at_snapshot": None,
         }
         if submission.get("input_kind") != "deployed_address":
             return empty_snapshot
@@ -285,17 +299,125 @@ class AuditService:
             return empty_snapshot
         latest_block = web3.eth.get_block("latest")
         block_number = int(latest_block["number"])
+        block_identifier: Any = "latest"
         code = bytes(
             web3.eth.get_code(
                 Web3.to_checksum_address(contract_address),
-                block_identifier=block_number,
+                block_identifier=block_identifier,
             )
         )
-        return {
+        snapshot = {
             "snapshot_block_number": block_number,
             "snapshot_block_hash": Web3.to_hex(latest_block["hash"]),
             "target_code_hash_at_snapshot": Web3.to_hex(Web3.keccak(code)),
+            **self._resolve_proxy_identity_snapshot(
+                web3=web3,
+                target_address=contract_address,
+                block_identifier=block_identifier,
+            ),
         }
+        return snapshot
+
+    def _resolve_proxy_identity_snapshot(
+        self,
+        *,
+        web3: Web3,
+        target_address: str,
+        block_identifier: Any,
+    ) -> dict[str, Any]:
+        target = Web3.to_checksum_address(target_address)
+        implementation_address = self._storage_word_to_address(
+            web3.eth.get_storage_at(
+                target,
+                _EIP1967_IMPLEMENTATION_SLOT,
+                block_identifier=block_identifier,
+            )
+        )
+        if implementation_address is not None:
+            implementation_code_hash = self._code_hash_at_snapshot(
+                web3=web3,
+                contract_address=implementation_address,
+                block_identifier=block_identifier,
+            )
+            if implementation_code_hash is None:
+                return {
+                    "proxy_kind": "eip1967",
+                    "proxy_resolution_status": "ambiguous_proxy_identity",
+                    "proxy_resolution_detail": (
+                        "Detected an EIP-1967 implementation slot, but the resolved "
+                        "implementation had no code at the snapshot block."
+                    ),
+                    "implementation_address_at_snapshot": implementation_address,
+                    "implementation_code_hash_at_snapshot": None,
+                }
+            return {
+                "proxy_kind": "eip1967",
+                "proxy_resolution_status": "resolved",
+                "proxy_resolution_detail": (
+                    "Resolved implementation identity from the EIP-1967 implementation slot."
+                ),
+                "implementation_address_at_snapshot": implementation_address,
+                "implementation_code_hash_at_snapshot": implementation_code_hash,
+            }
+
+        beacon_address = self._storage_word_to_address(
+            web3.eth.get_storage_at(
+                target,
+                _EIP1967_BEACON_SLOT,
+                block_identifier=block_identifier,
+            )
+        )
+        if beacon_address is not None:
+            return {
+                "proxy_kind": "eip1967-beacon",
+                "proxy_resolution_status": "unsupported_proxy_topology",
+                "proxy_resolution_detail": (
+                    "Detected an EIP-1967 beacon proxy, but beacon-backed implementation "
+                    "resolution is not supported in v1."
+                ),
+                "implementation_address_at_snapshot": None,
+                "implementation_code_hash_at_snapshot": None,
+            }
+
+        return {
+            "proxy_kind": None,
+            "proxy_resolution_status": "direct_target",
+            "proxy_resolution_detail": (
+                "No supported proxy indirection was detected at the snapshot block."
+            ),
+            "implementation_address_at_snapshot": None,
+            "implementation_code_hash_at_snapshot": None,
+        }
+
+    def _storage_word_to_address(self, value: Any) -> str | None:
+        if not isinstance(value, (bytes, bytearray)):
+            return None
+        raw = bytes(value)
+        if not raw:
+            return None
+        if len(raw) < 20:
+            raw = (b"\x00" * (20 - len(raw))) + raw
+        address_bytes = raw[-20:]
+        if int.from_bytes(address_bytes, "big") == 0:
+            return None
+        return Web3.to_checksum_address("0x" + address_bytes.hex())
+
+    def _code_hash_at_snapshot(
+        self,
+        *,
+        web3: Web3,
+        contract_address: str,
+        block_identifier: Any,
+    ) -> str | None:
+        code = bytes(
+            web3.eth.get_code(
+                Web3.to_checksum_address(contract_address),
+                block_identifier=block_identifier,
+            )
+        )
+        if len(code) == 0:
+            return None
+        return Web3.to_hex(Web3.keccak(code))
 
     def _record_snapshot_metadata(self, record: dict[str, Any]) -> dict[str, Any]:
         submission = record.get("submission") if isinstance(record.get("submission"), dict) else {}
@@ -313,6 +435,31 @@ class AuditService:
             "target_code_hash_at_snapshot": (
                 str(submission["target_code_hash_at_snapshot"])
                 if submission.get("target_code_hash_at_snapshot") is not None
+                else None
+            ),
+            "proxy_kind": (
+                str(submission["proxy_kind"])
+                if submission.get("proxy_kind") is not None
+                else None
+            ),
+            "proxy_resolution_status": (
+                str(submission["proxy_resolution_status"])
+                if submission.get("proxy_resolution_status") is not None
+                else None
+            ),
+            "proxy_resolution_detail": (
+                str(submission["proxy_resolution_detail"])
+                if submission.get("proxy_resolution_detail") is not None
+                else None
+            ),
+            "implementation_address_at_snapshot": (
+                str(submission["implementation_address_at_snapshot"])
+                if submission.get("implementation_address_at_snapshot") is not None
+                else None
+            ),
+            "implementation_code_hash_at_snapshot": (
+                str(submission["implementation_code_hash_at_snapshot"])
+                if submission.get("implementation_code_hash_at_snapshot") is not None
                 else None
             ),
         }
@@ -333,6 +480,25 @@ class AuditService:
             raise ValueError(
                 "target code changed since audit start; create a new audit before publish"
             )
+        if (
+            snapshot["implementation_address_at_snapshot"] is not None
+            or snapshot["implementation_code_hash_at_snapshot"] is not None
+        ):
+            current_implementation_address = current_snapshot[
+                "implementation_address_at_snapshot"
+            ]
+            current_implementation_hash = current_snapshot[
+                "implementation_code_hash_at_snapshot"
+            ]
+            if (
+                current_implementation_address
+                != snapshot["implementation_address_at_snapshot"]
+                or current_implementation_hash
+                != snapshot["implementation_code_hash_at_snapshot"]
+            ):
+                raise ValueError(
+                    "proxy implementation changed since audit start; create a new audit before publish"
+                )
 
     def _validate_live_deployed_address_execution(
         self,
@@ -580,6 +746,15 @@ class AuditService:
             "snapshot_block_number": snapshot["snapshot_block_number"],
             "snapshot_block_hash": snapshot["snapshot_block_hash"],
             "target_code_hash_at_snapshot": snapshot["target_code_hash_at_snapshot"],
+            "proxy_kind": snapshot["proxy_kind"],
+            "proxy_resolution_status": snapshot["proxy_resolution_status"],
+            "proxy_resolution_detail": snapshot["proxy_resolution_detail"],
+            "implementation_address_at_snapshot": snapshot[
+                "implementation_address_at_snapshot"
+            ],
+            "implementation_code_hash_at_snapshot": snapshot[
+                "implementation_code_hash_at_snapshot"
+            ],
             "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         self.store.write(audit_id, updated_record)
@@ -1616,6 +1791,15 @@ class AuditService:
             "snapshot_block_number": snapshot["snapshot_block_number"],
             "snapshot_block_hash": snapshot["snapshot_block_hash"],
             "target_code_hash_at_snapshot": snapshot["target_code_hash_at_snapshot"],
+            "proxy_kind": snapshot["proxy_kind"],
+            "proxy_resolution_status": snapshot["proxy_resolution_status"],
+            "proxy_resolution_detail": snapshot["proxy_resolution_detail"],
+            "implementation_address_at_snapshot": snapshot[
+                "implementation_address_at_snapshot"
+            ],
+            "implementation_code_hash_at_snapshot": snapshot[
+                "implementation_code_hash_at_snapshot"
+            ],
             "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         record["validation"] = self._submit_validation_request(record)
@@ -2094,6 +2278,21 @@ class AuditService:
             onchain.setdefault(
                 "target_code_hash_at_snapshot",
                 snapshot["target_code_hash_at_snapshot"],
+            )
+            onchain.setdefault("proxy_kind", snapshot["proxy_kind"])
+            onchain.setdefault(
+                "proxy_resolution_status", snapshot["proxy_resolution_status"]
+            )
+            onchain.setdefault(
+                "proxy_resolution_detail", snapshot["proxy_resolution_detail"]
+            )
+            onchain.setdefault(
+                "implementation_address_at_snapshot",
+                snapshot["implementation_address_at_snapshot"],
+            )
+            onchain.setdefault(
+                "implementation_code_hash_at_snapshot",
+                snapshot["implementation_code_hash_at_snapshot"],
             )
             onchain["challenge_policy"] = self._normalize_challenge_policy(
                 onchain.get("challenge_policy")
@@ -2724,6 +2923,15 @@ class AuditService:
                 "snapshotBlockNumber": onchain.get("snapshot_block_number"),
                 "snapshotBlockHash": onchain.get("snapshot_block_hash"),
                 "targetCodeHashAtSnapshot": onchain.get("target_code_hash_at_snapshot"),
+                "proxyKind": onchain.get("proxy_kind"),
+                "proxyResolutionStatus": onchain.get("proxy_resolution_status"),
+                "proxyResolutionDetail": onchain.get("proxy_resolution_detail"),
+                "implementationAddressAtSnapshot": onchain.get(
+                    "implementation_address_at_snapshot"
+                ),
+                "implementationCodeHashAtSnapshot": onchain.get(
+                    "implementation_code_hash_at_snapshot"
+                ),
                 "challengePolicy": self._challenge_policy_for_record(record),
             },
             "service": {
@@ -2870,6 +3078,15 @@ class AuditService:
                 "snapshotBlockNumber": onchain.get("snapshot_block_number"),
                 "snapshotBlockHash": onchain.get("snapshot_block_hash"),
                 "targetCodeHashAtSnapshot": onchain.get("target_code_hash_at_snapshot"),
+                "proxyKind": onchain.get("proxy_kind"),
+                "proxyResolutionStatus": onchain.get("proxy_resolution_status"),
+                "proxyResolutionDetail": onchain.get("proxy_resolution_detail"),
+                "implementationAddressAtSnapshot": onchain.get(
+                    "implementation_address_at_snapshot"
+                ),
+                "implementationCodeHashAtSnapshot": onchain.get(
+                    "implementation_code_hash_at_snapshot"
+                ),
                 "challengePolicy": self._challenge_policy_for_record(record),
             },
             "submission": record["submission"],
@@ -3694,6 +3911,31 @@ class AuditService:
             if submission.get("target_code_hash_at_snapshot") is not None
             else None
         )
+        proxy_kind = (
+            str(submission["proxy_kind"])
+            if submission.get("proxy_kind") is not None
+            else None
+        )
+        proxy_resolution_status = (
+            str(submission["proxy_resolution_status"])
+            if submission.get("proxy_resolution_status") is not None
+            else None
+        )
+        proxy_resolution_detail = (
+            str(submission["proxy_resolution_detail"])
+            if submission.get("proxy_resolution_detail") is not None
+            else None
+        )
+        implementation_address_at_snapshot = (
+            str(submission["implementation_address_at_snapshot"])
+            if submission.get("implementation_address_at_snapshot") is not None
+            else None
+        )
+        implementation_code_hash_at_snapshot = (
+            str(submission["implementation_code_hash_at_snapshot"])
+            if submission.get("implementation_code_hash_at_snapshot") is not None
+            else None
+        )
 
         if input_kind == "demo_fixture":
             fixture = self.worker.require_fixture(fixture_id)
@@ -3711,6 +3953,11 @@ class AuditService:
                 "snapshot_block_number": snapshot_block_number,
                 "snapshot_block_hash": snapshot_block_hash,
                 "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
+                "proxy_kind": proxy_kind,
+                "proxy_resolution_status": proxy_resolution_status,
+                "proxy_resolution_detail": proxy_resolution_detail,
+                "implementation_address_at_snapshot": implementation_address_at_snapshot,
+                "implementation_code_hash_at_snapshot": implementation_code_hash_at_snapshot,
             }
 
         if input_kind == "source_bundle":
@@ -3733,6 +3980,11 @@ class AuditService:
                 "snapshot_block_number": snapshot_block_number,
                 "snapshot_block_hash": snapshot_block_hash,
                 "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
+                "proxy_kind": proxy_kind,
+                "proxy_resolution_status": proxy_resolution_status,
+                "proxy_resolution_detail": proxy_resolution_detail,
+                "implementation_address_at_snapshot": implementation_address_at_snapshot,
+                "implementation_code_hash_at_snapshot": implementation_code_hash_at_snapshot,
             }
 
         if input_kind == "repository_url":
@@ -3752,6 +4004,11 @@ class AuditService:
                 "snapshot_block_number": snapshot_block_number,
                 "snapshot_block_hash": snapshot_block_hash,
                 "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
+                "proxy_kind": proxy_kind,
+                "proxy_resolution_status": proxy_resolution_status,
+                "proxy_resolution_detail": proxy_resolution_detail,
+                "implementation_address_at_snapshot": implementation_address_at_snapshot,
+                "implementation_code_hash_at_snapshot": implementation_code_hash_at_snapshot,
             }
 
         contract_address = submission.get("contract_address")
@@ -3771,6 +4028,11 @@ class AuditService:
             "snapshot_block_number": snapshot_block_number,
             "snapshot_block_hash": snapshot_block_hash,
             "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
+            "proxy_kind": proxy_kind,
+            "proxy_resolution_status": proxy_resolution_status,
+            "proxy_resolution_detail": proxy_resolution_detail,
+            "implementation_address_at_snapshot": implementation_address_at_snapshot,
+            "implementation_code_hash_at_snapshot": implementation_code_hash_at_snapshot,
         }
 
     def _normalize_target_key(self, contract_address: str | None) -> str:

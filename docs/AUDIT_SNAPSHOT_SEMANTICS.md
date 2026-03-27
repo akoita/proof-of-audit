@@ -111,6 +111,17 @@ Minimum expectation:
 - resolve implementation identity at snapshot time
 - persist both proxy and implementation identity
 
+Current V1 support:
+
+- supports EIP-1967 implementation-slot proxies, which covers the common
+  Transparent/UUPS-style layout
+- persists:
+  - `proxy_kind`
+  - `implementation_address_at_snapshot`
+  - `implementation_code_hash_at_snapshot`
+- explicitly marks EIP-1967 beacon proxies as unsupported in v1 instead of
+  pretending they are strongly pinned
+
 If proxy resolution is unsupported or ambiguous:
 
 - surface that clearly in the audit record

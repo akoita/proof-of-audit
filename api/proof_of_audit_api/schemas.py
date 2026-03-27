@@ -214,6 +214,11 @@ class OnchainPublicationModel(BaseModel):
     snapshot_block_number: int | None = None
     snapshot_block_hash: str | None = None
     target_code_hash_at_snapshot: str | None = None
+    proxy_kind: str | None = None
+    proxy_resolution_status: str | None = None
+    proxy_resolution_detail: str | None = None
+    implementation_address_at_snapshot: str | None = None
+    implementation_code_hash_at_snapshot: str | None = None
     challenge_policy: ChallengePolicyModel | None = None
 
 
@@ -722,6 +727,11 @@ class AuditSubmissionModel(BaseModel):
     snapshot_block_number: int | None = None
     snapshot_block_hash: str | None = None
     target_code_hash_at_snapshot: str | None = None
+    proxy_kind: str | None = None
+    proxy_resolution_status: str | None = None
+    proxy_resolution_detail: str | None = None
+    implementation_address_at_snapshot: str | None = None
+    implementation_code_hash_at_snapshot: str | None = None
 
 
 class CreateAuditRequest(AuditSubmissionModel):
