@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+interface IAgentIdentityRegistry {
+    function ownerOf(uint256 agentId) external view returns (address);
+}
+
 contract ProofOfAudit {
     enum AuditState {
         None,
@@ -21,6 +25,11 @@ contract ProofOfAudit {
         None,
         ChallengeUpheld,
         ChallengeRejected
+    }
+
+    enum AuditRequestClaimState {
+        None,
+        Submitted
     }
 
     struct EligibilityConfig {
@@ -59,6 +68,20 @@ contract ProofOfAudit {
         EligibilityConfig eligibility;
     }
 
+    struct AuditRequestClaim {
+        uint256 requestId;
+        address auditor;
+        address agentRegistry;
+        uint256 agentId;
+        uint64 submittedAt;
+        uint96 stakeAmount;
+        bytes32 reportHash;
+        bytes32 metadataHash;
+        uint8 maxSeverity;
+        uint8 findingCount;
+        AuditRequestClaimState state;
+    }
+
     error IncorrectStake();
     error IncorrectChallengeBond();
     error IncorrectRequestBounty();
@@ -67,6 +90,11 @@ contract ProofOfAudit {
     error InvalidState();
     error InvalidRequestState();
     error InvalidResponseWindow();
+    error InvalidAuditorIdentity();
+    error IdentityOwnerMismatch();
+    error DuplicateRequestClaim();
+    error InsufficientRequestClaimStake();
+    error RequestClaimWindowClosed();
     error ChallengeWindowClosed();
     error ChallengeWindowOpen();
     error ResponseWindowOpen();
@@ -130,6 +158,19 @@ contract ProofOfAudit {
         uint256 bountyAmount
     );
 
+    event AuditRequestClaimSubmitted(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        address indexed auditor,
+        address agentRegistry,
+        uint256 agentId,
+        uint256 stakeAmount,
+        bytes32 reportHash,
+        bytes32 metadataHash,
+        uint8 maxSeverity,
+        uint8 findingCount
+    );
+
     uint256 public immutable requiredStake;
     uint256 public immutable requiredChallengeBond;
     uint256 public immutable challengeWindow;
@@ -137,8 +178,12 @@ contract ProofOfAudit {
 
     uint256 public nextAuditId;
     uint256 public nextRequestId;
+    uint256 public nextRequestClaimId;
     mapping(uint256 => AuditRecord) private audits;
     mapping(uint256 => AuditRequest) private auditRequests;
+    mapping(uint256 => AuditRequestClaim) private auditRequestClaims;
+    mapping(uint256 => uint256[]) private auditRequestClaimIds;
+    mapping(uint256 => mapping(bytes32 => bool)) private requestClaimIdentityUsed;
 
     constructor(
         address _arbiter,
@@ -254,6 +299,82 @@ contract ProofOfAudit {
         emit ChallengeOpened(auditId, msg.sender, evidenceHash, msg.value);
     }
 
+    function submitAuditRequestClaim(
+        uint256 requestId,
+        address agentRegistry,
+        uint256 agentId,
+        bytes32 reportHash,
+        bytes32 metadataHash,
+        uint8 maxSeverity,
+        uint8 findingCount
+    ) external payable returns (uint256 claimId) {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (auditRequestState(requestId) != AuditRequestState.Open) {
+            revert RequestClaimWindowClosed();
+        }
+        if (agentRegistry == address(0) || agentId == 0) {
+            revert InvalidAuditorIdentity();
+        }
+        if (IAgentIdentityRegistry(agentRegistry).ownerOf(agentId) != msg.sender) {
+            revert IdentityOwnerMismatch();
+        }
+        if (
+            auditRequest.eligibility.identityRegistry != address(0) &&
+            auditRequest.eligibility.identityRegistry != agentRegistry
+        ) {
+            revert InvalidAuditorIdentity();
+        }
+        if (
+            auditRequest.eligibility.requiredAgentId != 0 &&
+            auditRequest.eligibility.requiredAgentId != agentId
+        ) {
+            revert InvalidAuditorIdentity();
+        }
+
+        uint256 minimumStake = requiredStake;
+        if (auditRequest.eligibility.minimumStakeAmount > minimumStake) {
+            minimumStake = auditRequest.eligibility.minimumStakeAmount;
+        }
+        if (msg.value < minimumStake) revert InsufficientRequestClaimStake();
+
+        bytes32 identityKey = keccak256(abi.encode(agentRegistry, agentId));
+        if (requestClaimIdentityUsed[requestId][identityKey]) {
+            revert DuplicateRequestClaim();
+        }
+        requestClaimIdentityUsed[requestId][identityKey] = true;
+
+        claimId = ++nextRequestClaimId;
+        auditRequestClaims[claimId] = AuditRequestClaim({
+            requestId: requestId,
+            auditor: msg.sender,
+            agentRegistry: agentRegistry,
+            agentId: agentId,
+            submittedAt: uint64(block.timestamp),
+            stakeAmount: uint96(msg.value),
+            reportHash: reportHash,
+            metadataHash: metadataHash,
+            maxSeverity: maxSeverity,
+            findingCount: findingCount,
+            state: AuditRequestClaimState.Submitted
+        });
+        auditRequestClaimIds[requestId].push(claimId);
+        auditRequest.claimCount += 1;
+
+        emit AuditRequestClaimSubmitted(
+            requestId,
+            claimId,
+            msg.sender,
+            agentRegistry,
+            agentId,
+            msg.value,
+            reportHash,
+            metadataHash,
+            maxSeverity,
+            findingCount
+        );
+    }
+
     function resolveChallenge(uint256 auditId, bool upheld) external {
         if (msg.sender != arbiter) revert NotArbiter();
 
@@ -340,6 +461,18 @@ contract ProofOfAudit {
     ) external view returns (AuditRequest memory auditRequest) {
         auditRequest = auditRequests[requestId];
         auditRequest.state = auditRequestState(requestId);
+    }
+
+    function getAuditRequestClaim(
+        uint256 claimId
+    ) external view returns (AuditRequestClaim memory) {
+        return auditRequestClaims[claimId];
+    }
+
+    function getAuditRequestClaimIds(
+        uint256 requestId
+    ) external view returns (uint256[] memory) {
+        return auditRequestClaimIds[requestId];
     }
 
     function auditRequestState(

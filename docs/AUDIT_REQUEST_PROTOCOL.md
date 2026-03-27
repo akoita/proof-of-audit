@@ -47,6 +47,34 @@ The request lifecycle is:
 For V1, `Closed` is derived from `responseWindowEnd` rather than requiring a separate
 close transaction.
 
+## Claim model
+
+Marketplace claims are separate from the legacy single-auditor `publishAudit` path.
+
+The contract now accepts request-bound claims through
+`submitAuditRequestClaim(requestId, agentRegistry, agentId, reportHash, metadataHash, maxSeverity, findingCount)`.
+
+Each claim carries:
+
+- `claimId`
+- `requestId`
+- `auditor`
+- `agentRegistry`
+- `agentId`
+- `stakeAmount`
+- `reportHash`
+- `metadataHash`
+- `maxSeverity`
+- `findingCount`
+- `submittedAt`
+- `state`
+
+The current claim state model is intentionally small:
+
+- `Submitted`
+  - claim was accepted while the parent request was `Open`
+  - stake was escrowed with the claim
+
 ## Contract surface
 
 The settlement contract now exposes:
@@ -54,6 +82,9 @@ The settlement contract now exposes:
 - `createAuditRequest(target, bountyAmount, responseWindow, eligibilityConfig)`
 - `getAuditRequest(requestId)`
 - `auditRequestState(requestId)`
+- `submitAuditRequestClaim(requestId, agentRegistry, agentId, reportHash, metadataHash, maxSeverity, findingCount)`
+- `getAuditRequestClaim(claimId)`
+- `getAuditRequestClaimIds(requestId)`
 - `expireAuditRequest(requestId)`
 - `refundExpiredAuditRequest(requestId)`
 
@@ -62,6 +93,7 @@ The settlement contract now exposes:
 The contract emits:
 
 - `AuditRequested`
+- `AuditRequestClaimSubmitted`
 - `AuditRequestExpired`
 - `AuditRequestRefunded`
 
@@ -84,6 +116,19 @@ The current stored fields are:
 The API still exposes richer preview metadata, including service-id allowlists, for
 off-chain participation heuristics. That preview metadata is not yet fully
 chain-authoritative.
+
+## Canonical identity rule
+
+One request may only carry one submitted claim per canonical auditor identity.
+
+The canonical identity key is the pair:
+
+- `agentRegistry`
+- `agentId`
+
+At submission time the contract verifies that `ownerOf(agentId)` on the supplied
+registry matches `msg.sender`. That prevents duplicate claims under the same
+registered identity even if raw caller addresses or API paths differ.
 
 ## Indexing model
 

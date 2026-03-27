@@ -4,12 +4,28 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {ProofOfAudit} from "../src/ProofOfAudit.sol";
 
+contract MockIdentityRegistry {
+    mapping(uint256 => address) internal owners;
+
+    function setOwner(uint256 agentId, address owner) external {
+        owners[agentId] = owner;
+    }
+
+    function ownerOf(uint256 agentId) external view returns (address) {
+        address owner = owners[agentId];
+        require(owner != address(0), "missing agent");
+        return owner;
+    }
+}
+
 contract ProofOfAuditTest is Test {
     ProofOfAudit internal registry;
+    MockIdentityRegistry internal identityRegistry;
 
     address internal arbiter = address(0xA11CE);
     address internal auditor = address(0xB0B);
     address internal challenger = address(0xCA11);
+    address internal secondAuditor = address(0xC0DE);
     address internal target = address(0xD00D);
 
     uint256 internal constant STAKE = 0.01 ether;
@@ -19,8 +35,12 @@ contract ProofOfAuditTest is Test {
 
     function setUp() public {
         registry = new ProofOfAudit(arbiter, STAKE, BOND, WINDOW);
+        identityRegistry = new MockIdentityRegistry();
+        identityRegistry.setOwner(1, auditor);
+        identityRegistry.setOwner(2, secondAuditor);
         vm.deal(auditor, 1 ether);
         vm.deal(challenger, 1 ether);
+        vm.deal(secondAuditor, 1 ether);
     }
 
     function testPublishAuditStoresRecord() public {
@@ -132,7 +152,7 @@ contract ProofOfAuditTest is Test {
             uint256(requestRecord.eligibility.minimumStakeAmount),
             STAKE
         );
-        assertTrue(requestRecord.eligibility.allowlistEnabled);
+        assertFalse(requestRecord.eligibility.allowlistEnabled);
     }
 
     function testAuditRequestDerivesClosedStateAfterResponseWindow() public {
@@ -188,6 +208,126 @@ contract ProofOfAuditTest is Test {
         registry.refundExpiredAuditRequest(requestId);
     }
 
+    function testSubmitAuditRequestClaimStoresRecordAndIncrementsCount() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        ProofOfAudit.AuditRequestClaim memory claim = registry.getAuditRequestClaim(
+            claimId
+        );
+        ProofOfAudit.AuditRequest memory requestRecord = registry.getAuditRequest(
+            requestId
+        );
+
+        assertEq(claim.requestId, requestId);
+        assertEq(claim.auditor, auditor);
+        assertEq(claim.agentRegistry, address(identityRegistry));
+        assertEq(claim.agentId, 1);
+        assertEq(uint256(claim.stakeAmount), STAKE);
+        assertEq(uint256(claim.state), uint256(ProofOfAudit.AuditRequestClaimState.Submitted));
+        assertEq(uint256(requestRecord.claimCount), 1);
+
+        uint256[] memory claimIds = registry.getAuditRequestClaimIds(requestId);
+        assertEq(claimIds.length, 1);
+        assertEq(claimIds[0], claimId);
+    }
+
+    function testSubmitAuditRequestClaimRejectsDuplicateCanonicalIdentity() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(auditor);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report-1"),
+            keccak256("metadata-1"),
+            3,
+            2
+        );
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.DuplicateRequestClaim.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report-2"),
+            keccak256("metadata-2"),
+            2,
+            1
+        );
+    }
+
+    function testSubmitAuditRequestClaimRejectsStakeBelowMinimum() public {
+        ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
+        eligibility.minimumStakeAmount = uint96(2 * STAKE);
+
+        vm.prank(auditor);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            eligibility
+        );
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.InsufficientRequestClaimStake.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+    }
+
+    function testSubmitAuditRequestClaimRejectsAfterWindowClosed() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.warp(block.timestamp + WINDOW + 1);
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.RequestClaimWindowClosed.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+    }
+
+    function testSubmitAuditRequestClaimRequiresIdentityOwner() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(challenger);
+        vm.expectRevert(ProofOfAudit.IdentityOwnerMismatch.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+    }
+
     function _publishDefaultAudit() internal returns (uint256 auditId) {
         vm.prank(auditor);
         auditId = registry.publishAudit{value: STAKE}(
@@ -216,10 +356,10 @@ contract ProofOfAuditTest is Test {
     {
         eligibility = ProofOfAudit.EligibilityConfig({
             minimumStakeAmount: uint96(STAKE),
-            allowlistEnabled: true,
+            allowlistEnabled: false,
             allowlistRoot: keccak256("proof-of-audit"),
-            identityRegistry: address(0x1234),
-            requiredAgentId: 7
+            identityRegistry: address(0),
+            requiredAgentId: 0
         });
     }
 }

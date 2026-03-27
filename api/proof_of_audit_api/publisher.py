@@ -86,6 +86,30 @@ class OnchainAuditRequest:
     eligibility: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class AuditRequestClaimResult:
+    request_id: int
+    claim_id: int
+    tx_hash: str
+    chain_id: int
+
+
+@dataclass(frozen=True)
+class OnchainAuditRequestClaim:
+    claim_id: int
+    request_id: int
+    auditor_address: str
+    agent_registry: str
+    agent_id: int
+    submitted_at: int
+    stake_wei: int
+    report_hash: str
+    metadata_hash: str
+    max_severity: int
+    finding_count: int
+    state: str
+
+
 def load_contract_artifact() -> dict[str, Any]:
     return load_contract_artifact_json("ProofOfAudit.sol", "ProofOfAudit.json")
 
@@ -419,6 +443,73 @@ class ProofOfAuditPublisher:
             },
         )
 
+    def submit_audit_request_claim(
+        self,
+        *,
+        request_id: int,
+        agent_registry: str,
+        agent_id: int,
+        report_hash: str,
+        metadata_hash: str,
+        max_severity: int,
+        finding_count: int,
+        stake_wei: int,
+    ) -> AuditRequestClaimResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        claim_call = self.contract.functions.submitAuditRequestClaim(
+            request_id,
+            Web3.to_checksum_address(agent_registry),
+            agent_id,
+            HexBytes(self._ensure_hex(report_hash)),
+            HexBytes(self._ensure_hex(metadata_hash)),
+            max_severity,
+            finding_count,
+        )
+        receipt = self._submit_transaction(
+            claim_call,
+            value_wei=stake_wei,
+            chain_id=runtime_chain_id,
+            action_label="submit audit request claim",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError("Audit request claim transaction reverted on-chain.")
+        events = self.contract.events.AuditRequestClaimSubmitted().process_receipt(receipt)
+        if not events:
+            raise OnchainRequestError(
+                "Audit request claim transaction succeeded but AuditRequestClaimSubmitted event was missing."
+            )
+        event = events[0]["args"]
+        claim_id = int(event["claimId"])
+        onchain_claim = self.get_audit_request_claim(claim_id)
+        if onchain_claim.request_id != request_id:
+            raise OnchainRequestError(
+                "On-chain request claim request id did not match claim input."
+            )
+        return AuditRequestClaimResult(
+            request_id=request_id,
+            claim_id=claim_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+        )
+
+    def get_audit_request_claim(self, claim_id: int) -> OnchainAuditRequestClaim:
+        record = self.contract.functions.getAuditRequestClaim(claim_id).call()
+        return OnchainAuditRequestClaim(
+            claim_id=claim_id,
+            request_id=int(record[0]),
+            auditor_address=Web3.to_checksum_address(record[1]),
+            agent_registry=Web3.to_checksum_address(record[2]),
+            agent_id=int(record[3]),
+            submitted_at=int(record[4]),
+            stake_wei=int(record[5]),
+            report_hash=Web3.to_hex(record[6]),
+            metadata_hash=Web3.to_hex(record[7]),
+            max_severity=int(record[8]),
+            finding_count=int(record[9]),
+            state=self._request_claim_state_label(int(record[10])),
+        )
+
     def _verify_onchain_record(
         self,
         *,
@@ -607,4 +698,9 @@ class ProofOfAuditPublisher:
             return "expired"
         if state == 4:
             return "settled"
+        return "none"
+
+    def _request_claim_state_label(self, state: int) -> str:
+        if state == 1:
+            return "submitted"
         return "none"

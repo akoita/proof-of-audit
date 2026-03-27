@@ -9,7 +9,7 @@ from proof_of_audit_agent.challenge_verifier import (
     EvidenceContext,
 )
 from proof_of_audit_api.config import ContractConfig
-from proof_of_audit_api.publisher import OnchainConfigurationError
+from proof_of_audit_api.publisher import OnchainConfigurationError, OnchainRequestError
 from proof_of_audit_api.service import AuditService
 from helpers import build_onchain_test_context
 
@@ -36,6 +36,53 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
+    def test_submit_audit_request_claim_binds_draft_audit_to_request(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            request_record = service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                submitted_by="market-user",
+            )
+            draft = service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor",
+            )
+
+            published = service.submit_audit_request_claim(
+                request_record["request_id"],
+                audit_id=draft["id"],
+                stake_wei=10**16,
+            )
+
+            self.assertEqual(published["status"], "published")
+            self.assertEqual(published["onchain"]["request_id"], 1)
+            self.assertEqual(published["onchain"]["request_claim_id"], 1)
+            self.assertEqual(published["onchain"]["claim_state"], "submitted")
+            claims = service.list_audit_request_claims(request_record["request_id"])
+            self.assertEqual(len(claims), 1)
+            self.assertEqual(claims[0]["claim_id"], "1")
+            self.assertEqual(claims[0]["audit_id"], draft["id"])
+
+            duplicate_draft = service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor-duplicate",
+            )
+            with self.assertRaises(OnchainRequestError):
+                service.submit_audit_request_claim(
+                    request_record["request_id"],
+                    audit_id=duplicate_draft["id"],
+                    stake_wei=10**16,
+                )
+
     def test_create_audit_request_persists_and_syncs_onchain_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
