@@ -2111,6 +2111,11 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
                 "0x"
             )
         )
+        self.assertEqual(
+            created_payload["submission"]["proxy_resolution_status"],
+            "direct_target",
+        )
+        self.assertIsNone(created_payload["submission"]["proxy_kind"])
         audit_id = created_payload["id"]
 
         published = self.client.post(
@@ -2143,6 +2148,8 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
             payload["onchain"]["target_code_hash_at_snapshot"],
             created_payload["submission"]["target_code_hash_at_snapshot"],
         )
+        self.assertEqual(payload["onchain"]["proxy_resolution_status"], "direct_target")
+        self.assertIsNone(payload["onchain"]["proxy_kind"])
 
         challenged = self.client.post(
             f"/audits/{audit_id}/challenge",
@@ -2203,6 +2210,104 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         ):
             published = self.client.post(
                 f"/audits/{audit_id}/publish",
+                json={"stake_wei": 10**16},
+            )
+
+        self.assertEqual(published.status_code, 400)
+        self.assertEqual(published.json()["error"], "invalid_payload")
+
+    def test_publish_round_trips_proxy_identity_metadata(self) -> None:
+        service = self.client.app.state.audit_service
+        proxy_snapshot = {
+            "snapshot_block_number": 42,
+            "snapshot_block_hash": "0x" + "11" * 32,
+            "target_code_hash_at_snapshot": "0x" + "22" * 32,
+            "proxy_kind": "eip1967",
+            "proxy_resolution_status": "resolved",
+            "proxy_resolution_detail": "Resolved implementation identity.",
+            "implementation_address_at_snapshot": "0x2000000000000000000000000000000000000002",
+            "implementation_code_hash_at_snapshot": "0x" + "33" * 32,
+        }
+
+        with patch.object(
+            service,
+            "_capture_deployed_address_snapshot",
+            return_value=proxy_snapshot,
+        ):
+            created = self.client.post(
+                "/audits",
+                json={
+                    "contract_address": self.target_address,
+                    "submitted_by": "integration-test",
+                },
+            )
+            self.assertEqual(created.status_code, 201)
+            created_payload = created.json()
+            self.assertEqual(created_payload["submission"]["proxy_kind"], "eip1967")
+            self.assertEqual(
+                created_payload["submission"]["implementation_address_at_snapshot"],
+                proxy_snapshot["implementation_address_at_snapshot"],
+            )
+
+            published = self.client.post(
+                f"/audits/{created_payload['id']}/publish",
+                json={"stake_wei": 10**16},
+            )
+
+        self.assertEqual(published.status_code, 200)
+        published_payload = published.json()
+        self.assertEqual(published_payload["onchain"]["proxy_kind"], "eip1967")
+        self.assertEqual(
+            published_payload["onchain"]["proxy_resolution_status"],
+            "resolved",
+        )
+        self.assertEqual(
+            published_payload["onchain"]["implementation_address_at_snapshot"],
+            proxy_snapshot["implementation_address_at_snapshot"],
+        )
+        self.assertEqual(
+            published_payload["onchain"]["implementation_code_hash_at_snapshot"],
+            proxy_snapshot["implementation_code_hash_at_snapshot"],
+        )
+
+    def test_publish_rejects_proxy_implementation_drift(self) -> None:
+        service = self.client.app.state.audit_service
+        initial_snapshot = {
+            "snapshot_block_number": 42,
+            "snapshot_block_hash": "0x" + "11" * 32,
+            "target_code_hash_at_snapshot": "0x" + "22" * 32,
+            "proxy_kind": "eip1967",
+            "proxy_resolution_status": "resolved",
+            "proxy_resolution_detail": "Resolved implementation identity.",
+            "implementation_address_at_snapshot": "0x2000000000000000000000000000000000000002",
+            "implementation_code_hash_at_snapshot": "0x" + "33" * 32,
+        }
+        with patch.object(
+            service,
+            "_capture_deployed_address_snapshot",
+            return_value=initial_snapshot,
+        ):
+            created = self.client.post(
+                "/audits",
+                json={
+                    "contract_address": self.target_address,
+                    "submitted_by": "integration-test",
+                },
+            )
+        self.assertEqual(created.status_code, 201)
+        created_payload = created.json()
+
+        with patch.object(
+            service,
+            "_capture_deployed_address_snapshot",
+            return_value={
+                **initial_snapshot,
+                "implementation_address_at_snapshot": "0x4000000000000000000000000000000000000004",
+                "implementation_code_hash_at_snapshot": "0x" + "44" * 32,
+            },
+        ):
+            published = self.client.post(
+                f"/audits/{created_payload['id']}/publish",
                 json={"stake_wei": 10**16},
             )
 
