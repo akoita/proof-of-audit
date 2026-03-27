@@ -62,7 +62,7 @@ export function formatValidationSource(value: string | null | undefined): string
 
 export function reputationLabel(reputation: AuditorReputation | null | undefined): string {
   if (!reputation) return "—";
-  return `${reputation.score}/100 ${titleCase(reputation.band)}`;
+  return `${reputation.score}/100 ${titleCase(reputation.band)} · O${reputation.challenge_openness_score} · A${reputation.challenge_accuracy_score}`;
 }
 
 export function isExplorerLink(url: string | null | undefined): url is string {

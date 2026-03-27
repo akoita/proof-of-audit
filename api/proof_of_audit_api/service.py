@@ -86,6 +86,14 @@ _DEFAULT_CHALLENGE_POLICY = {
     "admissibility_mode": "broad",
 }
 
+_POLICY_OPENNESS_THRESHOLD_POINTS = {
+    "info": 30,
+    "low": 24,
+    "medium": 18,
+    "high": 10,
+    "critical": 4,
+}
+
 
 class AuditService:
     def __init__(
@@ -2014,9 +2022,17 @@ class AuditService:
                 reputation["draft_claim_count"] += 1
             else:
                 reputation["published_claim_count"] += 1
+                reputation["policy_openness_score_total"] = int(
+                    reputation.get("policy_openness_score_total") or 0
+                )
+                reputation["policy_openness_score_total"] += self._challenge_policy_openness_score(
+                    self._challenge_policy_for_record(record)
+                )
             if status == "challenged":
                 reputation["open_challenge_count"] += 1
             challenge = record.get("challenge")
+            if isinstance(challenge, dict) and not self._challenge_is_admissible(challenge):
+                reputation["inadmissible_challenge_count"] += 1
             if status == "resolved" and isinstance(challenge, dict):
                 reputation["resolved_challenge_count"] += 1
                 resolution = str(challenge.get("resolution") or "")
@@ -2024,6 +2040,12 @@ class AuditService:
                     reputation["challenge_rejected_count"] += 1
                 elif resolution == "upheld":
                     reputation["challenge_upheld_count"] += 1
+                if self._challenge_is_admissible(challenge):
+                    reputation["admissible_resolved_challenge_count"] += 1
+                    if resolution == "rejected":
+                        reputation["admissible_challenge_rejected_count"] += 1
+                    elif resolution == "upheld":
+                        reputation["admissible_challenge_upheld_count"] += 1
                 resolved_at = challenge.get("resolved_at")
                 if (
                     isinstance(resolved_at, str)
@@ -2036,19 +2058,44 @@ class AuditService:
                     reputation["last_resolved_at"] = resolved_at
 
         for reputation in index.values():
-            resolved_count = int(reputation["resolved_challenge_count"])
-            rejected_count = int(reputation["challenge_rejected_count"])
-            if resolved_count == 0:
+            published_claim_count = int(reputation["published_claim_count"])
+            admissible_resolved_count = int(reputation["admissible_resolved_challenge_count"])
+            openness_total = int(reputation.pop("policy_openness_score_total", 0))
+            if published_claim_count == 0:
+                reputation["challenge_openness_score"] = 50
+                reputation["challenge_openness_band"] = "provisional"
+                reputation["policy_openness_weight"] = 0.5
+            else:
+                openness_score = round(openness_total / published_claim_count)
+                reputation["challenge_openness_score"] = openness_score
+                reputation["challenge_openness_band"] = self._challenge_openness_band(
+                    openness_score
+                )
+                reputation["policy_openness_weight"] = round(openness_score / 100, 2)
+
+            if admissible_resolved_count == 0:
+                reputation["challenge_accuracy_score"] = 50
+                reputation["challenge_accuracy_band"] = "provisional"
+            else:
+                accuracy_score = round(
+                    100
+                    * int(reputation["admissible_challenge_rejected_count"])
+                    / admissible_resolved_count
+                )
+                reputation["challenge_accuracy_score"] = accuracy_score
+                reputation["challenge_accuracy_band"] = self._challenge_accuracy_band(
+                    accuracy_score
+                )
+
+            if published_claim_count == 0 and admissible_resolved_count == 0:
                 reputation["score"] = 50
                 reputation["band"] = "provisional"
             else:
-                reputation["score"] = round(100 * rejected_count / resolved_count)
-                if reputation["score"] >= 75:
-                    reputation["band"] = "trusted"
-                elif reputation["score"] >= 40:
-                    reputation["band"] = "mixed"
-                else:
-                    reputation["band"] = "contested"
+                reputation["score"] = round(
+                    (0.35 * int(reputation["challenge_openness_score"]))
+                    + (0.65 * int(reputation["challenge_accuracy_score"]))
+                )
+                reputation["band"] = self._aggregate_reputation_band(reputation["score"])
         onchain_reputation = self._load_onchain_reputation()
         if onchain_reputation is not None:
             index[self.contract_config.auditor.id] = self._apply_onchain_reputation_snapshot(
@@ -2061,9 +2108,18 @@ class AuditService:
         return {
             "score": 50,
             "band": "provisional",
+            "challenge_openness_score": 50,
+            "challenge_openness_band": "provisional",
+            "challenge_accuracy_score": 50,
+            "challenge_accuracy_band": "provisional",
+            "policy_openness_weight": 0.5,
             "resolved_challenge_count": 0,
             "challenge_rejected_count": 0,
             "challenge_upheld_count": 0,
+            "admissible_resolved_challenge_count": 0,
+            "admissible_challenge_rejected_count": 0,
+            "admissible_challenge_upheld_count": 0,
+            "inadmissible_challenge_count": 0,
             "open_challenge_count": 0,
             "published_claim_count": 0,
             "draft_claim_count": 0,
@@ -2074,10 +2130,71 @@ class AuditService:
             "total_stake_wei": None,
             "last_update": None,
             "formula": (
-                "Neutral 50 when there are no resolved challenges; otherwise "
-                "round(100 * challenge_rejected_count / resolved_challenge_count)."
+                "Neutral 50 when there are no published claims and no admissible resolved "
+                "challenges; otherwise round(0.35 * challenge_openness_score + "
+                "0.65 * challenge_accuracy_score)."
+            ),
+            "challenge_openness_formula": (
+                "Neutral 50 when there are no published claims; otherwise average the "
+                "per-claim policy openness score derived from evidence coverage, severity "
+                "threshold, informational scope, material-incorrectness requirement, and "
+                "strict vs broad admissibility."
+            ),
+            "challenge_accuracy_formula": (
+                "Neutral 50 when there are no admissible resolved challenges; otherwise "
+                "round(100 * admissible_challenge_rejected_count / "
+                "admissible_resolved_challenge_count). Inadmissible challenges are excluded."
             ),
         }
+
+    def _challenge_policy_openness_score(self, policy: dict[str, Any] | None) -> int:
+        normalized = self._normalize_challenge_policy(policy)
+        evidence_points = round(
+            35 * (len(normalized["allowed_evidence_types"]) / 2)
+        )
+        severity_points = _POLICY_OPENNESS_THRESHOLD_POINTS[
+            str(normalized["min_severity_threshold"])
+        ]
+        informational_points = 10 if normalized["allow_informational_only"] else 0
+        material_points = 10 if not normalized["requires_material_incorrectness"] else 0
+        mode_points = 15 if normalized["admissibility_mode"] == "broad" else 6
+        return int(
+            evidence_points
+            + severity_points
+            + informational_points
+            + material_points
+            + mode_points
+        )
+
+    def _challenge_is_admissible(self, challenge: dict[str, Any]) -> bool:
+        policy_status = str(challenge.get("policy_admissibility_status") or "").strip()
+        if policy_status == "admissible":
+            return True
+        if policy_status.startswith("inadmissible_"):
+            return False
+        verification_status = str(challenge.get("verification_status") or "").strip()
+        return not verification_status.startswith("inadmissible_")
+
+    def _challenge_openness_band(self, score: int) -> str:
+        if score >= 75:
+            return "open"
+        if score >= 45:
+            return "balanced"
+        return "restrictive"
+
+    def _challenge_accuracy_band(self, score: int) -> str:
+        if score >= 75:
+            return "strong"
+        if score >= 40:
+            return "mixed"
+        return "weak"
+
+    def _aggregate_reputation_band(self, score: int) -> str:
+        if score >= 75:
+            return "trusted"
+        if score >= 40:
+            return "mixed"
+        return "contested"
 
     def _load_onchain_reputation(self) -> OnchainReputationSnapshot | None:
         if self.reputation_bridge is None or self.contract_config.auditor_agent_id is None:
@@ -2093,19 +2210,6 @@ class AuditService:
         snapshot: OnchainReputationSnapshot,
     ) -> dict[str, Any]:
         enriched = deepcopy(reputation)
-        enriched["score"] = snapshot.score
-        if snapshot.resolved_challenges == 0:
-            enriched["band"] = "provisional"
-        elif snapshot.score >= 75:
-            enriched["band"] = "trusted"
-        elif snapshot.score >= 40:
-            enriched["band"] = "mixed"
-        else:
-            enriched["band"] = "contested"
-        enriched["resolved_challenge_count"] = snapshot.resolved_challenges
-        enriched["challenge_rejected_count"] = snapshot.challenge_rejected_count
-        enriched["challenge_upheld_count"] = snapshot.challenge_upheld_count
-        enriched["published_claim_count"] = snapshot.total_claims
         enriched["source"] = snapshot.source
         enriched["registry_address"] = snapshot.registry_address
         enriched["agent_id"] = snapshot.agent_id

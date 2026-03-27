@@ -20,6 +20,8 @@ export function AgentSidebar({
   const agentName = svc?.name ?? "Proof-of-Audit Auditor";
   const agentVersion = svc?.service_id ?? "unavailable";
   const reputation = svc?.reputation?.score ?? 0;
+  const openness = svc?.reputation?.challenge_openness_score ?? 0;
+  const accuracy = svc?.reputation?.challenge_accuracy_score ?? 0;
   const trustLabel =
     reputation >= 70 ? "Trusted" : reputation >= 40 ? "Contested" : "Unverified";
   const trustColor = reputation >= 70 ? "var(--secondary)" : reputation >= 40 ? "var(--tertiary)" : "var(--error)";
@@ -72,16 +74,16 @@ export function AgentSidebar({
         {/* Stats */}
         <div className="stats-row">
           <div className="stat-item">
-            <div className="stat-value">{svc?.reputation?.challenge_rejected_count ?? 0}</div>
-            <div className="stat-label">Rejected</div>
+            <div className="stat-value">{openness}</div>
+            <div className="stat-label">Open</div>
           </div>
           <div className="stat-item">
-            <div className="stat-value">{svc?.reputation?.challenge_upheld_count ?? 0}</div>
-            <div className="stat-label">Upheld</div>
+            <div className="stat-value">{accuracy}</div>
+            <div className="stat-label">Accurate</div>
           </div>
           <div className="stat-item">
-            <div className="stat-value">{svc?.reputation?.resolved_challenge_count ?? 0}</div>
-            <div className="stat-label">Resolved</div>
+            <div className="stat-value">{svc?.reputation?.inadmissible_challenge_count ?? 0}</div>
+            <div className="stat-label">Out Of Scope</div>
           </div>
         </div>
       </div>

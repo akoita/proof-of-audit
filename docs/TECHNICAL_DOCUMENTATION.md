@@ -194,11 +194,18 @@ The feed payload includes enough context to decide whether to inspect a claim:
 
 The reputation model is intentionally explainable.
 
-If there are no resolved challenges, the score is neutral at `50/100`.
+The API now separates:
+
+- `challenge_openness_score`
+- `challenge_accuracy_score`
+- a backward-compatible aggregate `score`
+
+If there are no published claims and no admissible resolved challenges, the
+aggregate score is neutral at `50/100`.
 
 Otherwise:
 
-`score = round(100 * challenge_rejected_count / resolved_challenge_count)`
+`score = round(0.35 * challenge_openness_score + 0.65 * challenge_accuracy_score)`
 
 Banding:
 

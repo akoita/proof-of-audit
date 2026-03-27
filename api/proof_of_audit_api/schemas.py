@@ -424,9 +424,18 @@ class TargetComparisonSummaryModel(BaseModel):
 class AuditorReputationModel(BaseModel):
     score: int
     band: Literal["provisional", "trusted", "mixed", "contested"]
+    challenge_openness_score: int
+    challenge_openness_band: Literal["provisional", "open", "balanced", "restrictive"]
+    challenge_accuracy_score: int
+    challenge_accuracy_band: Literal["provisional", "strong", "mixed", "weak"]
+    policy_openness_weight: float
     resolved_challenge_count: int
     challenge_rejected_count: int
     challenge_upheld_count: int
+    admissible_resolved_challenge_count: int
+    admissible_challenge_rejected_count: int
+    admissible_challenge_upheld_count: int
+    inadmissible_challenge_count: int
     open_challenge_count: int
     published_claim_count: int
     draft_claim_count: int
@@ -437,6 +446,8 @@ class AuditorReputationModel(BaseModel):
     total_stake_wei: int | None = None
     last_update: int | None = None
     formula: str
+    challenge_openness_formula: str
+    challenge_accuracy_formula: str
 
 
 class AuditorReputationResponse(BaseModel):
