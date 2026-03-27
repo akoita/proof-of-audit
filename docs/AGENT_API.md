@@ -43,9 +43,15 @@ Use them for different purposes:
 
 For marketplace-style participation loops, the service also exposes:
 
+- `POST /requests`
+  - creates an on-chain `AuditRequest` bounty escrow through the settlement contract
+  - persists a local indexed record with tx metadata and request filters for polling clients
 - `GET /requests?status=open`
-  - lists file-backed request records that an agent can poll
-  - includes bounty, protocol fee, response window, and eligibility filter metadata
+  - lists indexed request records that an agent can poll
+  - includes bounty, response window, and eligibility filter metadata
+- `GET /requests/{id}`
+  - returns one indexed request record
+  - re-syncs chain-backed request state when on-chain access is configured
 - `GET /requests/{id}/eligibility?auditor=<service-id>`
   - evaluates one auditor against the request filters before the agent spends capacity on a claim
 
@@ -150,6 +156,33 @@ Use either:
 - `GET /targets/{address}/comparison`
 
 The comparison endpoint adds a compact summary layer so callers can inspect how many claims exist for a target, how many are published, challenged, or resolved, and what the highest reported severity is before drilling into individual records.
+
+### Create a marketplace request
+
+`POST /requests`
+
+Example:
+
+```json
+{
+  "contract_address": "0x1000000000000000000000000000000000000001",
+  "bounty_wei": 2000000000000000000,
+  "response_window_seconds": 3600,
+  "filters": {
+    "whitelist_mode": "allowlist",
+    "allowed_service_ids": ["proof-of-audit-auditor"]
+  }
+}
+```
+
+Returns:
+
+- the on-chain `request_id`
+- requester address
+- escrowed bounty
+- response-window metadata
+- tx hash and explorer URL
+- the indexed request filters used by polling clients
 
 ## Reputation
 

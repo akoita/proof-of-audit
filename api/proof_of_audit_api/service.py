@@ -13,6 +13,7 @@ from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.publisher import (
     OnchainConfigurationError,
     OnchainPublishError,
+    OnchainRequestError,
     OnchainResolveError,
     ProofOfAuditPublisher,
 )
@@ -85,6 +86,7 @@ class AuditService:
         postgres_config: CloudSqlPostgresConfig | None = None,
     ) -> None:
         self.data_root = data_root
+        self._last_created_at: datetime | None = None
         self.store = store or create_store(
             root=data_root,
             kind=store_kind,
@@ -204,7 +206,7 @@ class AuditService:
             "submission": normalized_submission,
             "submitted_by": submitted_by,
             "status": "draft",
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": self._next_created_at_isoformat(),
             "report": execution_result.report.to_dict(),
             "execution": (
                 execution_result.execution.to_dict()
@@ -303,6 +305,77 @@ class AuditService:
             "items": items,
         }
 
+    def create_audit_request(
+        self,
+        *,
+        contract_address: str,
+        bounty_wei: int,
+        response_window_seconds: int,
+        filters: dict[str, Any] | None = None,
+        submitted_by: str = "anonymous",
+    ) -> dict[str, Any]:
+        if self.publisher is None:
+            raise OnchainConfigurationError(
+                "On-chain audit requests are not configured for this API instance."
+            )
+
+        target_contract = self._normalize_target_key(contract_address)
+        normalized_filters = self._normalize_marketplace_filters(filters)
+        allowlist_commitment = self._allowlist_commitment(
+            normalized_filters["allowed_service_ids"]
+        )
+        onchain_result = self.publisher.create_audit_request(
+            target_address=target_contract,
+            bounty_wei=bounty_wei,
+            response_window_seconds=response_window_seconds,
+            minimum_stake_wei=int(normalized_filters["minimum_stake_wei"]),
+            allowlist_enabled=normalized_filters["whitelist_mode"] == "allowlist",
+            allowlist_root=allowlist_commitment,
+            identity_registry=normalized_filters["required_identity_registry"],
+            required_agent_id=int(normalized_filters["required_identity_agent_id"] or 0),
+        )
+        onchain_request = self.publisher.get_audit_request(onchain_result.request_id)
+        record = self._normalize_audit_request_record(
+            {
+                "request_id": str(onchain_result.request_id),
+                "status": onchain_request.state,
+                "requester": onchain_request.requester_address,
+                "input_kind": "deployed_address",
+                "contract_address": onchain_request.target_address,
+                "chain_id": onchain_result.chain_id,
+                "bounty_wei": onchain_request.bounty_wei,
+                "protocol_fee_wei": 0,
+                "response_window_seconds": response_window_seconds,
+                "response_window_end": self._isoformat_unix_timestamp(
+                    onchain_request.response_window_end
+                ),
+                "created_at": self._isoformat_unix_timestamp(onchain_request.created_at),
+                "claim_count": onchain_request.claim_count,
+                "request_tx_hash": onchain_result.tx_hash,
+                "request_tx_url": self.contract_config.transaction_url(
+                    onchain_result.tx_hash
+                ),
+                "filters": normalized_filters,
+                "metadata": {
+                    "submitted_by": submitted_by,
+                    "onchain_eligibility": onchain_request.eligibility,
+                    "allowlist_commitment": allowlist_commitment,
+                },
+            }
+        )
+        self._upsert_audit_request_record(record)
+        return self.get_audit_request(record["request_id"]) or record
+
+    def get_audit_request(self, request_id: str) -> dict[str, Any] | None:
+        return next(
+            (
+                item
+                for item in self._all_normalized_audit_requests()
+                if item["request_id"] == str(request_id).strip()
+            ),
+            None,
+        )
+
     def list_audit_requests(self, status: str | None = None) -> list[dict[str, Any]]:
         normalized_status = str(status or "").strip().lower() or None
         items = self._all_normalized_audit_requests()
@@ -378,6 +451,9 @@ class AuditService:
             for item in items
             if isinstance(item, dict)
         ]
+        normalized_items = [
+            self._sync_audit_request_record(item) for item in normalized_items
+        ]
         return sorted(
             normalized_items,
             key=lambda item: str(item.get("created_at") or ""),
@@ -391,6 +467,11 @@ class AuditService:
         return {
             "request_id": str(payload.get("request_id") or payload.get("id") or "").strip(),
             "status": str(payload.get("status") or "open").strip().lower(),
+            "requester": (
+                self._normalize_target_key(payload.get("requester"))
+                if payload.get("requester") is not None
+                else None
+            ),
             "input_kind": input_kind,
             "contract_address": self._normalize_target_key(payload.get("contract_address")),
             "chain_id": (
@@ -405,6 +486,11 @@ class AuditService:
             ),
             "bounty_wei": max(int(payload.get("bounty_wei") or 0), 0),
             "protocol_fee_wei": max(int(payload.get("protocol_fee_wei") or 0), 0),
+            "response_window_seconds": (
+                int(payload["response_window_seconds"])
+                if payload.get("response_window_seconds") is not None
+                else None
+            ),
             "response_window_end": (
                 str(payload.get("response_window_end")).strip()
                 if payload.get("response_window_end") is not None
@@ -413,6 +499,17 @@ class AuditService:
             "created_at": (
                 str(payload.get("created_at")).strip()
                 if payload.get("created_at") is not None
+                else None
+            ),
+            "claim_count": max(int(payload.get("claim_count") or 0), 0),
+            "request_tx_hash": (
+                str(payload.get("request_tx_hash")).strip()
+                if payload.get("request_tx_hash") is not None
+                else None
+            ),
+            "request_tx_url": (
+                str(payload.get("request_tx_url")).strip()
+                if payload.get("request_tx_url") is not None
                 else None
             ),
             "filters": self._normalize_marketplace_filters(payload.get("filters")),
@@ -459,6 +556,92 @@ class AuditService:
             "required_identity_agent_id": normalized_agent_id,
             "required_identity_registry": required_identity_registry,
         }
+
+    def _sync_audit_request_record(self, record: dict[str, Any]) -> dict[str, Any]:
+        if self.publisher is None:
+            return record
+        request_id = str(record.get("request_id") or "").strip()
+        if not request_id.isdigit():
+            return record
+
+        try:
+            onchain_request = self.publisher.get_audit_request(int(request_id))
+        except Exception:
+            return record
+
+        synced = deepcopy(record)
+        synced["status"] = onchain_request.state
+        synced["requester"] = onchain_request.requester_address.lower()
+        synced["contract_address"] = onchain_request.target_address.lower()
+        synced["chain_id"] = self.contract_config.chain_id
+        synced["bounty_wei"] = onchain_request.bounty_wei
+        synced["claim_count"] = onchain_request.claim_count
+        synced["created_at"] = self._isoformat_unix_timestamp(onchain_request.created_at)
+        synced["response_window_end"] = self._isoformat_unix_timestamp(
+            onchain_request.response_window_end
+        )
+        filters = self._normalize_marketplace_filters(synced.get("filters"))
+        if int(filters.get("minimum_stake_wei") or 0) == 0:
+            filters["minimum_stake_wei"] = int(
+                onchain_request.eligibility["minimum_stake_wei"]
+            )
+        if (
+            filters.get("whitelist_mode") != "allowlist"
+            and bool(onchain_request.eligibility["allowlist_enabled"])
+        ):
+            filters["whitelist_mode"] = "allowlist"
+        if (
+            filters.get("required_identity_registry") is None
+            and onchain_request.eligibility["identity_registry"] is not None
+        ):
+            filters["required_identity_registry"] = str(
+                onchain_request.eligibility["identity_registry"]
+            ).lower()
+        if (
+            filters.get("required_identity_agent_id") is None
+            and int(onchain_request.eligibility["required_agent_id"]) > 0
+        ):
+            filters["required_identity_agent_id"] = int(
+                onchain_request.eligibility["required_agent_id"]
+            )
+        synced["filters"] = filters
+        metadata = (
+            deepcopy(synced.get("metadata"))
+            if isinstance(synced.get("metadata"), dict)
+            else {}
+        )
+        metadata["onchain_eligibility"] = onchain_request.eligibility
+        synced["metadata"] = metadata
+        return synced
+
+    def _upsert_audit_request_record(self, record: dict[str, Any]) -> None:
+        path = self._audit_request_catalog_path()
+        items: list[dict[str, Any]] = []
+        if path.exists():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {}
+            if isinstance(payload, dict) and isinstance(payload.get("items"), list):
+                items = [item for item in payload["items"] if isinstance(item, dict)]
+        request_id = str(record["request_id"])
+        items = [
+            item
+            for item in items
+            if str(item.get("request_id") or item.get("id") or "").strip() != request_id
+        ]
+        items.append(deepcopy(record))
+        path.write_text(
+            json.dumps({"items": items}, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    def _allowlist_commitment(self, allowed_service_ids: list[str]) -> str:
+        if not allowed_service_ids:
+            return "0x" + ("00" * 32)
+        return "0x" + sha256(
+            "\n".join(sorted(allowed_service_ids)).encode("utf-8")
+        ).hexdigest()
 
     def _build_auditor_matches(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         minimum_stake_wei = int(filters.get("minimum_stake_wei") or 0)
@@ -1260,6 +1443,16 @@ class AuditService:
         return (
             published_at + timedelta(seconds=self.contract_config.challenge_window_seconds)
         ).isoformat()
+
+    def _isoformat_unix_timestamp(self, timestamp: int) -> str:
+        return datetime.fromtimestamp(int(timestamp), UTC).isoformat()
+
+    def _next_created_at_isoformat(self) -> str:
+        candidate = datetime.now(UTC)
+        if self._last_created_at is not None and candidate <= self._last_created_at:
+            candidate = self._last_created_at + timedelta(microseconds=1)
+        self._last_created_at = candidate
+        return candidate.isoformat()
 
     def _auditor_id_for_service(self, service_id: str) -> str:
         if service_id == self.contract_config.auditor_service.service_id:

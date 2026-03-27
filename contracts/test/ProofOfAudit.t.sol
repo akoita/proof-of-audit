@@ -15,6 +15,7 @@ contract ProofOfAuditTest is Test {
     uint256 internal constant STAKE = 0.01 ether;
     uint256 internal constant BOND = 0.005 ether;
     uint256 internal constant WINDOW = 1 days;
+    uint256 internal constant BOUNTY = 0.2 ether;
 
     function setUp() public {
         registry = new ProofOfAudit(arbiter, STAKE, BOND, WINDOW);
@@ -102,6 +103,91 @@ contract ProofOfAuditTest is Test {
         registry.challengeAudit{value: BOND}(auditId, keccak256("late-poc"));
     }
 
+    function testCreateAuditRequestStoresEscrowedRequest() public {
+        ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
+
+        vm.prank(auditor);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            eligibility
+        );
+
+        ProofOfAudit.AuditRequest memory requestRecord = registry.getAuditRequest(
+            requestId
+        );
+
+        assertEq(requestRecord.requester, auditor);
+        assertEq(requestRecord.target, target);
+        assertEq(uint256(requestRecord.createdAt), block.timestamp);
+        assertEq(uint256(requestRecord.responseWindowEnd), block.timestamp + WINDOW);
+        assertEq(uint256(requestRecord.bountyAmount), BOUNTY);
+        assertEq(uint256(requestRecord.claimCount), 0);
+        assertEq(
+            uint256(requestRecord.state),
+            uint256(ProofOfAudit.AuditRequestState.Open)
+        );
+        assertEq(
+            uint256(requestRecord.eligibility.minimumStakeAmount),
+            STAKE
+        );
+        assertTrue(requestRecord.eligibility.allowlistEnabled);
+    }
+
+    function testAuditRequestDerivesClosedStateAfterResponseWindow() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.warp(block.timestamp + WINDOW + 1);
+
+        ProofOfAudit.AuditRequest memory requestRecord = registry.getAuditRequest(
+            requestId
+        );
+
+        assertEq(
+            uint256(requestRecord.state),
+            uint256(ProofOfAudit.AuditRequestState.Closed)
+        );
+    }
+
+    function testExpiredAuditRequestCanBeRefundedByRequester() public {
+        uint256 requestId = _createDefaultAuditRequest();
+        uint256 requesterBalanceAfterCreate = auditor.balance;
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.expireAuditRequest(requestId);
+
+        vm.prank(auditor);
+        registry.refundExpiredAuditRequest(requestId);
+
+        ProofOfAudit.AuditRequest memory requestRecord = registry.getAuditRequest(
+            requestId
+        );
+        assertEq(
+            uint256(requestRecord.state),
+            uint256(ProofOfAudit.AuditRequestState.Settled)
+        );
+        assertEq(auditor.balance, requesterBalanceAfterCreate + BOUNTY);
+    }
+
+    function testCannotExpireAuditRequestWhileWindowIsOpen() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.expectRevert(ProofOfAudit.InvalidRequestState.selector);
+        registry.expireAuditRequest(requestId);
+    }
+
+    function testOnlyRequesterCanRefundExpiredAuditRequest() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.expireAuditRequest(requestId);
+
+        vm.prank(challenger);
+        vm.expectRevert(ProofOfAudit.NotRequester.selector);
+        registry.refundExpiredAuditRequest(requestId);
+    }
+
     function _publishDefaultAudit() internal returns (uint256 auditId) {
         vm.prank(auditor);
         auditId = registry.publishAudit{value: STAKE}(
@@ -111,5 +197,29 @@ contract ProofOfAuditTest is Test {
             3,
             2
         );
+    }
+
+    function _createDefaultAuditRequest() internal returns (uint256 requestId) {
+        vm.prank(auditor);
+        requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            _defaultEligibility()
+        );
+    }
+
+    function _defaultEligibility()
+        internal
+        pure
+        returns (ProofOfAudit.EligibilityConfig memory eligibility)
+    {
+        eligibility = ProofOfAudit.EligibilityConfig({
+            minimumStakeAmount: uint96(STAKE),
+            allowlistEnabled: true,
+            allowlistRoot: keccak256("proof-of-audit"),
+            identityRegistry: address(0x1234),
+            requiredAgentId: 7
+        });
     }
 }

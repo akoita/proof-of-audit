@@ -92,11 +92,16 @@ Key file:
 
 - records the published claim
 - escrows the auditor stake and challenge bond
+- escrows user-funded `AuditRequest` bounties for the marketplace path
 - stores challenge state
+- tracks request expiry and refund state
 - pays out the winner after resolution
 
 Key file:
 - `/home/koita/dev/hackatons/proof-of-audit/contracts/src/ProofOfAudit.sol`
+
+Protocol note:
+- `/home/koita/dev/hackatons/proof-of-audit/docs/AUDIT_REQUEST_PROTOCOL.md`
 
 ### Pluggable auditor boundary
 
@@ -171,6 +176,14 @@ That division keeps the standards story honest and keeps the enforcement logic i
 4. If the case is known, the API resolves the challenge on-chain automatically.
 5. If the case is ambiguous, the challenge remains open for fallback governance.
 6. Once the outcome is resolved, the API mirrors the result into the validation bridge.
+
+### Request creation
+
+1. A requester submits `POST /requests` with a target, bounty, response window, and preview filters.
+2. The API creates an `AuditRequest` on-chain and escrows the bounty in `ProofOfAudit`.
+3. The contract emits `AuditRequested`.
+4. The API persists a local indexed request record for polling clients.
+5. Agents discover the request through `/requests` while later issues add claim submission and settlement.
 
 ## External reviewer checklist
 

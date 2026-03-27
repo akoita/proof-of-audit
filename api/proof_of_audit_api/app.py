@@ -17,12 +17,14 @@ from proof_of_audit_api.publisher import (
     OnchainChallengeError,
     OnchainConfigurationError,
     OnchainPublishError,
+    OnchainRequestError,
     OnchainResolveError,
 )
 from proof_of_audit_api.schemas import (
     AuditListResponse,
     AuditRequestEligibilityResponse,
     AuditRequestListResponse,
+    AuditRequestRecordModel,
     AuditRecordModel,
     AuditorRegistrationDocumentModel,
     AuditorReputationResponse,
@@ -30,6 +32,7 @@ from proof_of_audit_api.schemas import (
     AuditorServiceRecordModel,
     ChallengeAuditRequest,
     ChallengerFeedResponse,
+    CreateAuditMarketplaceRequest,
     CreateAuditRequest,
     DemoFixtureListResponse,
     ErrorResponse,
@@ -305,6 +308,59 @@ def create_app(
         return AuditRequestListResponse(
             items=service.list_audit_requests(status=status_filter)
         )
+
+    @app.post(
+        "/requests",
+        response_model=AuditRequestRecordModel,
+        status_code=status.HTTP_201_CREATED,
+        responses={
+            status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
+            status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
+        },
+    )
+    def create_request(
+        payload: CreateAuditMarketplaceRequest,
+        request: Request,
+    ) -> AuditRequestRecordModel:
+        service = _service(request)
+        try:
+            record = service.create_audit_request(
+                contract_address=payload.contract_address,
+                bounty_wei=payload.bounty_wei,
+                response_window_seconds=payload.response_window_seconds,
+                filters=payload.filters.model_dump(),
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "invalid_payload", "message": str(exc)},
+            ) from exc
+        except OnchainConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "onchain_not_configured", "message": str(exc)},
+            ) from exc
+        except OnchainRequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "request_create_failed", "message": str(exc)},
+            ) from exc
+        return AuditRequestRecordModel.model_validate(record)
+
+    @app.get(
+        "/requests/{request_id}",
+        response_model=AuditRequestRecordModel,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def get_request(request_id: str, request: Request) -> AuditRequestRecordModel:
+        service = _service(request)
+        payload = service.get_audit_request(request_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "request_not_found"},
+            )
+        return AuditRequestRecordModel.model_validate(payload)
 
     @app.get(
         "/requests/{request_id}/eligibility",

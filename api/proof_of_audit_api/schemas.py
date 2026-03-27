@@ -480,6 +480,7 @@ class MarketplacePreviewResponse(BaseModel):
 class AuditRequestRecordModel(BaseModel):
     request_id: str
     status: str
+    requester: str | None = None
     input_kind: Literal["deployed_address", "source_bundle", "repository_url"] = (
         "deployed_address"
     )
@@ -488,8 +489,12 @@ class AuditRequestRecordModel(BaseModel):
     entry_contract: str | None = None
     bounty_wei: int
     protocol_fee_wei: int = 0
+    response_window_seconds: int | None = None
     response_window_end: str | None = None
     created_at: str | None = None
+    claim_count: int = 0
+    request_tx_hash: str | None = None
+    request_tx_url: str | None = None
     filters: MarketplacePreviewFiltersModel = Field(
         default_factory=MarketplacePreviewFiltersModel
     )
@@ -507,6 +512,15 @@ class AuditRequestEligibilityResponse(BaseModel):
     approximate: bool = True
     minimum_stake_wei: int = 0
     reasons: list[str] = Field(default_factory=list)
+
+
+class CreateAuditMarketplaceRequest(BaseModel):
+    contract_address: str
+    bounty_wei: int = Field(..., gt=0)
+    response_window_seconds: int = Field(..., gt=0)
+    filters: MarketplacePreviewFiltersModel = Field(
+        default_factory=MarketplacePreviewFiltersModel
+    )
 
 
 ChallengerEventKind = Literal[

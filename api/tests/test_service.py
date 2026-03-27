@@ -36,6 +36,60 @@ class RaisingVerifier:
 
 
 class AuditServiceTest(unittest.TestCase):
+    def test_create_audit_request_persists_and_syncs_onchain_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            created = service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                filters={
+                    "minimum_stake_wei": 10**16,
+                    "whitelist_mode": "allowlist",
+                    "allowed_service_ids": ["proof-of-audit-auditor"],
+                    "required_identity_registry": onchain.contract_config.auditor_agent_registry,
+                    "required_identity_agent_id": 1,
+                },
+                submitted_by="market-user",
+            )
+
+            self.assertEqual(created["request_id"], "1")
+            self.assertEqual(created["status"], "open")
+            self.assertEqual(
+                created["contract_address"],
+                onchain.web3.eth.accounts[3].lower(),
+            )
+            self.assertEqual(created["bounty_wei"], 2 * 10**17)
+            self.assertEqual(created["claim_count"], 0)
+            self.assertEqual(created["filters"]["whitelist_mode"], "allowlist")
+            self.assertEqual(
+                created["requester"],
+                onchain.publisher.account.address.lower(),
+            )
+            self.assertTrue(str(created["request_tx_hash"]).startswith("0x"))
+
+            tester = onchain.web3.provider.ethereum_tester
+            latest = tester.get_block_by_number("latest")
+            tester.time_travel(int(latest["timestamp"]) + 3601)
+            tester.mine_block()
+
+            refreshed = service.get_audit_request("1")
+
+            self.assertIsNotNone(refreshed)
+            assert refreshed is not None
+            self.assertEqual(refreshed["status"], "closed")
+            self.assertEqual(
+                refreshed["metadata"]["onchain_eligibility"]["minimum_stake_wei"],
+                10**16,
+            )
+
     def test_predeployed_testnet_fixture_addresses_require_live_auditor(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
