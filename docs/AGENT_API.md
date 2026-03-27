@@ -126,6 +126,10 @@ Returns:
 
 - a draft audit record
 - normalized submission data
+- for `deployed_address` submissions, a captured chain snapshot:
+  - `submission.snapshot_block_number`
+  - `submission.snapshot_block_hash`
+  - `submission.target_code_hash_at_snapshot`
 - the attached auditor profile
 - a deterministic report with findings, summary, and hashes
 - optional `execution` metadata when a live agent-forge pass runs or a fallback is recorded
@@ -276,6 +280,9 @@ Preconditions:
 - the audit must be in `draft`
 - the submission must be publishable
 - API-side chain configuration must be loaded
+- for `deployed_address` submissions, the live target code must still match the
+  code hash captured at audit start; otherwise publish is rejected and a fresh
+  audit is required
 
 On success, the record moves to:
 
@@ -285,6 +292,9 @@ And gains:
 
 - `onchain.publish_tx_hash`
 - `onchain.audit_id`
+- `onchain.snapshot_block_number`
+- `onchain.snapshot_block_hash`
+- `onchain.target_code_hash_at_snapshot`
 - `onchain.challenge_policy`
 - `validation.request_hash`
 - `validation.request_uri`
@@ -292,7 +302,8 @@ And gains:
 - `reputation_trail.claim_uri`
 
 The validation-request and reputation-claim documents also expose the effective
-`challengePolicy` for the published claim.
+`challengePolicy` for the published claim, along with the snapshot metadata that
+binds the claim to a specific chain state.
 
 ### Open a challenge
 
@@ -319,8 +330,7 @@ Executable evidence example:
     "execution_env": "foundry",
     "entrypoint": "ChallengeEvidence.t.sol",
     "target_chain_id": 31337,
-    "test_contract": "ChallengeEvidenceTest",
-    "pinned_block_number": 42
+    "test_contract": "ChallengeEvidenceTest"
   },
   "challenger": "agent-challenger"
 }
@@ -355,6 +365,10 @@ Executable evidence notes:
 - executable evidence is still advisory-only in the current model
 - callers should treat `evidence_manifest` as the canonical execution description
 - executable challenges now commit `evidence_hash` on-chain from canonical evidence content, while `proof_uri` remains only the locator
+- for published `deployed_address` claims, executable challenges default to the
+  claim snapshot block even when the caller omits `pinned_block_number`
+- if the caller supplies `pinned_block_number`, it must equal the published
+  claim snapshot block or the challenge is rejected
 - the runner fetches remote evidence before execution and executes only validated local materialized files
 - the runner re-hashes fetched executable evidence and rejects execution if it no longer matches the committed on-chain hash
 - `ipfs://` is the primary remote URI path for executable evidence

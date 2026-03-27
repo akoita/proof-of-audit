@@ -20,6 +20,7 @@ class EvidenceContext:
     evidence_manifest: dict[str, Any] | None = None
     chain_id: int | None = None
     rpc_url: str | None = None
+    snapshot_block_number: int | None = None
     committed_evidence_hash: str | None = None
 
 

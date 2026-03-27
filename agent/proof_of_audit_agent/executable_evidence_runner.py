@@ -139,7 +139,11 @@ class ExecutableEvidenceRunner:
             block_number = (
                 manifest_block_number
                 if isinstance(manifest_block_number, int)
-                else self._fetch_block_number(context.rpc_url)
+                else (
+                    context.snapshot_block_number
+                    if context.snapshot_block_number is not None
+                    else self._fetch_block_number(context.rpc_url)
+                )
             )
             if block_number is None:
                 return ExecutableEvidenceRunResult(

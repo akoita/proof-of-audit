@@ -211,6 +211,9 @@ class OnchainPublicationModel(BaseModel):
     agent_id: int | None = None
     agent_registry: str | None = None
     auditor_address: str | None = None
+    snapshot_block_number: int | None = None
+    snapshot_block_hash: str | None = None
+    target_code_hash_at_snapshot: str | None = None
     challenge_policy: ChallengePolicyModel | None = None
 
 
@@ -716,6 +719,9 @@ class AuditSubmissionModel(BaseModel):
     source_bundle_uri: str | None = None
     source_bundle_label: str | None = None
     repository_url: str | None = None
+    snapshot_block_number: int | None = None
+    snapshot_block_hash: str | None = None
+    target_code_hash_at_snapshot: str | None = None
 
 
 class CreateAuditRequest(AuditSubmissionModel):

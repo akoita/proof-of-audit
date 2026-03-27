@@ -49,6 +49,7 @@ from proof_of_audit_agent.deterministic_auditor_backend import (
 from proof_of_audit_agent.runtime import WorkerRuntimeConfig
 from proof_of_audit_agent.worker import AuditWorker
 from proof_of_audit_api.store import AuditStore, CloudSqlPostgresConfig, create_store
+from web3 import HTTPProvider, Web3
 
 
 def _network_is_local(network: str | None) -> bool:
@@ -112,6 +113,7 @@ class AuditService:
     ) -> None:
         self.data_root = data_root
         self._last_created_at: datetime | None = None
+        self._chain_web3: Web3 | None = None
         self.store = store or create_store(
             root=data_root,
             kind=store_kind,
@@ -202,6 +204,9 @@ class AuditService:
         self, submission: dict[str, Any], submitted_by: str = "anonymous"
     ) -> dict[str, Any]:
         normalized_submission = self._normalize_submission(submission)
+        snapshot_metadata = self._capture_deployed_address_snapshot(normalized_submission)
+        if snapshot_metadata["snapshot_block_number"] is not None:
+            normalized_submission.update(snapshot_metadata)
         auditor_service = self._require_submission_service(
             normalized_submission.get("service_id"),
             normalized_submission["input_kind"],
@@ -245,6 +250,89 @@ class AuditService:
         }
         self.store.write(audit_id, record)
         return self.get_audit(audit_id) or record
+
+    def _chain_web3_client(self) -> Web3 | None:
+        for client in (
+            self.publisher,
+            self.arbiter_client,
+            self.validation_bridge,
+            self.reputation_bridge,
+        ):
+            web3 = getattr(client, "web3", None)
+            if isinstance(web3, Web3):
+                return web3
+        if not self.contract_config.rpc_url:
+            return None
+        if self._chain_web3 is None:
+            self._chain_web3 = Web3(HTTPProvider(self.contract_config.rpc_url))
+        return self._chain_web3
+
+    def _capture_deployed_address_snapshot(
+        self, submission: dict[str, Any]
+    ) -> dict[str, Any]:
+        empty_snapshot = {
+            "snapshot_block_number": None,
+            "snapshot_block_hash": None,
+            "target_code_hash_at_snapshot": None,
+        }
+        if submission.get("input_kind") != "deployed_address":
+            return empty_snapshot
+        web3 = self._chain_web3_client()
+        if web3 is None:
+            return empty_snapshot
+        contract_address = submission.get("contract_address")
+        if not isinstance(contract_address, str) or not contract_address.strip():
+            return empty_snapshot
+        latest_block = web3.eth.get_block("latest")
+        block_number = int(latest_block["number"])
+        code = bytes(
+            web3.eth.get_code(
+                Web3.to_checksum_address(contract_address),
+                block_identifier=block_number,
+            )
+        )
+        return {
+            "snapshot_block_number": block_number,
+            "snapshot_block_hash": Web3.to_hex(latest_block["hash"]),
+            "target_code_hash_at_snapshot": Web3.to_hex(Web3.keccak(code)),
+        }
+
+    def _record_snapshot_metadata(self, record: dict[str, Any]) -> dict[str, Any]:
+        submission = record.get("submission") if isinstance(record.get("submission"), dict) else {}
+        return {
+            "snapshot_block_number": (
+                int(submission["snapshot_block_number"])
+                if submission.get("snapshot_block_number") is not None
+                else None
+            ),
+            "snapshot_block_hash": (
+                str(submission["snapshot_block_hash"])
+                if submission.get("snapshot_block_hash") is not None
+                else None
+            ),
+            "target_code_hash_at_snapshot": (
+                str(submission["target_code_hash_at_snapshot"])
+                if submission.get("target_code_hash_at_snapshot") is not None
+                else None
+            ),
+        }
+
+    def _assert_snapshot_publishable(self, record: dict[str, Any]) -> None:
+        submission = record.get("submission") if isinstance(record.get("submission"), dict) else {}
+        if submission.get("input_kind") != "deployed_address":
+            return
+        snapshot = self._record_snapshot_metadata(record)
+        if snapshot["target_code_hash_at_snapshot"] is None:
+            return
+        current_snapshot = self._capture_deployed_address_snapshot(submission)
+        current_hash = current_snapshot["target_code_hash_at_snapshot"]
+        if (
+            current_hash is not None
+            and current_hash != snapshot["target_code_hash_at_snapshot"]
+        ):
+            raise ValueError(
+                "target code changed since audit start; create a new audit before publish"
+            )
 
     def _validate_live_deployed_address_execution(
         self,
@@ -434,6 +522,7 @@ class AuditService:
             raise OnchainConfigurationError(
                 "On-chain request claim submission is not configured for this API instance."
             )
+        self._assert_snapshot_publishable(record)
         if record["contract_address"] != request_record["contract_address"]:
             raise ValueError("audit target must match the audit request target")
 
@@ -447,6 +536,7 @@ class AuditService:
             )
 
         report = record["report"]
+        snapshot = self._record_snapshot_metadata(record)
         claim_result = self.publisher.submit_audit_request_claim(
             request_id=int(request_record["request_id"]),
             agent_registry=str(agent_registry),
@@ -487,6 +577,9 @@ class AuditService:
             "agent_id": onchain_claim.agent_id,
             "agent_registry": onchain_claim.agent_registry.lower(),
             "auditor_address": onchain_claim.auditor_address.lower(),
+            "snapshot_block_number": snapshot["snapshot_block_number"],
+            "snapshot_block_hash": snapshot["snapshot_block_hash"],
+            "target_code_hash_at_snapshot": snapshot["target_code_hash_at_snapshot"],
             "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         self.store.write(audit_id, updated_record)
@@ -1485,9 +1578,11 @@ class AuditService:
             raise OnchainConfigurationError(
                 "On-chain publishing is not configured for this API instance."
             )
+        self._assert_snapshot_publishable(record)
         agent = self._record_agent_profile(record)
         agent_identity = agent_identity or str(agent.get("id") or self.contract_config.auditor.id)
         report = record["report"]
+        snapshot = self._record_snapshot_metadata(record)
         publish_result = self.publisher.publish_audit(
             target_address=record["contract_address"],
             report_hash=report["report_hash"],
@@ -1518,6 +1613,9 @@ class AuditService:
             "publish_tx_url": self.contract_config.transaction_url(
                 publish_result.tx_hash
             ),
+            "snapshot_block_number": snapshot["snapshot_block_number"],
+            "snapshot_block_hash": snapshot["snapshot_block_hash"],
+            "target_code_hash_at_snapshot": snapshot["target_code_hash_at_snapshot"],
             "challenge_policy": self._normalize_challenge_policy(challenge_policy),
         }
         record["validation"] = self._submit_validation_request(record)
@@ -1547,6 +1645,28 @@ class AuditService:
             raise ValueError(
                 "executable_test challenge evidence is only supported for deployed_address audits"
             )
+        snapshot = self._record_snapshot_metadata(record)
+        materialized_evidence_manifest = deepcopy(evidence_manifest)
+        if (
+            evidence_type == "executable_test"
+            and snapshot["snapshot_block_number"] is not None
+            and isinstance(materialized_evidence_manifest, dict)
+            and materialized_evidence_manifest.get("pinned_block_number") is not None
+            and int(materialized_evidence_manifest["pinned_block_number"])
+            != int(snapshot["snapshot_block_number"])
+        ):
+            raise ValueError(
+                "executable challenge evidence must use the audit snapshot block"
+            )
+        if (
+            evidence_type == "executable_test"
+            and snapshot["snapshot_block_number"] is not None
+            and isinstance(materialized_evidence_manifest, dict)
+            and materialized_evidence_manifest.get("pinned_block_number") is None
+        ):
+            materialized_evidence_manifest["pinned_block_number"] = int(
+                snapshot["snapshot_block_number"]
+            )
         onchain_audit_id = record["onchain"].get("audit_id")
         if not isinstance(onchain_audit_id, int):
             raise ValueError("published audit is missing its on-chain audit id")
@@ -1561,7 +1681,7 @@ class AuditService:
             proof_uri=proof_uri,
             evidence_type=evidence_type,
             execution_env=execution_env,
-            evidence_manifest=evidence_manifest,
+            evidence_manifest=materialized_evidence_manifest,
             chain_id=int(record["onchain"].get("chain_id") or self.contract_config.chain_id),
         )
 
@@ -1577,7 +1697,7 @@ class AuditService:
             "evidence_hash": challenge_result.evidence_hash,
             "evidence_type": evidence_type,
             "execution_env": execution_env,
-            "evidence_manifest": deepcopy(evidence_manifest),
+            "evidence_manifest": deepcopy(materialized_evidence_manifest),
             "submitted_at": datetime.now(UTC).isoformat(),
             "verifier": (
                 EXECUTABLE_VERIFIER_NAME
@@ -1662,19 +1782,20 @@ class AuditService:
             verification_result = verifier.verify(
                 EvidenceContext(
                     proof_uri=proof_uri,
-                    benchmark_id=str(record["report"].get("benchmark_id") or "unknown"),
-                    target_contract=record["contract_address"],
-                    published_report=deepcopy(record["report"]),
-                    evidence_type=evidence_type,
-                    execution_env=execution_env,
-                    evidence_manifest=deepcopy(evidence_manifest),
-                    chain_id=int(
-                        record["onchain"].get("chain_id") or self.contract_config.chain_id
-                    ),
-                    rpc_url=self.contract_config.rpc_url,
-                    committed_evidence_hash=evidence_hash,
-                )
+                benchmark_id=str(record["report"].get("benchmark_id") or "unknown"),
+                target_contract=record["contract_address"],
+                published_report=deepcopy(record["report"]),
+                evidence_type=evidence_type,
+                execution_env=execution_env,
+                evidence_manifest=deepcopy(materialized_evidence_manifest),
+                chain_id=int(
+                    record["onchain"].get("chain_id") or self.contract_config.chain_id
+                ),
+                rpc_url=self.contract_config.rpc_url,
+                snapshot_block_number=snapshot["snapshot_block_number"],
+                committed_evidence_hash=evidence_hash,
             )
+        )
             verification_dossier = self._verification_dossier_payload(
                 verification_result=verification_result,
                 challenge_defaults={
@@ -1952,6 +2073,7 @@ class AuditService:
             else:
                 submission_payload["service_id"] = self.contract_config.auditor_service.service_id
         normalized["submission"] = self._normalize_submission(submission_payload)
+        snapshot = self._record_snapshot_metadata({"submission": normalized["submission"]})
         normalized_service = self._normalize_auditor_service(
             normalized.get("auditor_service"),
             service_id=str(normalized["submission"]["service_id"]),
@@ -1967,6 +2089,12 @@ class AuditService:
             onchain.setdefault("published_at", normalized.get("created_at"))
             onchain.setdefault("agent_name", str(normalized["agent"]["name"]))
             onchain.setdefault("agent_version", str(normalized["agent"]["version"]))
+            onchain.setdefault("snapshot_block_number", snapshot["snapshot_block_number"])
+            onchain.setdefault("snapshot_block_hash", snapshot["snapshot_block_hash"])
+            onchain.setdefault(
+                "target_code_hash_at_snapshot",
+                snapshot["target_code_hash_at_snapshot"],
+            )
             onchain["challenge_policy"] = self._normalize_challenge_policy(
                 onchain.get("challenge_policy")
             )
@@ -2593,6 +2721,9 @@ class AuditService:
                 "publishTxHash": onchain.get("publish_tx_hash"),
                 "publishedAuditId": onchain.get("audit_id"),
                 "stakeWei": onchain.get("stake_wei"),
+                "snapshotBlockNumber": onchain.get("snapshot_block_number"),
+                "snapshotBlockHash": onchain.get("snapshot_block_hash"),
+                "targetCodeHashAtSnapshot": onchain.get("target_code_hash_at_snapshot"),
                 "challengePolicy": self._challenge_policy_for_record(record),
             },
             "service": {
@@ -2736,6 +2867,9 @@ class AuditService:
                 "summary": report["summary"],
                 "maxSeverity": report["max_severity"],
                 "findingCount": report["finding_count"],
+                "snapshotBlockNumber": onchain.get("snapshot_block_number"),
+                "snapshotBlockHash": onchain.get("snapshot_block_hash"),
+                "targetCodeHashAtSnapshot": onchain.get("target_code_hash_at_snapshot"),
                 "challengePolicy": self._challenge_policy_for_record(record),
             },
             "submission": record["submission"],
@@ -3545,6 +3679,21 @@ class AuditService:
         source_bundle_label = submission.get("source_bundle_label")
         repository_url = submission.get("repository_url")
         fixture_id = submission.get("fixture_id")
+        snapshot_block_number = (
+            int(submission["snapshot_block_number"])
+            if submission.get("snapshot_block_number") is not None
+            else None
+        )
+        snapshot_block_hash = (
+            str(submission["snapshot_block_hash"])
+            if submission.get("snapshot_block_hash") is not None
+            else None
+        )
+        target_code_hash_at_snapshot = (
+            str(submission["target_code_hash_at_snapshot"])
+            if submission.get("target_code_hash_at_snapshot") is not None
+            else None
+        )
 
         if input_kind == "demo_fixture":
             fixture = self.worker.require_fixture(fixture_id)
@@ -3559,6 +3708,9 @@ class AuditService:
                 "source_bundle_uri": source_bundle_uri,
                 "source_bundle_label": source_bundle_label or fixture.label,
                 "repository_url": repository_url,
+                "snapshot_block_number": snapshot_block_number,
+                "snapshot_block_hash": snapshot_block_hash,
+                "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
             }
 
         if input_kind == "source_bundle":
@@ -3578,6 +3730,9 @@ class AuditService:
                 "source_bundle_uri": source_bundle_uri,
                 "source_bundle_label": source_bundle_label,
                 "repository_url": repository_url,
+                "snapshot_block_number": snapshot_block_number,
+                "snapshot_block_hash": snapshot_block_hash,
+                "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
             }
 
         if input_kind == "repository_url":
@@ -3594,6 +3749,9 @@ class AuditService:
                 "source_bundle_uri": source_bundle_uri,
                 "source_bundle_label": source_bundle_label,
                 "repository_url": repository_url,
+                "snapshot_block_number": snapshot_block_number,
+                "snapshot_block_hash": snapshot_block_hash,
+                "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
             }
 
         contract_address = submission.get("contract_address")
@@ -3610,6 +3768,9 @@ class AuditService:
             "source_bundle_uri": source_bundle_uri,
             "source_bundle_label": source_bundle_label,
             "repository_url": repository_url,
+            "snapshot_block_number": snapshot_block_number,
+            "snapshot_block_hash": snapshot_block_hash,
+            "target_code_hash_at_snapshot": target_code_hash_at_snapshot,
         }
 
     def _normalize_target_key(self, contract_address: str | None) -> str:
