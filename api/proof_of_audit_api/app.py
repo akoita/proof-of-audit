@@ -402,6 +402,7 @@ def create_app(
                 request_id,
                 audit_id=payload.audit_id,
                 stake_wei=payload.stake_wei,
+                challenge_policy=payload.challenge_policy.model_dump(),
             )
         except KeyError as exc:
             missing_key = str(exc.args[0]) if exc.args else ""
@@ -653,6 +654,7 @@ def create_app(
                 audit_id,
                 stake_wei=payload.stake_wei,
                 agent_identity=payload.agent_identity,
+                challenge_policy=payload.challenge_policy.model_dump(),
             )
         except KeyError:
             raise HTTPException(
