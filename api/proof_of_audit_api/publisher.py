@@ -31,6 +31,10 @@ class OnchainResolveError(OnchainTransactionError):
     """Raised when a resolution transaction cannot be executed or verified."""
 
 
+class OnchainRequestError(OnchainTransactionError):
+    """Raised when an audit-request transaction cannot be executed or verified."""
+
+
 class OnchainConfigurationError(OnchainTransactionError):
     """Raised when API-side contract transaction submission is not configured."""
 
@@ -60,6 +64,26 @@ class ResolutionResult:
     resolution: str
     beneficiary_address: str
     payout_wei: int
+
+
+@dataclass(frozen=True)
+class AuditRequestCreateResult:
+    request_id: int
+    tx_hash: str
+    chain_id: int
+
+
+@dataclass(frozen=True)
+class OnchainAuditRequest:
+    request_id: int
+    requester_address: str
+    target_address: str
+    created_at: int
+    response_window_end: int
+    bounty_wei: int
+    claim_count: int
+    state: str
+    eligibility: dict[str, Any]
 
 
 def load_contract_artifact() -> dict[str, Any]:
@@ -305,6 +329,96 @@ class ProofOfAuditPublisher:
             payout_wei=payout_wei,
         )
 
+    def create_audit_request(
+        self,
+        *,
+        target_address: str,
+        bounty_wei: int,
+        response_window_seconds: int,
+        minimum_stake_wei: int = 0,
+        allowlist_enabled: bool = False,
+        allowlist_root: bytes | str = b"\x00" * 32,
+        identity_registry: str | None = None,
+        required_agent_id: int = 0,
+    ) -> AuditRequestCreateResult:
+        target = Web3.to_checksum_address(target_address)
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        normalized_root = (
+            HexBytes(allowlist_root)
+            if isinstance(allowlist_root, str)
+            else HexBytes(allowlist_root)
+        )
+        request_call = self.contract.functions.createAuditRequest(
+            target,
+            bounty_wei,
+            response_window_seconds,
+            (
+                minimum_stake_wei,
+                allowlist_enabled,
+                normalized_root,
+                Web3.to_checksum_address(identity_registry)
+                if identity_registry
+                else "0x0000000000000000000000000000000000000000",
+                required_agent_id,
+            ),
+        )
+        receipt = self._submit_transaction(
+            request_call,
+            value_wei=bounty_wei,
+            chain_id=runtime_chain_id,
+            action_label="create audit request",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError("Audit request transaction reverted on-chain.")
+
+        events = self.contract.events.AuditRequested().process_receipt(receipt)
+        if not events:
+            raise OnchainRequestError(
+                "Audit request transaction succeeded but AuditRequested event was missing."
+            )
+        event = events[0]["args"]
+        request_id = int(event["requestId"])
+        onchain_request = self.get_audit_request(request_id)
+        if onchain_request.target_address != target:
+            raise OnchainRequestError(
+                "On-chain request target address did not match request input."
+            )
+        if onchain_request.bounty_wei != bounty_wei:
+            raise OnchainRequestError(
+                "On-chain request bounty did not match request input."
+            )
+        return AuditRequestCreateResult(
+            request_id=request_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+        )
+
+    def get_audit_request(self, request_id: int) -> OnchainAuditRequest:
+        record = self.contract.functions.getAuditRequest(request_id).call()
+        eligibility = record[7]
+        return OnchainAuditRequest(
+            request_id=request_id,
+            requester_address=Web3.to_checksum_address(record[0]),
+            target_address=Web3.to_checksum_address(record[1]),
+            created_at=int(record[2]),
+            response_window_end=int(record[3]),
+            bounty_wei=int(record[4]),
+            claim_count=int(record[5]),
+            state=self._request_state_label(int(record[6])),
+            eligibility={
+                "minimum_stake_wei": int(eligibility[0]),
+                "allowlist_enabled": bool(eligibility[1]),
+                "allowlist_root": Web3.to_hex(eligibility[2]),
+                "identity_registry": (
+                    None
+                    if int(eligibility[3], 16) == 0
+                    else Web3.to_checksum_address(eligibility[3])
+                ),
+                "required_agent_id": int(eligibility[4]),
+            },
+        )
+
     def _verify_onchain_record(
         self,
         *,
@@ -482,4 +596,15 @@ class ProofOfAuditPublisher:
             return "upheld"
         if resolution == 2:
             return "rejected"
+        return "none"
+
+    def _request_state_label(self, state: int) -> str:
+        if state == 1:
+            return "open"
+        if state == 2:
+            return "closed"
+        if state == 3:
+            return "expired"
+        if state == 4:
+            return "settled"
         return "none"

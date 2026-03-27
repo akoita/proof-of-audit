@@ -9,10 +9,26 @@ contract ProofOfAudit {
         Resolved
     }
 
+    enum AuditRequestState {
+        None,
+        Open,
+        Closed,
+        Expired,
+        Settled
+    }
+
     enum Resolution {
         None,
         ChallengeUpheld,
         ChallengeRejected
+    }
+
+    struct EligibilityConfig {
+        uint96 minimumStakeAmount;
+        bool allowlistEnabled;
+        bytes32 allowlistRoot;
+        address identityRegistry;
+        uint256 requiredAgentId;
     }
 
     struct AuditRecord {
@@ -32,12 +48,30 @@ contract ProofOfAudit {
         bytes32 evidenceHash;
     }
 
+    struct AuditRequest {
+        address requester;
+        address target;
+        uint64 createdAt;
+        uint64 responseWindowEnd;
+        uint96 bountyAmount;
+        uint32 claimCount;
+        AuditRequestState state;
+        EligibilityConfig eligibility;
+    }
+
     error IncorrectStake();
     error IncorrectChallengeBond();
+    error IncorrectRequestBounty();
     error InvalidAudit();
+    error InvalidAuditRequest();
     error InvalidState();
+    error InvalidRequestState();
+    error InvalidResponseWindow();
     error ChallengeWindowClosed();
     error ChallengeWindowOpen();
+    error ResponseWindowOpen();
+    error RequestHasClaims();
+    error NotRequester();
     error NotArbiter();
     error TransferFailed();
 
@@ -71,13 +105,40 @@ contract ProofOfAudit {
         uint256 amount
     );
 
+    event AuditRequested(
+        uint256 indexed requestId,
+        address indexed requester,
+        address indexed target,
+        uint256 bountyAmount,
+        uint64 responseWindowEnd,
+        uint256 minimumStakeAmount,
+        bool allowlistEnabled,
+        bytes32 allowlistRoot,
+        address identityRegistry,
+        uint256 requiredAgentId
+    );
+
+    event AuditRequestExpired(
+        uint256 indexed requestId,
+        address indexed requester,
+        uint256 bountyAmount
+    );
+
+    event AuditRequestRefunded(
+        uint256 indexed requestId,
+        address indexed requester,
+        uint256 bountyAmount
+    );
+
     uint256 public immutable requiredStake;
     uint256 public immutable requiredChallengeBond;
     uint256 public immutable challengeWindow;
     address public immutable arbiter;
 
     uint256 public nextAuditId;
-    mapping(uint256 => AuditRecord) public audits;
+    uint256 public nextRequestId;
+    mapping(uint256 => AuditRecord) private audits;
+    mapping(uint256 => AuditRequest) private auditRequests;
 
     constructor(
         address _arbiter,
@@ -126,6 +187,49 @@ contract ProofOfAudit {
             msg.value,
             maxSeverity,
             findingCount
+        );
+    }
+
+    function createAuditRequest(
+        address target,
+        uint96 bountyAmount,
+        uint64 responseWindow,
+        EligibilityConfig calldata eligibility
+    ) external payable returns (uint256 requestId) {
+        if (responseWindow == 0) revert InvalidResponseWindow();
+        if (bountyAmount == 0 || msg.value != bountyAmount) {
+            revert IncorrectRequestBounty();
+        }
+
+        requestId = ++nextRequestId;
+        auditRequests[requestId] = AuditRequest({
+            requester: msg.sender,
+            target: target,
+            createdAt: uint64(block.timestamp),
+            responseWindowEnd: uint64(block.timestamp) + responseWindow,
+            bountyAmount: bountyAmount,
+            claimCount: 0,
+            state: AuditRequestState.Open,
+            eligibility: EligibilityConfig({
+                minimumStakeAmount: eligibility.minimumStakeAmount,
+                allowlistEnabled: eligibility.allowlistEnabled,
+                allowlistRoot: eligibility.allowlistRoot,
+                identityRegistry: eligibility.identityRegistry,
+                requiredAgentId: eligibility.requiredAgentId
+            })
+        });
+
+        emit AuditRequested(
+            requestId,
+            msg.sender,
+            target,
+            bountyAmount,
+            uint64(block.timestamp) + responseWindow,
+            eligibility.minimumStakeAmount,
+            eligibility.allowlistEnabled,
+            eligibility.allowlistRoot,
+            eligibility.identityRegistry,
+            eligibility.requiredAgentId
         );
     }
 
@@ -196,6 +300,60 @@ contract ProofOfAudit {
         uint256 auditId
     ) external view returns (AuditRecord memory) {
         return audits[auditId];
+    }
+
+    function expireAuditRequest(uint256 requestId) external {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (auditRequestState(requestId) != AuditRequestState.Closed) {
+            revert InvalidRequestState();
+        }
+        if (auditRequest.claimCount != 0) revert RequestHasClaims();
+
+        auditRequest.state = AuditRequestState.Expired;
+
+        emit AuditRequestExpired(
+            requestId,
+            auditRequest.requester,
+            auditRequest.bountyAmount
+        );
+    }
+
+    function refundExpiredAuditRequest(uint256 requestId) external {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (auditRequest.state != AuditRequestState.Expired) {
+            revert InvalidRequestState();
+        }
+        if (msg.sender != auditRequest.requester) revert NotRequester();
+
+        auditRequest.state = AuditRequestState.Settled;
+
+        uint256 refundAmount = auditRequest.bountyAmount;
+        _sendValue(auditRequest.requester, refundAmount);
+
+        emit AuditRequestRefunded(requestId, auditRequest.requester, refundAmount);
+    }
+
+    function getAuditRequest(
+        uint256 requestId
+    ) external view returns (AuditRequest memory auditRequest) {
+        auditRequest = auditRequests[requestId];
+        auditRequest.state = auditRequestState(requestId);
+    }
+
+    function auditRequestState(
+        uint256 requestId
+    ) public view returns (AuditRequestState) {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) return AuditRequestState.None;
+        if (
+            auditRequest.state == AuditRequestState.Open &&
+            block.timestamp > auditRequest.responseWindowEnd
+        ) {
+            return AuditRequestState.Closed;
+        }
+        return auditRequest.state;
     }
 
     function _sendValue(address to, uint256 amount) private {

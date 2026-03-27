@@ -831,6 +831,60 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"], "request_not_found")
 
+    def test_create_request_endpoint_creates_and_reads_onchain_request(self) -> None:
+        onchain = build_onchain_test_context()
+        service = AuditService(
+            Path(self.tempdir.name) / "request-endpoint-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        created = client.post(
+            "/requests",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "response_window_seconds": 3600,
+                "filters": {
+                    "minimum_stake_wei": 0,
+                    "whitelist_mode": "allowlist",
+                    "allowed_service_ids": ["proof-of-audit-auditor"],
+                    "required_identity_registry": onchain.contract_config.auditor_agent_registry,
+                    "required_identity_agent_id": 1,
+                },
+            },
+        )
+
+        self.assertEqual(created.status_code, 201)
+        created_payload = created.json()
+        self.assertEqual(created_payload["request_id"], "1")
+        self.assertEqual(created_payload["status"], "open")
+        self.assertEqual(
+            created_payload["requester"],
+            onchain.publisher.account.address.lower(),
+        )
+        self.assertTrue(created_payload["request_tx_hash"].startswith("0x"))
+        self.assertEqual(created_payload["filters"]["whitelist_mode"], "allowlist")
+
+        listed = client.get("/requests", params={"status": "open"})
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(len(listed.json()["items"]), 1)
+        self.assertEqual(listed.json()["items"][0]["request_id"], "1")
+
+        detail = client.get("/requests/1")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["contract_address"], onchain.web3.eth.accounts[3].lower())
+
+        eligibility = client.get(
+            "/requests/1/eligibility",
+            params={"auditor": "proof-of-audit-auditor"},
+        )
+        self.assertEqual(eligibility.status_code, 200)
+        self.assertTrue(eligibility.json()["eligible"])
+        self.assertEqual(eligibility.json()["minimum_stake_wei"], 0)
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")
 
