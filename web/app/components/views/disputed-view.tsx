@@ -3,6 +3,7 @@
 import type { AuditRecord } from "../../lib/types";
 import { challengePathSummary, shortenHex, titleCase, relativeTimeLabel, formatEth } from "../../lib/format";
 import { CopyButton } from "../copy-button";
+import { PolicyBadge } from "../policy-badge";
 
 type DisputedViewProps = {
   audit: AuditRecord;
@@ -325,6 +326,23 @@ export function DisputedView({ audit, allAudits, onSelect }: DisputedViewProps) 
               </div>
             </div>
           </div>
+
+          {/* Challenge Policy */}
+          {audit.onchain?.challenge_policy ? (
+            <PolicyBadge
+              policy={audit.onchain.challenge_policy}
+              admissibilityStatus={
+                audit.challenge?.policy_admissibility_status ??
+                dossier?.policy?.admissibility_status ??
+                null
+              }
+              admissibilityRationale={
+                audit.challenge?.policy_admissibility_rationale ??
+                dossier?.policy?.rationale ??
+                null
+              }
+            />
+          ) : null}
 
           {dossier ? (
             <div className="card">

@@ -5,11 +5,13 @@ import { apiFetch, uploadSourceBundle } from "./lib/api";
 import {
   formatEth,
   parseEthInputToWei,
+  POLICY_PRESETS,
   publishBlockedReason,
   relativeTimeLabel,
   submissionModeLabel,
   suggestedProofUriForBenchmark,
 } from "./lib/format";
+import type { ChallengePolicy, ChallengePolicyPresetId } from "./lib/types";
 import type {
   AuditRecord,
   AuditorServiceRecord,
@@ -146,6 +148,8 @@ export function AuditWorkbench() {
   const [sourceBundleUri, setSourceBundleUri] = useState("");
   const [sourceBundleLabel, setSourceBundleLabel] = useState("");
   const [proofUri, setProofUri] = useState("ipfs://demo-poc");
+  const [selectedPolicyPresetId, setSelectedPolicyPresetId] = useState<ChallengePolicyPresetId>("open");
+  const [challengePolicy, setChallengePolicy] = useState<ChallengePolicy>(POLICY_PRESETS.open.policy);
   const [marketplaceContractAddress, setMarketplaceContractAddress] = useState("");
   const [marketplaceBountyEth, setMarketplaceBountyEth] = useState("0.750");
   const [marketplaceProtocolFeeEth, setMarketplaceProtocolFeeEth] = useState("0.050");
@@ -507,7 +511,7 @@ export function AuditWorkbench() {
         try {
           syncAudit(await apiFetch<AuditRecord>(`/audits/${activeAudit.id}/publish`, {
             method: "POST",
-            body: JSON.stringify({ stake_wei: publishStake }),
+            body: JSON.stringify({ stake_wei: publishStake, challenge_policy: challengePolicy }),
           }));
         } catch (e) {
           setError(
@@ -681,9 +685,14 @@ export function AuditWorkbench() {
                       activeAction={activeAction}
                       publishStake={publishStake}
                       challengeBond={challengeBond}
+                      selectedPolicyPresetId={selectedPolicyPresetId}
                       onProofUriChange={setProofUri}
                       onPublish={handlePublish}
                       onChallenge={handleChallenge}
+                      onPolicyChange={(presetId, policy) => {
+                        setSelectedPolicyPresetId(presetId);
+                        setChallengePolicy(policy);
+                      }}
                     />
                     <OnchainCard audit={activeAudit} />
                     <ValidationCard audit={activeAudit} />

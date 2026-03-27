@@ -1,3 +1,21 @@
+export type ChallengePolicy = {
+  policy_version: string;
+  allowed_evidence_types: string[];
+  min_severity_threshold: string;
+  allow_informational_only: boolean;
+  requires_material_incorrectness: boolean;
+  admissibility_mode: "broad" | "strict";
+};
+
+export type ChallengePolicyPresetId = "open" | "material_wrong_only" | "critical_only";
+
+export type ChallengePolicyPreset = {
+  id: ChallengePolicyPresetId;
+  label: string;
+  description: string;
+  policy: ChallengePolicy;
+};
+
 export type Finding = {
   finding_id: string;
   title: string;
@@ -69,6 +87,7 @@ export type VerificationDossier = {
     abstained: boolean;
     confidence: string;
     rationale?: string | null;
+    admissibility_status?: string | null;
   };
   model_metadata: Record<string, string | number | boolean | null>;
 };
@@ -239,6 +258,7 @@ export type AuditRecord = {
     finding_count: number;
     publish_tx_hash: string;
     publish_tx_url?: string | null;
+    challenge_policy?: ChallengePolicy | null;
   };
   challenge: null | {
     challenger: string;
@@ -257,6 +277,8 @@ export type AuditRecord = {
     verification_detail?: string | null;
     verification_case_id?: string | null;
     advisory_verdict?: "upheld" | "rejected" | null;
+    policy_admissibility_status?: string | null;
+    policy_admissibility_rationale?: string | null;
     execution_log?: string | null;
     matched_findings: string[];
     unmatched_findings: string[];
