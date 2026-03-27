@@ -84,6 +84,7 @@ class AuditService:
         store_path: Path | None = None,
         postgres_config: CloudSqlPostgresConfig | None = None,
     ) -> None:
+        self.data_root = data_root
         self.store = store or create_store(
             root=data_root,
             kind=store_kind,
@@ -302,11 +303,132 @@ class AuditService:
             "items": items,
         }
 
-    def build_marketplace_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
-        filters = payload.get("filters")
+    def list_audit_requests(self, status: str | None = None) -> list[dict[str, Any]]:
+        normalized_status = str(status or "").strip().lower() or None
+        items = self._all_normalized_audit_requests()
+        if normalized_status is not None:
+            items = [
+                item
+                for item in items
+                if str(item.get("status") or "").strip().lower() == normalized_status
+            ]
+        return items
+
+    def build_audit_request_eligibility(
+        self,
+        request_id: str,
+        auditor_service_id: str,
+    ) -> dict[str, Any] | None:
+        request_record = next(
+            (
+                item
+                for item in self._all_normalized_audit_requests()
+                if item["request_id"] == request_id
+            ),
+            None,
+        )
+        if request_record is None:
+            return None
+        matches = self._build_auditor_matches(request_record["filters"])
+        selected_match = next(
+            (
+                item
+                for item in matches
+                if item["service_id"] == auditor_service_id.strip()
+            ),
+            None,
+        )
+        if selected_match is None:
+            return {
+                "request_id": request_id,
+                "auditor_service_id": auditor_service_id.strip(),
+                "eligible": False,
+                "approximate": True,
+                "minimum_stake_wei": int(
+                    request_record["filters"].get("minimum_stake_wei") or 0
+                ),
+                "reasons": ["Auditor service is not present in the current directory."],
+            }
+        return {
+            "request_id": request_id,
+            "auditor_service_id": auditor_service_id.strip(),
+            "eligible": bool(selected_match["eligibility"]["matches"]),
+            "approximate": True,
+            "minimum_stake_wei": int(
+                request_record["filters"].get("minimum_stake_wei") or 0
+            ),
+            "reasons": list(selected_match["eligibility"]["reasons"]),
+        }
+
+    def _audit_request_catalog_path(self) -> Path:
+        return self.data_root / "audit-requests.json"
+
+    def _all_normalized_audit_requests(self) -> list[dict[str, Any]]:
+        path = self._audit_request_catalog_path()
+        if not path.exists():
+            return []
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return []
+        items = payload.get("items")
+        if not isinstance(items, list):
+            return []
+        normalized_items = [
+            self._normalize_audit_request_record(item)
+            for item in items
+            if isinstance(item, dict)
+        ]
+        return sorted(
+            normalized_items,
+            key=lambda item: str(item.get("created_at") or ""),
+            reverse=True,
+        )
+
+    def _normalize_audit_request_record(self, payload: dict[str, Any]) -> dict[str, Any]:
+        input_kind = str(payload.get("input_kind") or "deployed_address").strip().lower()
+        if input_kind not in {"deployed_address", "source_bundle", "repository_url"}:
+            input_kind = "deployed_address"
+        return {
+            "request_id": str(payload.get("request_id") or payload.get("id") or "").strip(),
+            "status": str(payload.get("status") or "open").strip().lower(),
+            "input_kind": input_kind,
+            "contract_address": self._normalize_target_key(payload.get("contract_address")),
+            "chain_id": (
+                int(payload["chain_id"])
+                if payload.get("chain_id") is not None
+                else None
+            ),
+            "entry_contract": (
+                str(payload.get("entry_contract")).strip()
+                if payload.get("entry_contract") is not None
+                else None
+            ),
+            "bounty_wei": max(int(payload.get("bounty_wei") or 0), 0),
+            "protocol_fee_wei": max(int(payload.get("protocol_fee_wei") or 0), 0),
+            "response_window_end": (
+                str(payload.get("response_window_end")).strip()
+                if payload.get("response_window_end") is not None
+                else None
+            ),
+            "created_at": (
+                str(payload.get("created_at")).strip()
+                if payload.get("created_at") is not None
+                else None
+            ),
+            "filters": self._normalize_marketplace_filters(payload.get("filters")),
+            "metadata": (
+                dict(payload.get("metadata"))
+                if isinstance(payload.get("metadata"), dict)
+                else {}
+            ),
+        }
+
+    def _normalize_marketplace_filters(
+        self,
+        filters: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         if not isinstance(filters, dict):
             filters = {}
-
         minimum_stake_wei = max(int(filters.get("minimum_stake_wei") or 0), 0)
         whitelist_mode = str(filters.get("whitelist_mode") or "open").strip().lower()
         if whitelist_mode not in {"open", "allowlist"}:
@@ -323,21 +445,32 @@ class AuditService:
         ).strip() or None
         required_identity_agent_id = filters.get("required_identity_agent_id")
         if required_identity_agent_id in ("", None):
-            required_identity_agent_id = None
+            normalized_agent_id = None
         else:
-            required_identity_agent_id = int(required_identity_agent_id)
+            normalized_agent_id = int(required_identity_agent_id)
         required_identity_registry = str(
             filters.get("required_identity_registry") or ""
         ).strip() or None
-        normalized_registry = (
-            required_identity_registry.lower() if required_identity_registry else None
-        )
+        return {
+            "minimum_stake_wei": minimum_stake_wei,
+            "whitelist_mode": whitelist_mode,
+            "allowed_service_ids": allowed_service_ids,
+            "required_identity_service_id": required_identity_service_id,
+            "required_identity_agent_id": normalized_agent_id,
+            "required_identity_registry": required_identity_registry,
+        }
 
-        bounty_wei = max(int(payload.get("bounty_wei") or 0), 0)
-        protocol_fee_wei = max(int(payload.get("protocol_fee_wei") or 0), 0)
-        contract_address = str(payload.get("contract_address") or "").strip() or None
-        target_contract = (
-            self._normalize_target_key(contract_address) if contract_address else None
+    def _build_auditor_matches(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        minimum_stake_wei = int(filters.get("minimum_stake_wei") or 0)
+        whitelist_mode = str(filters.get("whitelist_mode") or "open")
+        allowed_service_ids = list(filters.get("allowed_service_ids") or [])
+        required_identity_service_id = filters.get("required_identity_service_id")
+        required_identity_agent_id = filters.get("required_identity_agent_id")
+        required_identity_registry = filters.get("required_identity_registry")
+        normalized_registry = (
+            str(required_identity_registry).strip().lower()
+            if required_identity_registry
+            else None
         )
 
         auditor_matches: list[dict[str, Any]] = []
@@ -398,6 +531,17 @@ class AuditService:
                     },
                 }
             )
+        return auditor_matches
+
+    def build_marketplace_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized_filters = self._normalize_marketplace_filters(payload.get("filters"))
+        bounty_wei = max(int(payload.get("bounty_wei") or 0), 0)
+        protocol_fee_wei = max(int(payload.get("protocol_fee_wei") or 0), 0)
+        contract_address = str(payload.get("contract_address") or "").strip() or None
+        target_contract = (
+            self._normalize_target_key(contract_address) if contract_address else None
+        )
+        auditor_matches = self._build_auditor_matches(normalized_filters)
 
         eligible_count = sum(
             1
@@ -420,14 +564,7 @@ class AuditService:
                 "protocol_fee_wei": protocol_fee_wei,
                 "total_wei": bounty_wei + protocol_fee_wei,
             },
-            "filters": {
-                "minimum_stake_wei": minimum_stake_wei,
-                "whitelist_mode": whitelist_mode,
-                "allowed_service_ids": allowed_service_ids,
-                "required_identity_service_id": required_identity_service_id,
-                "required_identity_agent_id": required_identity_agent_id,
-                "required_identity_registry": required_identity_registry,
-            },
+            "filters": normalized_filters,
             "eligibility_summary": {
                 "authority": "api_preview",
                 "total_auditors": len(auditor_matches),

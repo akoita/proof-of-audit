@@ -99,6 +99,7 @@ class AuditApiAppTest(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         data_root = Path(self.tempdir.name) / "data"
         data_root.mkdir()
+        self.data_root = data_root
         fixtures_file = Path(self.tempdir.name) / "demo-fixtures.localhost.json"
         fixtures_file.write_text(
             json.dumps(
@@ -769,6 +770,66 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(matches["external-auditor"]["agent_id"], 7)
         self.assertEqual(matches["external-auditor"]["agent_registry"], "0x123")
         self.assertIn("API-derived previews", payload["preview_disclaimer"])
+
+    def test_request_listing_and_eligibility_endpoints(self) -> None:
+        request_catalog = self.data_root / "audit-requests.json"
+        request_catalog.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "request_id": "req-open-1",
+                            "status": "open",
+                            "contract_address": "0x1000000000000000000000000000000000000001",
+                            "chain_id": 84532,
+                            "bounty_wei": 2_000_000_000_000_000_000,
+                            "protocol_fee_wei": 100_000_000_000_000_000,
+                            "response_window_end": "2026-03-30T00:00:00Z",
+                            "created_at": "2026-03-27T10:00:00Z",
+                            "filters": {
+                                "whitelist_mode": "allowlist",
+                                "allowed_service_ids": ["proof-of-audit-auditor"],
+                            },
+                            "metadata": {
+                                "confidence_hint": "high",
+                            },
+                        },
+                        {
+                            "request_id": "req-closed-1",
+                            "status": "closed",
+                            "contract_address": "0x1000000000000000000000000000000000000002",
+                            "bounty_wei": 1_000_000_000_000_000_000,
+                        },
+                    ]
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        listed = self.client.get("/requests", params={"status": "open"})
+        self.assertEqual(listed.status_code, 200)
+        listed_payload = listed.json()
+        self.assertEqual(len(listed_payload["items"]), 1)
+        self.assertEqual(listed_payload["items"][0]["request_id"], "req-open-1")
+        self.assertEqual(listed_payload["items"][0]["filters"]["whitelist_mode"], "allowlist")
+
+        eligibility = self.client.get(
+            "/requests/req-open-1/eligibility",
+            params={"auditor": "proof-of-audit-auditor"},
+        )
+        self.assertEqual(eligibility.status_code, 200)
+        eligibility_payload = eligibility.json()
+        self.assertTrue(eligibility_payload["eligible"])
+        self.assertEqual(eligibility_payload["minimum_stake_wei"], 0)
+        self.assertIn("Matches the current preview filters.", eligibility_payload["reasons"])
+
+        missing = self.client.get(
+            "/requests/unknown-request/eligibility",
+            params={"auditor": "proof-of-audit-auditor"},
+        )
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.json()["error"], "request_not_found")
 
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")

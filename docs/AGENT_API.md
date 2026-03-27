@@ -41,6 +41,14 @@ Use them for different purposes:
   - live runtime configuration
   - includes current network, settlement contract, challenge bond, stake amount, and the current auditor service record
 
+For marketplace-style participation loops, the service also exposes:
+
+- `GET /requests?status=open`
+  - lists file-backed request records that an agent can poll
+  - includes bounty, protocol fee, response window, and eligibility filter metadata
+- `GET /requests/{id}/eligibility?auditor=<service-id>`
+  - evaluates one auditor against the request filters before the agent spends capacity on a claim
+
 ## Submission modes
 
 The current service record advertises these `submission_modes`:

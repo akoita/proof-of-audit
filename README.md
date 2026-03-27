@@ -118,6 +118,8 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 | `GET`  | `/auditor/reputation`      | Read the default auditor reputation   |
 | `GET`  | `/config`                  | Chain configuration and stake amounts |
 | `GET`  | `/fixtures`                | Available demo benchmark contracts    |
+| `GET`  | `/requests?status=`        | List file-backed open or closed audit requests |
+| `GET`  | `/requests/:id/eligibility` | Preview one auditor's request eligibility |
 | `GET`  | `/audits?contract_address=` | List claims for one target contract   |
 | `GET`  | `/targets/:address/audits` | Target-scoped claim history           |
 | `GET`  | `/targets/:address/comparison` | Comparative target claim summary   |
@@ -167,6 +169,7 @@ make install-git-hooks
 | [Technical documentation](./docs/TECHNICAL_DOCUMENTATION.md) | Canonical end-to-end technical reference |
 | [Challenge Verifier V2](./docs/CHALLENGE_VERIFIER_V2.md) | Design for the next-generation challenge adjudication pipeline |
 | [TEE evidence RFC](./docs/TEE_EVIDENCE_RFC.md)    | Research note on TEE-backed evidence execution |
+| [Agent request participation](./docs/AGENT_REQUEST_PARTICIPATION.md) | Polling, heuristics, and replay-safe request participation |
 | [Demo script](./docs/DEMO_SCRIPT.md)              | 60-second live walkthrough          |
 | [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
 | [Agent API](./docs/AGENT_API.md)                  | Integration guide for agent callers |
