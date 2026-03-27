@@ -321,18 +321,29 @@ class AuditService:
 
         target_contract = self._normalize_target_key(contract_address)
         normalized_filters = self._normalize_marketplace_filters(filters)
-        allowlist_commitment = self._allowlist_commitment(
-            normalized_filters["allowed_service_ids"]
+        required_identity = self._resolve_request_required_identity(normalized_filters)
+        allowlist_snapshot = self._resolve_request_allowlist(
+            normalized_filters["allowed_service_ids"],
+            enabled=normalized_filters["whitelist_mode"] == "allowlist",
         )
+        materialized_filters = deepcopy(normalized_filters)
+        if required_identity["agent_registry"] is not None:
+            materialized_filters["required_identity_registry"] = required_identity[
+                "agent_registry"
+            ]
+        if required_identity["agent_id"] is not None:
+            materialized_filters["required_identity_agent_id"] = required_identity[
+                "agent_id"
+            ]
         onchain_result = self.publisher.create_audit_request(
             target_address=target_contract,
             bounty_wei=bounty_wei,
             response_window_seconds=response_window_seconds,
-            minimum_stake_wei=int(normalized_filters["minimum_stake_wei"]),
-            allowlist_enabled=normalized_filters["whitelist_mode"] == "allowlist",
-            allowlist_root=allowlist_commitment,
-            identity_registry=normalized_filters["required_identity_registry"],
-            required_agent_id=int(normalized_filters["required_identity_agent_id"] or 0),
+            minimum_stake_wei=int(materialized_filters["minimum_stake_wei"]),
+            allowlist_enabled=materialized_filters["whitelist_mode"] == "allowlist",
+            identity_registry=required_identity["agent_registry"],
+            required_agent_id=int(required_identity["agent_id"] or 0),
+            allowlisted_auditors=allowlist_snapshot["auditor_addresses"],
         )
         onchain_request = self.publisher.get_audit_request(onchain_result.request_id)
         record = self._normalize_audit_request_record(
@@ -355,11 +366,15 @@ class AuditService:
                 "request_tx_url": self.contract_config.transaction_url(
                     onchain_result.tx_hash
                 ),
-                "filters": normalized_filters,
+                "filters": materialized_filters,
                 "metadata": {
                     "submitted_by": submitted_by,
                     "onchain_eligibility": onchain_request.eligibility,
-                    "allowlist_commitment": allowlist_commitment,
+                    "allowlisted_auditor_addresses": allowlist_snapshot[
+                        "auditor_addresses"
+                    ],
+                    "allowlisted_services": allowlist_snapshot["services"],
+                    "required_identity": required_identity,
                 },
             }
         )
@@ -516,15 +531,19 @@ class AuditService:
                 ),
                 "reasons": ["Auditor service is not present in the current directory."],
             }
+        reasons = self._request_eligibility_reasons(
+            request_record=request_record,
+            auditor_service=selected_match,
+        )
         return {
             "request_id": request_id,
             "auditor_service_id": auditor_service_id.strip(),
-            "eligible": bool(selected_match["eligibility"]["matches"]),
+            "eligible": len(reasons) == 0,
             "approximate": True,
             "minimum_stake_wei": int(
                 request_record["filters"].get("minimum_stake_wei") or 0
             ),
-            "reasons": list(selected_match["eligibility"]["reasons"]),
+            "reasons": reasons or ["Matches the current preview filters."],
         }
 
     def _audit_request_catalog_path(self) -> Path:
@@ -705,6 +724,9 @@ class AuditService:
             else {}
         )
         metadata["onchain_eligibility"] = onchain_request.eligibility
+        metadata["allowlisted_auditor_addresses"] = list(
+            onchain_request.eligibility.get("allowlisted_auditor_addresses") or []
+        )
         synced["metadata"] = metadata
         return synced
 
@@ -798,13 +820,6 @@ class AuditService:
             json.dumps({"items": items}, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-
-    def _allowlist_commitment(self, allowed_service_ids: list[str]) -> str:
-        if not allowed_service_ids:
-            return "0x" + ("00" * 32)
-        return "0x" + sha256(
-            "\n".join(sorted(allowed_service_ids)).encode("utf-8")
-        ).hexdigest()
 
     def _build_auditor_matches(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         minimum_stake_wei = int(filters.get("minimum_stake_wei") or 0)
@@ -919,10 +934,222 @@ class AuditService:
             },
             "auditor_matches": auditor_matches,
             "preview_disclaimer": (
-                "Eligible auditor counts are API-derived previews only. Chain-authoritative "
-                "enforcement for marketplace requests is not implemented in this client yet."
+                "Eligible auditor counts are API-derived previews only. Final request "
+                "eligibility is enforced on-chain at claim submission time."
             ),
         }
+
+    def _resolve_request_required_identity(
+        self, filters: dict[str, Any]
+    ) -> dict[str, Any]:
+        required_identity_service_id = filters.get("required_identity_service_id")
+        required_identity_agent_id = filters.get("required_identity_agent_id")
+        required_identity_registry = filters.get("required_identity_registry")
+
+        if required_identity_service_id:
+            service = self.get_auditor_service(str(required_identity_service_id))
+            if service is None:
+                raise ValueError(
+                    f"unknown required_identity_service_id: {required_identity_service_id}"
+                )
+            service_agent_id = service.get("agent_id")
+            service_agent_registry = service.get("agent_registry")
+            if not isinstance(service_agent_id, int) or not service_agent_registry:
+                raise ValueError(
+                    "required_identity_service_id must resolve to an auditor service "
+                    "with canonical on-chain identity metadata"
+                )
+            normalized_service_registry = self._normalize_target_key(
+                service_agent_registry
+            )
+            if (
+                required_identity_agent_id is not None
+                and int(required_identity_agent_id) != int(service_agent_id)
+            ):
+                raise ValueError(
+                    "required_identity_service_id does not match required_identity_agent_id"
+                )
+            if required_identity_registry and (
+                self._normalize_target_key(required_identity_registry)
+                != normalized_service_registry
+            ):
+                raise ValueError(
+                    "required_identity_service_id does not match required_identity_registry"
+                )
+            return {
+                "service_id": str(required_identity_service_id),
+                "agent_id": int(service_agent_id),
+                "agent_registry": normalized_service_registry,
+            }
+
+        if (required_identity_agent_id is None) != (required_identity_registry is None):
+            raise ValueError(
+                "required identity filters must include both required_identity_registry "
+                "and required_identity_agent_id"
+            )
+        if required_identity_agent_id is None or required_identity_registry is None:
+            return {
+                "service_id": None,
+                "agent_id": None,
+                "agent_registry": None,
+            }
+        normalized_agent_id = int(required_identity_agent_id)
+        if normalized_agent_id <= 0:
+            raise ValueError("required_identity_agent_id must be greater than zero")
+        return {
+            "service_id": None,
+            "agent_id": normalized_agent_id,
+            "agent_registry": self._normalize_target_key(required_identity_registry),
+        }
+
+    def _resolve_request_allowlist(
+        self, allowed_service_ids: list[str], *, enabled: bool
+    ) -> dict[str, Any]:
+        if not enabled:
+            return {
+                "auditor_addresses": [],
+                "services": [],
+            }
+        if not allowed_service_ids:
+            raise ValueError("allowlist mode requires at least one allowed_service_id")
+
+        allowlisted_addresses: list[str] = []
+        seen_addresses: set[str] = set()
+        resolved_services: list[dict[str, Any]] = []
+        for service_id in allowed_service_ids:
+            service = self.get_auditor_service(service_id)
+            if service is None:
+                raise ValueError(f"unknown allowlisted auditor service: {service_id}")
+            agent_id = service.get("agent_id")
+            agent_registry = service.get("agent_registry")
+            if not isinstance(agent_id, int) or not agent_registry:
+                raise ValueError(
+                    f"auditor service {service_id} is missing canonical on-chain identity"
+                )
+            owner_address = self.publisher.resolve_identity_owner(
+                agent_registry=str(agent_registry),
+                agent_id=int(agent_id),
+            )
+            normalized_owner = self._normalize_target_key(owner_address)
+            if normalized_owner not in seen_addresses:
+                seen_addresses.add(normalized_owner)
+                allowlisted_addresses.append(normalized_owner)
+            resolved_services.append(
+                {
+                    "service_id": service["service_id"],
+                    "name": service["name"],
+                    "agent_id": int(agent_id),
+                    "agent_registry": self._normalize_target_key(agent_registry),
+                    "auditor_address": normalized_owner,
+                }
+            )
+        return {
+            "auditor_addresses": allowlisted_addresses,
+            "services": resolved_services,
+        }
+
+    def _request_eligibility_reasons(
+        self, *, request_record: dict[str, Any], auditor_service: dict[str, Any]
+    ) -> list[str]:
+        reasons: list[str] = []
+        filters = self._normalize_marketplace_filters(request_record.get("filters"))
+        metadata = (
+            request_record.get("metadata")
+            if isinstance(request_record.get("metadata"), dict)
+            else {}
+        )
+
+        reputation = auditor_service.get("reputation")
+        stake_preview_wei = None
+        if isinstance(reputation, dict):
+            raw_stake_preview = reputation.get("total_stake_wei")
+            if raw_stake_preview is not None:
+                stake_preview_wei = int(raw_stake_preview)
+        minimum_stake_wei = int(filters.get("minimum_stake_wei") or 0)
+        if minimum_stake_wei > 0:
+            if stake_preview_wei is None:
+                reasons.append(
+                    "Stake preview unavailable for the minimum commitment filter."
+                )
+            elif stake_preview_wei < minimum_stake_wei:
+                reasons.append("Observed stake preview is below the requested minimum.")
+
+        onchain_eligibility = (
+            metadata.get("onchain_eligibility")
+            if isinstance(metadata.get("onchain_eligibility"), dict)
+            else {}
+        )
+        allowlist_enabled = bool(
+            onchain_eligibility.get("allowlist_enabled")
+            or filters.get("whitelist_mode") == "allowlist"
+        )
+        allowlisted_auditors = {
+            self._normalize_target_key(value)
+            for value in (
+                metadata.get("allowlisted_auditor_addresses")
+                or onchain_eligibility.get("allowlisted_auditor_addresses")
+                or []
+            )
+            if str(value).strip()
+        }
+        if allowlist_enabled:
+            if not allowlisted_auditors:
+                allowed_service_ids = list(filters.get("allowed_service_ids") or [])
+                if not allowed_service_ids:
+                    reasons.append(
+                        "Allowlist mode is enabled but no auditor services are selected."
+                    )
+                elif auditor_service["service_id"] not in allowed_service_ids:
+                    reasons.append(
+                        "Auditor is outside the current allowlist preview."
+                    )
+            else:
+                agent_id = auditor_service.get("agent_id")
+                agent_registry = auditor_service.get("agent_registry")
+                if not isinstance(agent_id, int) or not agent_registry or self.publisher is None:
+                    reasons.append(
+                        "Auditor owner address could not be resolved against the request allowlist."
+                    )
+                else:
+                    try:
+                        owner_address = self.publisher.resolve_identity_owner(
+                            agent_registry=str(agent_registry),
+                            agent_id=int(agent_id),
+                        )
+                    except Exception:
+                        reasons.append(
+                            "Auditor owner address could not be resolved against the request allowlist."
+                        )
+                    else:
+                        if self._normalize_target_key(owner_address) not in allowlisted_auditors:
+                            reasons.append(
+                                "Resolved auditor owner address is outside the stored request allowlist."
+                            )
+
+        required_identity_registry = (
+            str(onchain_eligibility.get("identity_registry") or "").strip()
+            or filters.get("required_identity_registry")
+        )
+        required_identity_agent_id = onchain_eligibility.get("required_agent_id")
+        if not required_identity_agent_id:
+            required_identity_agent_id = filters.get("required_identity_agent_id")
+        normalized_required_registry = (
+            self._normalize_target_key(required_identity_registry)
+            if required_identity_registry
+            else None
+        )
+        if normalized_required_registry:
+            service_registry = str(auditor_service.get("agent_registry") or "").strip()
+            if self._normalize_target_key(service_registry) != normalized_required_registry:
+                reasons.append(
+                    "Agent registry does not match the required registered identity."
+                )
+        if required_identity_agent_id is not None and (
+            auditor_service.get("agent_id") != int(required_identity_agent_id)
+        ):
+            reasons.append("Agent ID does not match the required registered identity.")
+
+        return reasons
 
     def list_demo_fixtures(self) -> list[dict[str, Any]]:
         return self.worker.list_demo_fixtures()

@@ -188,6 +188,18 @@ Returns:
 - response-window metadata
 - tx hash and explorer URL
 - the indexed request filters used by polling clients
+- the resolved allowlisted auditor addresses and on-chain eligibility snapshot in
+  `metadata`
+
+Filter behavior:
+
+- `allowed_service_ids` is an API convenience input; the API resolves each listed
+  service's canonical identity to its current owner address and snapshots those
+  addresses into the on-chain request allowlist
+- `required_identity_service_id` is resolved to the service's canonical
+  `(agentRegistry, agentId)` pair before the request is created
+- explicit `required_identity_registry` and `required_identity_agent_id` must match
+  the resolved service identity if both are supplied
 
 ### Submit a request-bound claim
 
@@ -207,6 +219,8 @@ This path:
 - reuses an existing draft audit record
 - publishes its hashes into the request-bound claim path
 - enforces one claim per canonical auditor identity per request
+- enforces minimum stake, request allowlist membership, and required registered
+  identity on-chain at claim submission time
 - preserves the legacy `POST /audits/{id}/publish` path for non-marketplace publication
 
 ## Reputation

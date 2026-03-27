@@ -6,6 +6,34 @@ from helpers import build_onchain_test_context
 
 
 class PublishVerificationRetryTest(unittest.TestCase):
+    def test_create_audit_request_returns_allowlist_and_identity_metadata(self) -> None:
+        onchain = build_onchain_test_context()
+        created = onchain.publisher.create_audit_request(
+            target_address=onchain.web3.eth.accounts[3],
+            bounty_wei=2 * 10**17,
+            response_window_seconds=3600,
+            allowlist_enabled=True,
+            identity_registry=onchain.contract_config.auditor_agent_registry,
+            required_agent_id=onchain.contract_config.auditor_agent_id or 0,
+            allowlisted_auditors=[onchain.publisher.account.address],
+        )
+
+        request_record = onchain.publisher.get_audit_request(created.request_id)
+
+        self.assertTrue(request_record.eligibility["allowlist_enabled"])
+        self.assertEqual(
+            request_record.eligibility["identity_registry"],
+            onchain.contract_config.auditor_agent_registry,
+        )
+        self.assertEqual(
+            request_record.eligibility["required_agent_id"],
+            onchain.contract_config.auditor_agent_id,
+        )
+        self.assertEqual(
+            request_record.eligibility["allowlisted_auditor_addresses"],
+            [onchain.publisher.account.address.lower()],
+        )
+
     def test_submit_audit_request_claim_returns_claim_metadata(self) -> None:
         onchain = build_onchain_test_context()
         created = onchain.publisher.create_audit_request(

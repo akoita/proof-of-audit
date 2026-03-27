@@ -131,7 +131,8 @@ contract ProofOfAuditTest is Test {
             target,
             uint96(BOUNTY),
             uint64(WINDOW),
-            eligibility
+            eligibility,
+            new address[](0)
         );
 
         ProofOfAudit.AuditRequest memory requestRecord = registry.getAuditRequest(
@@ -278,7 +279,8 @@ contract ProofOfAuditTest is Test {
             target,
             uint96(BOUNTY),
             uint64(WINDOW),
-            eligibility
+            eligibility,
+            new address[](0)
         );
 
         vm.prank(auditor);
@@ -328,6 +330,85 @@ contract ProofOfAuditTest is Test {
         );
     }
 
+    function testSubmitAuditRequestClaimRejectsAuditorOutsideAllowlist() public {
+        ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
+        eligibility.allowlistEnabled = true;
+        address[] memory allowlistedAuditors = new address[](1);
+        allowlistedAuditors[0] = auditor;
+
+        vm.prank(auditor);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            eligibility,
+            allowlistedAuditors
+        );
+
+        vm.prank(secondAuditor);
+        vm.expectRevert(ProofOfAudit.RequestClaimNotAllowlisted.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            2,
+            keccak256("report"),
+            keccak256("metadata"),
+            2,
+            1
+        );
+    }
+
+    function testSubmitAuditRequestClaimRejectsWrongRequiredIdentity() public {
+        ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
+        eligibility.identityRegistry = address(identityRegistry);
+        eligibility.requiredAgentId = 1;
+
+        vm.prank(auditor);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            eligibility,
+            new address[](0)
+        );
+
+        vm.prank(secondAuditor);
+        vm.expectRevert(ProofOfAudit.RequestClaimAgentIdMismatch.selector);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            2,
+            keccak256("report"),
+            keccak256("metadata"),
+            2,
+            1
+        );
+    }
+
+    function testCreateAuditRequestStoresAllowlistedAuditors() public {
+        ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
+        eligibility.allowlistEnabled = true;
+        address[] memory allowlistedAuditors = new address[](2);
+        allowlistedAuditors[0] = auditor;
+        allowlistedAuditors[1] = secondAuditor;
+
+        vm.prank(auditor);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            eligibility,
+            allowlistedAuditors
+        );
+
+        address[] memory stored = registry.getAuditRequestAllowlistedAuditors(requestId);
+        assertEq(stored.length, 2);
+        assertEq(stored[0], auditor);
+        assertEq(stored[1], secondAuditor);
+        assertTrue(registry.isAuditRequestAuditorAllowlisted(requestId, auditor));
+        assertTrue(registry.isAuditRequestAuditorAllowlisted(requestId, secondAuditor));
+    }
+
     function _publishDefaultAudit() internal returns (uint256 auditId) {
         vm.prank(auditor);
         auditId = registry.publishAudit{value: STAKE}(
@@ -345,7 +426,8 @@ contract ProofOfAuditTest is Test {
             target,
             uint96(BOUNTY),
             uint64(WINDOW),
-            _defaultEligibility()
+            _defaultEligibility(),
+            new address[](0)
         );
     }
 
@@ -357,7 +439,6 @@ contract ProofOfAuditTest is Test {
         eligibility = ProofOfAudit.EligibilityConfig({
             minimumStakeAmount: uint96(STAKE),
             allowlistEnabled: false,
-            allowlistRoot: keccak256("proof-of-audit"),
             identityRegistry: address(0),
             requiredAgentId: 0
         });

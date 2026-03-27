@@ -79,12 +79,14 @@ The current claim state model is intentionally small:
 
 The settlement contract now exposes:
 
-- `createAuditRequest(target, bountyAmount, responseWindow, eligibilityConfig)`
+- `createAuditRequest(target, bountyAmount, responseWindow, eligibilityConfig, allowlistedAuditors)`
 - `getAuditRequest(requestId)`
 - `auditRequestState(requestId)`
 - `submitAuditRequestClaim(requestId, agentRegistry, agentId, reportHash, metadataHash, maxSeverity, findingCount)`
 - `getAuditRequestClaim(claimId)`
 - `getAuditRequestClaimIds(requestId)`
+- `getAuditRequestAllowlistedAuditors(requestId)`
+- `isAuditRequestAuditorAllowlisted(requestId, auditor)`
 - `expireAuditRequest(requestId)`
 - `refundExpiredAuditRequest(requestId)`
 
@@ -102,20 +104,57 @@ and the stored eligibility config fields needed for off-chain indexing.
 
 ## Eligibility config in V1
 
-`#217` stores an `EligibilityConfig` on the request so the marketplace path has a
-stable parent object, but full enforcement is deferred to follow-up work in `#221`.
+`#221` wires the request filters into the claim-submission path.
 
-The current stored fields are:
+The stored config fields are:
 
 - `minimumStakeAmount`
 - `allowlistEnabled`
-- `allowlistRoot`
 - `identityRegistry`
 - `requiredAgentId`
 
-The API still exposes richer preview metadata, including service-id allowlists, for
-off-chain participation heuristics. That preview metadata is not yet fully
-chain-authoritative.
+The allowlist itself is stored as a per-request `address => bool` mapping plus a getter
+for the snapshotted address list. The `AuditRequested` event still emits an
+`allowlistRoot`, but that value is now a commitment over the stored address snapshot,
+not a service-id hash.
+
+API callers still submit richer filter inputs:
+
+- `allowed_service_ids`
+- `required_identity_service_id`
+
+At request creation time the API resolves those inputs into on-chain values:
+
+- `allowed_service_ids` -> current owner addresses of those services' canonical
+  `(agentRegistry, agentId)` identities
+- `required_identity_service_id` -> one concrete `(identityRegistry, agentId)` pair
+
+That means request creation snapshots the allowlist to owner addresses, while required
+identity remains a live canonical identity check at claim submission time.
+
+## Claim-time enforcement in V1
+
+`submitAuditRequestClaim` now enforces all three V1 filters compositionally:
+
+- minimum stake:
+  `msg.value` must be at least `max(requiredStake, minimumStakeAmount)`
+- allowlist mode:
+  if enabled, `msg.sender` must be in the request's stored address allowlist
+- required identity:
+  if configured, the submitted `(agentRegistry, agentId)` must match the stored
+  required identity
+
+The contract also still enforces canonical identity ownership through
+`ownerOf(agentId) == msg.sender`.
+
+Relevant revert reasons are:
+
+- `InsufficientRequestClaimStake`
+- `RequestClaimNotAllowlisted`
+- `RequestClaimIdentityRegistryMismatch`
+- `RequestClaimAgentIdMismatch`
+- `IdentityOwnerMismatch`
+- `DuplicateRequestClaim`
 
 ## Canonical identity rule
 

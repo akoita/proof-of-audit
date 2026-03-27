@@ -121,6 +121,21 @@ class AuditServiceTest(unittest.TestCase):
                 onchain.publisher.account.address.lower(),
             )
             self.assertTrue(str(created["request_tx_hash"]).startswith("0x"))
+            self.assertEqual(
+                created["filters"]["required_identity_registry"],
+                onchain.contract_config.auditor_agent_registry.lower(),
+            )
+            self.assertEqual(created["filters"]["required_identity_agent_id"], 1)
+            self.assertEqual(
+                created["metadata"]["allowlisted_auditor_addresses"],
+                [onchain.publisher.account.address.lower()],
+            )
+            self.assertEqual(
+                created["metadata"]["onchain_eligibility"][
+                    "allowlisted_auditor_addresses"
+                ],
+                [onchain.publisher.account.address.lower()],
+            )
 
             tester = onchain.web3.provider.ethereum_tester
             latest = tester.get_block_by_number("latest")
@@ -136,6 +151,32 @@ class AuditServiceTest(unittest.TestCase):
                 refreshed["metadata"]["onchain_eligibility"]["minimum_stake_wei"],
                 10**16,
             )
+
+    def test_create_audit_request_resolves_required_identity_service_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            created = service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                filters={
+                    "required_identity_service_id": "proof-of-audit-auditor",
+                },
+                submitted_by="market-user",
+            )
+
+            self.assertEqual(
+                created["filters"]["required_identity_registry"],
+                onchain.contract_config.auditor_agent_registry.lower(),
+            )
+            self.assertEqual(created["filters"]["required_identity_agent_id"], 1)
 
     def test_predeployed_testnet_fixture_addresses_require_live_auditor(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -124,6 +124,15 @@ def load_contract_bytecode() -> str:
 
 class ProofOfAuditPublisher:
     _PUBLISH_VERIFICATION_RETRY_DELAYS_SECONDS = (0.25, 0.5, 1.0)
+    _IDENTITY_REGISTRY_ABI = [
+        {
+            "inputs": [{"internalType": "uint256", "name": "agentId", "type": "uint256"}],
+            "name": "ownerOf",
+            "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
 
     def __init__(
         self,
@@ -361,17 +370,16 @@ class ProofOfAuditPublisher:
         response_window_seconds: int,
         minimum_stake_wei: int = 0,
         allowlist_enabled: bool = False,
-        allowlist_root: bytes | str = b"\x00" * 32,
         identity_registry: str | None = None,
         required_agent_id: int = 0,
+        allowlisted_auditors: list[str] | None = None,
     ) -> AuditRequestCreateResult:
         target = Web3.to_checksum_address(target_address)
         runtime_chain_id = int(self.web3.eth.chain_id)
-        normalized_root = (
-            HexBytes(allowlist_root)
-            if isinstance(allowlist_root, str)
-            else HexBytes(allowlist_root)
-        )
+        normalized_allowlist = [
+            Web3.to_checksum_address(value)
+            for value in (allowlisted_auditors or [])
+        ]
         request_call = self.contract.functions.createAuditRequest(
             target,
             bounty_wei,
@@ -379,12 +387,12 @@ class ProofOfAuditPublisher:
             (
                 minimum_stake_wei,
                 allowlist_enabled,
-                normalized_root,
                 Web3.to_checksum_address(identity_registry)
                 if identity_registry
                 else "0x0000000000000000000000000000000000000000",
                 required_agent_id,
             ),
+            normalized_allowlist,
         )
         receipt = self._submit_transaction(
             request_call,
@@ -421,6 +429,12 @@ class ProofOfAuditPublisher:
     def get_audit_request(self, request_id: int) -> OnchainAuditRequest:
         record = self.contract.functions.getAuditRequest(request_id).call()
         eligibility = record[7]
+        allowlisted_auditor_addresses = [
+            Web3.to_checksum_address(value).lower()
+            for value in self.contract.functions.getAuditRequestAllowlistedAuditors(
+                request_id
+            ).call()
+        ]
         return OnchainAuditRequest(
             request_id=request_id,
             requester_address=Web3.to_checksum_address(record[0]),
@@ -433,15 +447,26 @@ class ProofOfAuditPublisher:
             eligibility={
                 "minimum_stake_wei": int(eligibility[0]),
                 "allowlist_enabled": bool(eligibility[1]),
-                "allowlist_root": Web3.to_hex(eligibility[2]),
+                "allowlist_root": self._allowlist_commitment(
+                    allowlisted_auditor_addresses
+                ),
                 "identity_registry": (
                     None
-                    if int(eligibility[3], 16) == 0
-                    else Web3.to_checksum_address(eligibility[3])
+                    if int(eligibility[2], 16) == 0
+                    else Web3.to_checksum_address(eligibility[2])
                 ),
-                "required_agent_id": int(eligibility[4]),
+                "required_agent_id": int(eligibility[3]),
+                "allowlisted_auditor_addresses": allowlisted_auditor_addresses,
             },
         )
+
+    def resolve_identity_owner(self, *, agent_registry: str, agent_id: int) -> str:
+        registry = self.web3.eth.contract(
+            address=Web3.to_checksum_address(agent_registry),
+            abi=self._IDENTITY_REGISTRY_ABI,
+        )
+        owner = registry.functions.ownerOf(agent_id).call()
+        return Web3.to_checksum_address(owner)
 
     def submit_audit_request_claim(
         self,
@@ -591,6 +616,13 @@ class ProofOfAuditPublisher:
                 "PROOF_OF_AUDIT_RPC_URL or BASE_SEPOLIA_RPC_URL is required for API-side contract transactions."
             )
         return Web3(HTTPProvider(contract_config.rpc_url))
+
+    def _allowlist_commitment(self, allowlisted_auditors: list[str]) -> str:
+        encoded = self.web3.codec.encode(
+            ["address[]"],
+            [[Web3.to_checksum_address(value) for value in allowlisted_auditors]],
+        )
+        return Web3.to_hex(Web3.keccak(encoded))
 
     def _require_private_key(self, contract_config: ContractConfig) -> str:
         if not contract_config.publisher_private_key:
