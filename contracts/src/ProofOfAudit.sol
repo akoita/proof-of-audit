@@ -35,7 +35,6 @@ contract ProofOfAudit {
     struct EligibilityConfig {
         uint96 minimumStakeAmount;
         bool allowlistEnabled;
-        bytes32 allowlistRoot;
         address identityRegistry;
         uint256 requiredAgentId;
     }
@@ -90,11 +89,14 @@ contract ProofOfAudit {
     error InvalidState();
     error InvalidRequestState();
     error InvalidResponseWindow();
-    error InvalidAuditorIdentity();
+    error InvalidRequestAllowlist();
     error IdentityOwnerMismatch();
     error DuplicateRequestClaim();
     error InsufficientRequestClaimStake();
     error RequestClaimWindowClosed();
+    error RequestClaimNotAllowlisted();
+    error RequestClaimIdentityRegistryMismatch();
+    error RequestClaimAgentIdMismatch();
     error ChallengeWindowClosed();
     error ChallengeWindowOpen();
     error ResponseWindowOpen();
@@ -184,6 +186,8 @@ contract ProofOfAudit {
     mapping(uint256 => AuditRequestClaim) private auditRequestClaims;
     mapping(uint256 => uint256[]) private auditRequestClaimIds;
     mapping(uint256 => mapping(bytes32 => bool)) private requestClaimIdentityUsed;
+    mapping(uint256 => mapping(address => bool)) private requestClaimAllowlistedAuditors;
+    mapping(uint256 => address[]) private requestClaimAllowlistEntries;
 
     constructor(
         address _arbiter,
@@ -239,11 +243,15 @@ contract ProofOfAudit {
         address target,
         uint96 bountyAmount,
         uint64 responseWindow,
-        EligibilityConfig calldata eligibility
+        EligibilityConfig calldata eligibility,
+        address[] calldata allowlistedAuditors
     ) external payable returns (uint256 requestId) {
         if (responseWindow == 0) revert InvalidResponseWindow();
         if (bountyAmount == 0 || msg.value != bountyAmount) {
             revert IncorrectRequestBounty();
+        }
+        if (eligibility.allowlistEnabled && allowlistedAuditors.length == 0) {
+            revert InvalidRequestAllowlist();
         }
 
         requestId = ++nextRequestId;
@@ -258,11 +266,20 @@ contract ProofOfAudit {
             eligibility: EligibilityConfig({
                 minimumStakeAmount: eligibility.minimumStakeAmount,
                 allowlistEnabled: eligibility.allowlistEnabled,
-                allowlistRoot: eligibility.allowlistRoot,
                 identityRegistry: eligibility.identityRegistry,
                 requiredAgentId: eligibility.requiredAgentId
             })
         });
+        if (eligibility.allowlistEnabled) {
+            for (uint256 i; i < allowlistedAuditors.length; i++) {
+                address auditor = allowlistedAuditors[i];
+                if (auditor == address(0)) revert InvalidRequestAllowlist();
+                if (!requestClaimAllowlistedAuditors[requestId][auditor]) {
+                    requestClaimAllowlistedAuditors[requestId][auditor] = true;
+                    requestClaimAllowlistEntries[requestId].push(auditor);
+                }
+            }
+        }
 
         emit AuditRequested(
             requestId,
@@ -272,7 +289,7 @@ contract ProofOfAudit {
             uint64(block.timestamp) + responseWindow,
             eligibility.minimumStakeAmount,
             eligibility.allowlistEnabled,
-            eligibility.allowlistRoot,
+            _allowlistCommitment(requestId),
             eligibility.identityRegistry,
             eligibility.requiredAgentId
         );
@@ -314,22 +331,28 @@ contract ProofOfAudit {
             revert RequestClaimWindowClosed();
         }
         if (agentRegistry == address(0) || agentId == 0) {
-            revert InvalidAuditorIdentity();
+            revert RequestClaimIdentityRegistryMismatch();
         }
-        if (IAgentIdentityRegistry(agentRegistry).ownerOf(agentId) != msg.sender) {
-            revert IdentityOwnerMismatch();
+        if (
+            auditRequest.eligibility.allowlistEnabled &&
+            !requestClaimAllowlistedAuditors[requestId][msg.sender]
+        ) {
+            revert RequestClaimNotAllowlisted();
         }
         if (
             auditRequest.eligibility.identityRegistry != address(0) &&
             auditRequest.eligibility.identityRegistry != agentRegistry
         ) {
-            revert InvalidAuditorIdentity();
+            revert RequestClaimIdentityRegistryMismatch();
         }
         if (
             auditRequest.eligibility.requiredAgentId != 0 &&
             auditRequest.eligibility.requiredAgentId != agentId
         ) {
-            revert InvalidAuditorIdentity();
+            revert RequestClaimAgentIdMismatch();
+        }
+        if (IAgentIdentityRegistry(agentRegistry).ownerOf(agentId) != msg.sender) {
+            revert IdentityOwnerMismatch();
         }
 
         uint256 minimumStake = requiredStake;
@@ -475,6 +498,19 @@ contract ProofOfAudit {
         return auditRequestClaimIds[requestId];
     }
 
+    function getAuditRequestAllowlistedAuditors(
+        uint256 requestId
+    ) external view returns (address[] memory) {
+        return requestClaimAllowlistEntries[requestId];
+    }
+
+    function isAuditRequestAuditorAllowlisted(
+        uint256 requestId,
+        address auditor
+    ) external view returns (bool) {
+        return requestClaimAllowlistedAuditors[requestId][auditor];
+    }
+
     function auditRequestState(
         uint256 requestId
     ) public view returns (AuditRequestState) {
@@ -492,5 +528,9 @@ contract ProofOfAudit {
     function _sendValue(address to, uint256 amount) private {
         (bool ok, ) = payable(to).call{value: amount}("");
         if (!ok) revert TransferFailed();
+    }
+
+    function _allowlistCommitment(uint256 requestId) private view returns (bytes32) {
+        return keccak256(abi.encode(requestClaimAllowlistEntries[requestId]));
     }
 }

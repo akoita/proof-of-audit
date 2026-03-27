@@ -867,6 +867,16 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertTrue(created_payload["request_tx_hash"].startswith("0x"))
         self.assertEqual(created_payload["filters"]["whitelist_mode"], "allowlist")
+        self.assertEqual(
+            created_payload["metadata"]["allowlisted_auditor_addresses"],
+            [onchain.publisher.account.address.lower()],
+        )
+        self.assertEqual(
+            created_payload["metadata"]["onchain_eligibility"][
+                "allowlisted_auditor_addresses"
+            ],
+            [onchain.publisher.account.address.lower()],
+        )
 
         listed = client.get("/requests", params={"status": "open"})
         self.assertEqual(listed.status_code, 200)
