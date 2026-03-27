@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AuditRecord } from "../../lib/types";
 import { shortenHex, submissionTargetLabel, titleCase, relativeTimeLabel } from "../../lib/format";
 import { CopyButton } from "../copy-button";
+import { PolicyBadge } from "../policy-badge";
 
 type PublishedViewProps = {
   audit: AuditRecord;
@@ -106,6 +107,11 @@ export function PublishedView({ audit, allAudits, onSelect }: PublishedViewProps
               </div>
             </div>
           </div>
+
+          {/* Challenge Policy */}
+          {audit.onchain?.challenge_policy ? (
+            <PolicyBadge policy={audit.onchain.challenge_policy} />
+          ) : null}
 
           {/* Active Challenges */}
           {audit.challenge ? (

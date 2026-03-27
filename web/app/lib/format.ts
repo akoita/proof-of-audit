@@ -1,4 +1,4 @@
-import type { AuditRecord, AuditorProfile, AuditorReputation, InputKind } from "./types";
+import type { AuditRecord, AuditorProfile, AuditorReputation, ChallengePolicy, ChallengePolicyPreset, ChallengePolicyPresetId, InputKind } from "./types";
 
 export function formatEth(wei: number): string {
   return `${(wei / 1e18).toFixed(3)} ETH`;
@@ -190,4 +190,120 @@ export function challengePathSummary(audit: AuditRecord): string {
     return "This record predates deterministic-verifier removal and was resolved automatically.";
   }
   return "The verifier did not auto-resolve this challenge. It remains on the manual fallback path unless an arbiter resolves it.";
+}
+
+/* ── Challenge Policy Helpers ── */
+
+export const POLICY_PRESETS: Record<ChallengePolicyPresetId, ChallengePolicyPreset> = {
+  open: {
+    id: "open",
+    label: "Open",
+    description: "Any challenge is accepted regardless of severity or evidence type. Broadest possible scope for challengers.",
+    policy: {
+      policy_version: "challenge-policy/v1",
+      allowed_evidence_types: ["deterministic_fixture", "executable_test"],
+      min_severity_threshold: "info",
+      allow_informational_only: true,
+      requires_material_incorrectness: false,
+      admissibility_mode: "broad",
+    },
+  },
+  material_wrong_only: {
+    id: "material_wrong_only",
+    label: "Material Wrong Only",
+    description: "Only materially incorrect findings are challengeable. Informational-only issues are out of scope.",
+    policy: {
+      policy_version: "challenge-policy/v1",
+      allowed_evidence_types: ["deterministic_fixture", "executable_test"],
+      min_severity_threshold: "low",
+      allow_informational_only: false,
+      requires_material_incorrectness: true,
+      admissibility_mode: "broad",
+    },
+  },
+  critical_only: {
+    id: "critical_only",
+    label: "Critical Only",
+    description: "Only critical-severity challenges are admissible. Strict admissibility mode narrows the scope significantly.",
+    policy: {
+      policy_version: "challenge-policy/v1",
+      allowed_evidence_types: ["deterministic_fixture", "executable_test"],
+      min_severity_threshold: "critical",
+      allow_informational_only: false,
+      requires_material_incorrectness: true,
+      admissibility_mode: "strict",
+    },
+  },
+};
+
+export function policyPresetLabel(presetId: ChallengePolicyPresetId): string {
+  return POLICY_PRESETS[presetId]?.label ?? titleCase(presetId);
+}
+
+export function policyMatchesPreset(policy: ChallengePolicy): ChallengePolicyPresetId | null {
+  for (const preset of Object.values(POLICY_PRESETS)) {
+    const p = preset.policy;
+    if (
+      policy.min_severity_threshold === p.min_severity_threshold &&
+      policy.allow_informational_only === p.allow_informational_only &&
+      policy.requires_material_incorrectness === p.requires_material_incorrectness &&
+      policy.admissibility_mode === p.admissibility_mode
+    ) {
+      return preset.id;
+    }
+  }
+  return null;
+}
+
+export function policyOpennessLabel(policy: ChallengePolicy): string {
+  const threshold = policy.min_severity_threshold;
+  if (
+    threshold === "info" &&
+    policy.allow_informational_only &&
+    !policy.requires_material_incorrectness &&
+    policy.admissibility_mode === "broad"
+  ) {
+    return "Open";
+  }
+  if (threshold === "critical" || policy.admissibility_mode === "strict") {
+    return "Restrictive";
+  }
+  return "Balanced";
+}
+
+export function policySeverityLabel(threshold: string): string {
+  switch (threshold) {
+    case "info": return "Any severity";
+    case "low": return "Low and above";
+    case "medium": return "Medium and above";
+    case "high": return "High and above";
+    case "critical": return "Critical only";
+    default: return titleCase(threshold);
+  }
+}
+
+export function policyEvidenceLabel(types: string[]): string {
+  if (types.length >= 2) return "All evidence types";
+  if (types.includes("executable_test")) return "Executable tests only";
+  if (types.includes("deterministic_fixture")) return "Deterministic fixtures only";
+  return types.map((t) => titleCase(t.replaceAll("_", " "))).join(", ");
+}
+
+export function policySummary(policy: ChallengePolicy): string {
+  const parts = [
+    policySeverityLabel(policy.min_severity_threshold),
+    policyEvidenceLabel(policy.allowed_evidence_types),
+    `${titleCase(policy.admissibility_mode)} admissibility`,
+  ];
+  return parts.join(" · ");
+}
+
+export function policyAdmissibilityLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "admissible": return "Admissible";
+    case "inadmissible": return "Inadmissible by policy";
+    case "inadmissible_threshold": return "Below severity threshold";
+    case "inadmissible_evidence_type": return "Evidence type not accepted";
+    default: return status ? titleCase(status) : "Not evaluated";
+  }
 }
