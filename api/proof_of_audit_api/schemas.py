@@ -477,6 +477,38 @@ class MarketplacePreviewResponse(BaseModel):
     preview_disclaimer: str
 
 
+class AuditRequestRecordModel(BaseModel):
+    request_id: str
+    status: str
+    input_kind: Literal["deployed_address", "source_bundle", "repository_url"] = (
+        "deployed_address"
+    )
+    contract_address: str
+    chain_id: int | None = None
+    entry_contract: str | None = None
+    bounty_wei: int
+    protocol_fee_wei: int = 0
+    response_window_end: str | None = None
+    created_at: str | None = None
+    filters: MarketplacePreviewFiltersModel = Field(
+        default_factory=MarketplacePreviewFiltersModel
+    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditRequestListResponse(BaseModel):
+    items: list[AuditRequestRecordModel]
+
+
+class AuditRequestEligibilityResponse(BaseModel):
+    request_id: str
+    auditor_service_id: str
+    eligible: bool
+    approximate: bool = True
+    minimum_stake_wei: int = 0
+    reasons: list[str] = Field(default_factory=list)
+
+
 ChallengerEventKind = Literal[
     "audit_published",
     "challenge_opened",

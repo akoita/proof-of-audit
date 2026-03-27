@@ -21,6 +21,8 @@ from proof_of_audit_api.publisher import (
 )
 from proof_of_audit_api.schemas import (
     AuditListResponse,
+    AuditRequestEligibilityResponse,
+    AuditRequestListResponse,
     AuditRecordModel,
     AuditorRegistrationDocumentModel,
     AuditorReputationResponse,
@@ -289,6 +291,39 @@ def create_app(
         return TargetComparisonResponse.model_validate(
             service.build_target_comparison(contract_address)
         )
+
+    @app.get(
+        "/requests",
+        response_model=AuditRequestListResponse,
+        responses={status.HTTP_200_OK: {"model": AuditRequestListResponse}},
+    )
+    def list_requests(
+        request: Request,
+        status_filter: str | None = Query(default=None, alias="status"),
+    ) -> AuditRequestListResponse:
+        service = _service(request)
+        return AuditRequestListResponse(
+            items=service.list_audit_requests(status=status_filter)
+        )
+
+    @app.get(
+        "/requests/{request_id}/eligibility",
+        response_model=AuditRequestEligibilityResponse,
+        responses={status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}},
+    )
+    def request_eligibility(
+        request_id: str,
+        request: Request,
+        auditor: str = Query(..., min_length=1),
+    ) -> AuditRequestEligibilityResponse:
+        service = _service(request)
+        payload = service.build_audit_request_eligibility(request_id, auditor)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "request_not_found"},
+            )
+        return AuditRequestEligibilityResponse.model_validate(payload)
 
     @app.post(
         "/marketplace/preview",
