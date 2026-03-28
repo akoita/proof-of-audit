@@ -6,6 +6,8 @@ interface IAgentIdentityRegistry {
 }
 
 contract ProofOfAudit {
+    uint256 public constant FEE_DENOMINATOR = 10_000;
+
     enum AuditState {
         None,
         Published,
@@ -70,6 +72,18 @@ contract ProofOfAudit {
         EligibilityConfig eligibility;
     }
 
+    struct AuditRequestSettlement {
+        uint32 classifiedClaimCount;
+        uint32 eligibleClaimCount;
+        uint32 claimantWithdrawnCount;
+        bool finalized;
+        bool requesterRefundWithdrawn;
+        uint96 eligibleStakeTotal;
+        uint96 protocolFeeAmount;
+        uint96 distributableBountyAmount;
+        uint96 cumulativeBountyWithdrawn;
+    }
+
     struct AuditRequestClaim {
         uint256 requestId;
         address auditor;
@@ -87,6 +101,11 @@ contract ProofOfAudit {
         Resolution resolution;
         address challenger;
         bytes32 evidenceHash;
+    }
+
+    struct AuditRequestClaimSettlement {
+        bool eligible;
+        bool withdrawn;
     }
 
     error IncorrectStake();
@@ -111,8 +130,18 @@ contract ProofOfAudit {
     error ChallengeWindowOpen();
     error ResponseWindowOpen();
     error RequestHasClaims();
+    error NoRequestClaims();
+    error InvalidBatchSize();
+    error InvalidFeeRate();
+    error InvalidTreasury();
+    error RequestSettlementPending();
+    error RequestSettlementNotFinalized();
+    error RequestSettlementAlreadyFinalized();
+    error RequestClaimNotEligible();
+    error RequestSettlementAlreadyWithdrawn();
     error NotRequester();
     error NotArbiter();
+    error NotTreasury();
     error TransferFailed();
 
     event AuditPublished(
@@ -198,13 +227,45 @@ contract ProofOfAudit {
         uint256 indexed claimId,
         Resolution resolution,
         address indexed beneficiary,
-        uint256 payout
+        uint256 grossPayout,
+        uint256 resolutionFeeAmount,
+        uint256 payoutAmount
+    );
+
+    event AuditRequestSettlementFinalized(
+        uint256 indexed requestId,
+        uint256 eligibleClaimCount,
+        uint256 eligibleStakeTotal,
+        uint256 protocolFeeAmount,
+        uint256 distributableBountyAmount
+    );
+
+    event AuditRequestClaimSettlementWithdrawn(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        address indexed auditor,
+        uint256 returnedStakeAmount,
+        uint256 bountyShareAmount,
+        uint256 payoutAmount
+    );
+
+    event FeesWithdrawn(
+        address indexed treasury,
+        uint256 protocolFeeAmount,
+        uint256 resolutionFeeAmount,
+        uint256 payoutAmount
     );
 
     uint256 public immutable requiredStake;
     uint256 public immutable requiredChallengeBond;
     uint256 public immutable challengeWindow;
     address public immutable arbiter;
+    address public immutable treasury;
+    uint256 public immutable protocolFeeBps;
+    uint256 public immutable resolutionFeeBps;
+
+    uint256 public accruedProtocolFees;
+    uint256 public accruedResolutionFees;
 
     uint256 public nextAuditId;
     uint256 public nextRequestId;
@@ -213,20 +274,31 @@ contract ProofOfAudit {
     mapping(uint256 => AuditRequest) private auditRequests;
     mapping(uint256 => AuditRequestClaim) private auditRequestClaims;
     mapping(uint256 => uint256[]) private auditRequestClaimIds;
+    mapping(uint256 => AuditRequestSettlement) private auditRequestSettlements;
+    mapping(uint256 => AuditRequestClaimSettlement) private auditRequestClaimSettlements;
     mapping(uint256 => mapping(bytes32 => bool)) private requestClaimIdentityUsed;
     mapping(uint256 => mapping(address => bool)) private requestClaimAllowlistedAuditors;
     mapping(uint256 => address[]) private requestClaimAllowlistEntries;
 
     constructor(
         address _arbiter,
+        address _treasury,
         uint256 _requiredStake,
         uint256 _requiredChallengeBond,
-        uint256 _challengeWindow
+        uint256 _challengeWindow,
+        uint256 _protocolFeeBps,
+        uint256 _resolutionFeeBps
     ) {
+        if (_treasury == address(0)) revert InvalidTreasury();
+        if (_protocolFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
+        if (_resolutionFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
         arbiter = _arbiter;
+        treasury = _treasury;
         requiredStake = _requiredStake;
         requiredChallengeBond = _requiredChallengeBond;
         challengeWindow = _challengeWindow;
+        protocolFeeBps = _protocolFeeBps;
+        resolutionFeeBps = _resolutionFeeBps;
     }
 
     function publishAudit(
@@ -505,27 +577,35 @@ contract ProofOfAudit {
         if (claim.state != AuditRequestClaimState.Challenged) revert InvalidState();
 
         address beneficiary;
-        uint256 payout;
+        uint256 grossPayout;
 
         if (upheld) {
             claim.state = AuditRequestClaimState.Slashed;
             claim.resolution = Resolution.ChallengeUpheld;
             beneficiary = claim.challenger;
-            payout = uint256(claim.stakeAmount) + uint256(claim.challengeBond);
+            grossPayout = uint256(claim.stakeAmount) + uint256(claim.challengeBond);
         } else {
             claim.state = AuditRequestClaimState.Resolved;
             claim.resolution = Resolution.ChallengeRejected;
             beneficiary = claim.auditor;
-            payout = uint256(claim.challengeBond);
+            grossPayout = uint256(claim.challengeBond);
         }
 
-        _sendValue(beneficiary, payout);
+        uint256 resolutionFeeAmount = _resolutionFee(grossPayout);
+        uint256 payoutAmount = grossPayout - resolutionFeeAmount;
+        if (resolutionFeeAmount > 0) {
+            accruedResolutionFees += resolutionFeeAmount;
+        }
+
+        _sendValue(beneficiary, payoutAmount);
         emit AuditRequestClaimChallengeResolved(
             claim.requestId,
             claimId,
             claim.resolution,
             beneficiary,
-            payout
+            grossPayout,
+            resolutionFeeAmount,
+            payoutAmount
         );
     }
 
@@ -585,6 +665,165 @@ contract ProofOfAudit {
         emit AuditRequestRefunded(requestId, auditRequest.requester, refundAmount);
     }
 
+    function classifyAuditRequestClaims(
+        uint256 requestId,
+        uint256 maxClaims
+    ) external {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (auditRequestState(requestId) != AuditRequestState.Closed) {
+            revert InvalidRequestState();
+        }
+        if (auditRequest.claimCount == 0) revert NoRequestClaims();
+        if (maxClaims == 0) revert InvalidBatchSize();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[requestId];
+        if (settlement.finalized) revert RequestSettlementAlreadyFinalized();
+
+        uint256[] storage claimIds = auditRequestClaimIds[requestId];
+        uint256 cursor = settlement.classifiedClaimCount;
+        if (cursor >= claimIds.length) revert InvalidRequestState();
+
+        uint256 targetCursor = cursor + maxClaims;
+        if (targetCursor > claimIds.length) {
+            targetCursor = claimIds.length;
+        }
+
+        while (cursor < targetCursor) {
+            uint256 claimId = claimIds[cursor];
+            AuditRequestClaim storage claim = auditRequestClaims[claimId];
+            (bool ready, bool eligible) = _requestClaimSettlementStatus(claim);
+            if (!ready) revert RequestSettlementPending();
+
+            AuditRequestClaimSettlement storage claimSettlement = auditRequestClaimSettlements[
+                claimId
+            ];
+            claimSettlement.eligible = eligible;
+            if (eligible) {
+                settlement.eligibleClaimCount += 1;
+                settlement.eligibleStakeTotal += claim.stakeAmount;
+            }
+            cursor += 1;
+            settlement.classifiedClaimCount = uint32(cursor);
+        }
+    }
+
+    function finalizeAuditRequestSettlement(uint256 requestId) external {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (auditRequestState(requestId) != AuditRequestState.Closed) {
+            revert InvalidRequestState();
+        }
+        if (auditRequest.claimCount == 0) revert NoRequestClaims();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[requestId];
+        if (settlement.finalized) revert RequestSettlementAlreadyFinalized();
+        if (settlement.classifiedClaimCount != auditRequest.claimCount) {
+            revert RequestSettlementPending();
+        }
+
+        settlement.finalized = true;
+        uint256 protocolFeeAmount;
+        uint256 distributableBountyAmount = auditRequest.bountyAmount;
+        if (settlement.eligibleStakeTotal > 0) {
+            protocolFeeAmount = _protocolFee(auditRequest.bountyAmount);
+            distributableBountyAmount -= protocolFeeAmount;
+            if (protocolFeeAmount > 0) {
+                accruedProtocolFees += protocolFeeAmount;
+            }
+        }
+        settlement.protocolFeeAmount = uint96(protocolFeeAmount);
+        settlement.distributableBountyAmount = uint96(distributableBountyAmount);
+        auditRequest.state = AuditRequestState.Settled;
+
+        emit AuditRequestSettlementFinalized(
+            requestId,
+            settlement.eligibleClaimCount,
+            settlement.eligibleStakeTotal,
+            settlement.protocolFeeAmount,
+            settlement.distributableBountyAmount
+        );
+    }
+
+    function withdrawAuditRequestClaimSettlement(uint256 claimId) external {
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        if (claim.requestId == 0) revert InvalidAuditRequestClaim();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[claim.requestId];
+        if (!settlement.finalized) revert RequestSettlementNotFinalized();
+
+        AuditRequestClaimSettlement storage claimSettlement = auditRequestClaimSettlements[
+            claimId
+        ];
+        if (!claimSettlement.eligible) revert RequestClaimNotEligible();
+        if (claimSettlement.withdrawn) revert RequestSettlementAlreadyWithdrawn();
+
+        uint256 bountyShare = _claimBountyShare(claimId);
+        uint256 payout = uint256(claim.stakeAmount) + bountyShare;
+
+        claimSettlement.withdrawn = true;
+        settlement.claimantWithdrawnCount += 1;
+        settlement.cumulativeBountyWithdrawn += uint96(bountyShare);
+
+        _sendValue(claim.auditor, payout);
+        emit AuditRequestClaimSettlementWithdrawn(
+            claim.requestId,
+            claimId,
+            claim.auditor,
+            claim.stakeAmount,
+            bountyShare,
+            payout
+        );
+    }
+
+    function withdrawAuditRequestRefund(uint256 requestId) external {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (msg.sender != auditRequest.requester) revert NotRequester();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[requestId];
+        if (!settlement.finalized) revert RequestSettlementNotFinalized();
+        if (settlement.requesterRefundWithdrawn) {
+            revert RequestSettlementAlreadyWithdrawn();
+        }
+
+        uint256 refundAmount;
+        if (settlement.eligibleClaimCount == 0) {
+            refundAmount = auditRequest.bountyAmount;
+        } else {
+            if (settlement.claimantWithdrawnCount != settlement.eligibleClaimCount) {
+                revert RequestSettlementPending();
+            }
+            refundAmount =
+                uint256(settlement.distributableBountyAmount) -
+                uint256(settlement.cumulativeBountyWithdrawn);
+        }
+
+        settlement.requesterRefundWithdrawn = true;
+        _sendValue(auditRequest.requester, refundAmount);
+
+        emit AuditRequestRefunded(requestId, auditRequest.requester, refundAmount);
+    }
+
+    function withdrawFees() external {
+        if (msg.sender != treasury) revert NotTreasury();
+
+        uint256 protocolFeeAmount = accruedProtocolFees;
+        uint256 resolutionFeeAmount = accruedResolutionFees;
+        uint256 payoutAmount = protocolFeeAmount + resolutionFeeAmount;
+
+        accruedProtocolFees = 0;
+        accruedResolutionFees = 0;
+
+        _sendValue(treasury, payoutAmount);
+        emit FeesWithdrawn(
+            treasury,
+            protocolFeeAmount,
+            resolutionFeeAmount,
+            payoutAmount
+        );
+    }
+
     function getAuditRequest(
         uint256 requestId
     ) external view returns (AuditRequest memory auditRequest) {
@@ -596,6 +835,59 @@ contract ProofOfAudit {
         uint256 claimId
     ) external view returns (AuditRequestClaim memory) {
         return auditRequestClaims[claimId];
+    }
+
+    function getAuditRequestSettlement(
+        uint256 requestId
+    ) external view returns (AuditRequestSettlement memory) {
+        return auditRequestSettlements[requestId];
+    }
+
+    function getAuditRequestClaimSettlement(
+        uint256 claimId
+    ) external view returns (AuditRequestClaimSettlement memory) {
+        return auditRequestClaimSettlements[claimId];
+    }
+
+    function previewAuditRequestClaimSettlement(
+        uint256 claimId
+    ) external view returns (bool eligible, bool withdrawn, uint256 bountyShare, uint256 payout) {
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        if (claim.requestId == 0) revert InvalidAuditRequestClaim();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[claim.requestId];
+        AuditRequestClaimSettlement storage claimSettlement = auditRequestClaimSettlements[
+            claimId
+        ];
+
+        eligible = claimSettlement.eligible;
+        withdrawn = claimSettlement.withdrawn;
+        if (settlement.finalized && eligible) {
+            bountyShare = _claimBountyShare(claimId);
+            payout = uint256(claim.stakeAmount) + bountyShare;
+        }
+    }
+
+    function previewAuditRequestRefund(
+        uint256 requestId
+    ) external view returns (bool available, uint256 refundAmount) {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+
+        AuditRequestSettlement storage settlement = auditRequestSettlements[requestId];
+        if (!settlement.finalized || settlement.requesterRefundWithdrawn) {
+            return (false, 0);
+        }
+        if (settlement.eligibleClaimCount == 0) {
+            return (true, auditRequest.bountyAmount);
+        }
+        if (settlement.claimantWithdrawnCount != settlement.eligibleClaimCount) {
+            return (false, 0);
+        }
+        refundAmount =
+            uint256(settlement.distributableBountyAmount) -
+            uint256(settlement.cumulativeBountyWithdrawn);
+        return (true, refundAmount);
     }
 
     function getAuditRequestClaimIds(
@@ -671,5 +963,54 @@ contract ProofOfAudit {
 
     function _allowlistCommitment(uint256 requestId) private view returns (bytes32) {
         return keccak256(abi.encode(requestClaimAllowlistEntries[requestId]));
+    }
+
+    function _requestClaimSettlementStatus(
+        AuditRequestClaim storage claim
+    ) private view returns (bool ready, bool eligible) {
+        if (
+            claim.state == AuditRequestClaimState.Submitted &&
+            block.timestamp > claim.submittedAt + challengeWindow
+        ) {
+            return (true, true);
+        }
+        if (
+            claim.state == AuditRequestClaimState.Resolved &&
+            claim.resolution == Resolution.ChallengeRejected
+        ) {
+            return (true, true);
+        }
+        if (
+            claim.state == AuditRequestClaimState.Slashed &&
+            claim.resolution == Resolution.ChallengeUpheld
+        ) {
+            return (true, false);
+        }
+        return (false, false);
+    }
+
+    function _claimBountyShare(uint256 claimId) private view returns (uint256) {
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        AuditRequestSettlement storage settlement = auditRequestSettlements[claim.requestId];
+        if (settlement.eligibleStakeTotal == 0) {
+            return 0;
+        }
+        return
+            (uint256(settlement.distributableBountyAmount) * uint256(claim.stakeAmount)) /
+            uint256(settlement.eligibleStakeTotal);
+    }
+
+    function _protocolFee(uint256 amount) private view returns (uint256) {
+        if (protocolFeeBps == 0 || amount == 0) {
+            return 0;
+        }
+        return (amount * protocolFeeBps) / FEE_DENOMINATOR;
+    }
+
+    function _resolutionFee(uint256 grossPayout) private view returns (uint256) {
+        if (resolutionFeeBps == 0 || grossPayout == 0) {
+            return 0;
+        }
+        return (grossPayout * resolutionFeeBps) / FEE_DENOMINATOR;
     }
 }

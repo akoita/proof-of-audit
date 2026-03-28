@@ -147,12 +147,23 @@ def create_app(
     def config(request: Request) -> PublicContractConfigResponse:
         contract_config = request.app.state.contract_config
         service = _service(request)
+        fee_config = None
+        if service.publisher is not None:
+            try:
+                fee_config = service.publisher.get_marketplace_fee_config()
+            except Exception:
+                fee_config = None
         return PublicContractConfigResponse(
             network=contract_config.network,
             chain_id=contract_config.chain_id,
             contract_address=contract_config.contract_address,
             explorer_base_url=contract_config.explorer_base_url,
             arbiter=contract_config.arbiter,
+            treasury_address=(
+                fee_config.treasury_address
+                if fee_config is not None
+                else contract_config.treasury_address
+            ),
             auditor=contract_config.auditor.to_dict(),
             auditor_service=service.get_auditor_service(
                 contract_config.auditor_service.service_id
@@ -161,6 +172,19 @@ def create_app(
             required_stake_wei=contract_config.required_stake_wei,
             required_challenge_bond_wei=contract_config.required_challenge_bond_wei,
             challenge_window_seconds=contract_config.challenge_window_seconds,
+            fee_denominator=(
+                fee_config.fee_denominator if fee_config is not None else 10_000
+            ),
+            protocol_fee_bps=(
+                fee_config.protocol_fee_bps
+                if fee_config is not None
+                else contract_config.protocol_fee_bps
+            ),
+            resolution_fee_bps=(
+                fee_config.resolution_fee_bps
+                if fee_config is not None
+                else contract_config.resolution_fee_bps
+            ),
             deployment_ready=contract_config.deployment_ready,
         )
 

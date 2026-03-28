@@ -370,6 +370,9 @@ class AuditApiAppTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["network"], "anvil-local")
         self.assertEqual(payload["chain_id"], 31337)
+        self.assertEqual(payload["fee_denominator"], 10000)
+        self.assertEqual(payload["protocol_fee_bps"], 0)
+        self.assertEqual(payload["resolution_fee_bps"], 0)
         self.assertEqual(payload["auditor"]["id"], "proof-of-audit-auditor")
         self.assertEqual(
             payload["auditor"]["manifest_schema"],
@@ -1013,6 +1016,97 @@ class AuditApiAppTest(unittest.TestCase):
             claims_payload["items"][0]["challenge_policy"]["allow_informational_only"],
             False,
         )
+
+    def test_request_endpoints_expose_settlement_state_after_onchain_finalization(self) -> None:
+        onchain = build_onchain_test_context(protocol_fee_bps=500)
+        service = AuditService(
+            Path(self.tempdir.name) / "request-settlement-endpoint-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        created_request = client.post(
+            "/requests",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "response_window_seconds": 3600,
+                "filters": {},
+            },
+        )
+        self.assertEqual(created_request.status_code, 201)
+        request_id = created_request.json()["request_id"]
+
+        draft = client.post(
+            "/audits",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "submitted_by": "market-auditor",
+            },
+        )
+        self.assertEqual(draft.status_code, 201)
+        audit_id = draft.json()["id"]
+
+        claimed = client.post(
+            f"/requests/{request_id}/claims",
+            json={
+                "audit_id": audit_id,
+                "stake_wei": 10**16,
+            },
+        )
+        self.assertEqual(claimed.status_code, 200)
+
+        tester = onchain.web3.provider.ethereum_tester
+        latest = tester.get_block_by_number("latest")
+        tester.time_travel(int(latest["timestamp"]) + 86401)
+        tester.mine_block()
+
+        onchain.publisher.classify_audit_request_claims(request_id=1, max_claims=1)
+        onchain.publisher.finalize_audit_request_settlement(request_id=1)
+        onchain.publisher.withdraw_audit_request_claim_settlement(claim_id=1)
+
+        request_response = client.get(f"/requests/{request_id}")
+        self.assertEqual(request_response.status_code, 200)
+        request_payload = request_response.json()
+        self.assertTrue(request_payload["settlement_finalized"])
+        self.assertEqual(request_payload["protocol_fee_wei"], 100_000_000_000_000_000)
+        self.assertEqual(request_payload["eligible_claim_count"], 1)
+        self.assertEqual(request_payload["claimant_withdrawn_count"], 1)
+        self.assertEqual(request_payload["distributable_bounty_wei"], 1_900_000_000_000_000_000)
+        self.assertTrue(request_payload["requester_refund_available"])
+        self.assertEqual(request_payload["requester_refund_wei"], 0)
+
+        claims = client.get(f"/requests/{request_id}/claims")
+        self.assertEqual(claims.status_code, 200)
+        claims_payload = claims.json()
+        self.assertTrue(claims_payload["items"][0]["eligible_for_bounty"])
+        self.assertTrue(claims_payload["items"][0]["settlement_withdrawn"])
+        self.assertEqual(claims_payload["items"][0]["bounty_share_wei"], 1_900_000_000_000_000_000)
+        self.assertEqual(
+            claims_payload["items"][0]["settlement_payout_wei"],
+            1_910_000_000_000_000_000,
+        )
+
+    def test_public_config_endpoint_reads_marketplace_fee_parameters_from_contract(self) -> None:
+        onchain = build_onchain_test_context(protocol_fee_bps=125, resolution_fee_bps=75)
+        service = AuditService(
+            Path(self.tempdir.name) / "config-fee-data",
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        client = TestClient(create_app(audit_service=service))
+
+        response = client.get("/config")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["fee_denominator"], 10000)
+        self.assertEqual(payload["protocol_fee_bps"], 125)
+        self.assertEqual(payload["resolution_fee_bps"], 75)
+        self.assertEqual(payload["treasury_address"], onchain.contract_config.treasury_address)
 
     def test_request_claim_can_be_challenged_through_audit_challenge_endpoint(self) -> None:
         onchain = build_onchain_test_context()

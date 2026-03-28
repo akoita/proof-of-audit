@@ -23,6 +23,7 @@ contract ProofOfAuditTest is Test {
     MockIdentityRegistry internal identityRegistry;
 
     address internal arbiter = address(0xA11CE);
+    address internal treasury = address(0xFEE);
     address internal auditor = address(0xB0B);
     address internal challenger = address(0xCA11);
     address internal secondAuditor = address(0xC0DE);
@@ -32,15 +33,18 @@ contract ProofOfAuditTest is Test {
     uint256 internal constant BOND = 0.005 ether;
     uint256 internal constant WINDOW = 1 days;
     uint256 internal constant BOUNTY = 0.2 ether;
+    uint256 internal constant FEE_BPS = 500;
+    uint256 internal constant RESOLUTION_FEE_BPS = 1000;
 
     function setUp() public {
-        registry = new ProofOfAudit(arbiter, STAKE, BOND, WINDOW);
+        registry = new ProofOfAudit(arbiter, treasury, STAKE, BOND, WINDOW, 0, 0);
         identityRegistry = new MockIdentityRegistry();
         identityRegistry.setOwner(1, auditor);
         identityRegistry.setOwner(2, secondAuditor);
         vm.deal(auditor, 1 ether);
         vm.deal(challenger, 1 ether);
         vm.deal(secondAuditor, 1 ether);
+        vm.deal(treasury, 1 ether);
     }
 
     function testPublishAuditStoresRecord() public {
@@ -526,6 +530,289 @@ contract ProofOfAuditTest is Test {
         );
     }
 
+    function testFinalizeAuditRequestSettlementForSingleEligibleClaim() public {
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.finalizeAuditRequestSettlement(requestId);
+
+        ProofOfAudit.AuditRequestSettlement memory settlement = registry
+            .getAuditRequestSettlement(requestId);
+        assertTrue(settlement.finalized);
+        assertEq(uint256(settlement.classifiedClaimCount), 1);
+        assertEq(uint256(settlement.eligibleClaimCount), 1);
+        assertEq(uint256(settlement.eligibleStakeTotal), STAKE);
+        assertEq(uint256(settlement.distributableBountyAmount), BOUNTY);
+
+        uint256 auditorBalanceBefore = auditor.balance;
+        registry.withdrawAuditRequestClaimSettlement(claimId);
+
+        assertEq(auditor.balance, auditorBalanceBefore + STAKE + BOUNTY);
+
+        (bool refundAvailable, uint256 refundAmount) = registry.previewAuditRequestRefund(
+            requestId
+        );
+        assertTrue(refundAvailable);
+        assertEq(refundAmount, 0);
+    }
+
+    function testProRataSettlementSplitsBountyByEligibleStakeWeight() public {
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        vm.prank(auditor);
+        uint256 firstClaimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report-1"),
+            keccak256("metadata-1"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        uint256 secondClaimId = registry.submitAuditRequestClaim{value: 2 * STAKE}(
+            requestId,
+            address(identityRegistry),
+            2,
+            keccak256("report-2"),
+            keccak256("metadata-2"),
+            2,
+            1
+        );
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.finalizeAuditRequestSettlement(requestId);
+
+        uint256 firstShare = BOUNTY / 3;
+        uint256 secondShare = (BOUNTY * 2) / 3;
+        uint256 requesterDust = BOUNTY - firstShare - secondShare;
+
+        uint256 firstAuditorBalanceBefore = auditor.balance;
+        uint256 secondAuditorBalanceBefore = secondAuditor.balance;
+        uint256 requesterBalanceBefore = challenger.balance;
+
+        registry.withdrawAuditRequestClaimSettlement(firstClaimId);
+        registry.withdrawAuditRequestClaimSettlement(secondClaimId);
+
+        vm.prank(challenger);
+        registry.withdrawAuditRequestRefund(requestId);
+
+        assertEq(auditor.balance, firstAuditorBalanceBefore + STAKE + firstShare);
+        assertEq(
+            secondAuditor.balance,
+            secondAuditorBalanceBefore + (2 * STAKE) + secondShare
+        );
+        assertEq(challenger.balance, requesterBalanceBefore + requesterDust);
+    }
+
+    function testSlashedClaimsAreExcludedAndRequesterReceivesRefund() public {
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("claim-poc")
+        );
+
+        vm.prank(arbiter);
+        registry.resolveAuditRequestClaimChallenge(claimId, true);
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.finalizeAuditRequestSettlement(requestId);
+
+        vm.expectRevert(ProofOfAudit.RequestClaimNotEligible.selector);
+        registry.withdrawAuditRequestClaimSettlement(claimId);
+
+        uint256 requesterBalanceBefore = challenger.balance;
+        vm.prank(challenger);
+        registry.withdrawAuditRequestRefund(requestId);
+
+        assertEq(challenger.balance, requesterBalanceBefore + BOUNTY);
+    }
+
+    function testCannotClassifyRequestSettlementWhileClaimChallengeWindowIsStillOpen() public {
+        vm.prank(challenger);
+        uint256 requestId = registry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(1 hours),
+            _defaultEligibility(),
+            new address[](0)
+        );
+
+        vm.prank(auditor);
+        registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        vm.expectRevert(ProofOfAudit.RequestSettlementPending.selector);
+        registry.classifyAuditRequestClaims(requestId, 1);
+    }
+
+    function testProtocolFeeIsDeductedFromBountyDistributionAndWithdrawable() public {
+        ProofOfAudit feeRegistry = _newFeeRegistry(FEE_BPS, 0);
+        uint256 requestId = _createAuditRequestForWithRegistry(feeRegistry, challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = feeRegistry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        feeRegistry.classifyAuditRequestClaims(requestId, 1);
+        feeRegistry.finalizeAuditRequestSettlement(requestId);
+
+        ProofOfAudit.AuditRequestSettlement memory settlement = feeRegistry
+            .getAuditRequestSettlement(requestId);
+        uint256 expectedProtocolFee = (BOUNTY * FEE_BPS) / feeRegistry.FEE_DENOMINATOR();
+        assertEq(uint256(settlement.protocolFeeAmount), expectedProtocolFee);
+        assertEq(
+            uint256(settlement.distributableBountyAmount),
+            BOUNTY - expectedProtocolFee
+        );
+        assertEq(feeRegistry.accruedProtocolFees(), expectedProtocolFee);
+
+        uint256 auditorBalanceBefore = auditor.balance;
+        feeRegistry.withdrawAuditRequestClaimSettlement(claimId);
+        assertEq(
+            auditor.balance,
+            auditorBalanceBefore + STAKE + (BOUNTY - expectedProtocolFee)
+        );
+
+        uint256 treasuryBalanceBefore = treasury.balance;
+        vm.prank(treasury);
+        feeRegistry.withdrawFees();
+        assertEq(treasury.balance, treasuryBalanceBefore + expectedProtocolFee);
+        assertEq(feeRegistry.accruedProtocolFees(), 0);
+    }
+
+    function testResolutionFeeIsDeductedFromRequestClaimChallengePayout() public {
+        ProofOfAudit feeRegistry = _newFeeRegistry(0, RESOLUTION_FEE_BPS);
+        uint256 requestId = _createAuditRequestForWithRegistry(feeRegistry, challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = feeRegistry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        feeRegistry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("claim-poc")
+        );
+
+        uint256 challengerBalanceBefore = secondAuditor.balance;
+        vm.prank(arbiter);
+        feeRegistry.resolveAuditRequestClaimChallenge(claimId, true);
+
+        uint256 grossPayout = STAKE + BOND;
+        uint256 expectedResolutionFee =
+            (grossPayout * RESOLUTION_FEE_BPS) / feeRegistry.FEE_DENOMINATOR();
+        assertEq(
+            secondAuditor.balance,
+            challengerBalanceBefore + grossPayout - expectedResolutionFee
+        );
+        assertEq(feeRegistry.accruedResolutionFees(), expectedResolutionFee);
+
+        uint256 treasuryBalanceBefore = treasury.balance;
+        vm.prank(treasury);
+        feeRegistry.withdrawFees();
+        assertEq(treasury.balance, treasuryBalanceBefore + expectedResolutionFee);
+        assertEq(feeRegistry.accruedResolutionFees(), 0);
+    }
+
+    function testZeroEligibleRefundDoesNotAccrueProtocolFee() public {
+        ProofOfAudit feeRegistry = _newFeeRegistry(FEE_BPS, 0);
+        uint256 requestId = _createAuditRequestForWithRegistry(feeRegistry, challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = feeRegistry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        feeRegistry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("claim-poc")
+        );
+
+        vm.prank(arbiter);
+        feeRegistry.resolveAuditRequestClaimChallenge(claimId, true);
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        feeRegistry.classifyAuditRequestClaims(requestId, 1);
+        feeRegistry.finalizeAuditRequestSettlement(requestId);
+
+        ProofOfAudit.AuditRequestSettlement memory settlement = feeRegistry
+            .getAuditRequestSettlement(requestId);
+        assertEq(uint256(settlement.protocolFeeAmount), 0);
+        assertEq(feeRegistry.accruedProtocolFees(), 0);
+
+        uint256 requesterBalanceBefore = challenger.balance;
+        vm.prank(challenger);
+        feeRegistry.withdrawAuditRequestRefund(requestId);
+        assertEq(challenger.balance, requesterBalanceBefore + BOUNTY);
+    }
+
     function _publishDefaultAudit() internal returns (uint256 auditId) {
         vm.prank(auditor);
         auditId = registry.publishAudit{value: STAKE}(
@@ -538,13 +825,39 @@ contract ProofOfAuditTest is Test {
     }
 
     function _createDefaultAuditRequest() internal returns (uint256 requestId) {
-        vm.prank(auditor);
-        requestId = registry.createAuditRequest{value: BOUNTY}(
+        return _createAuditRequestFor(auditor);
+    }
+
+    function _createAuditRequestFor(address requester) internal returns (uint256 requestId) {
+        return _createAuditRequestForWithRegistry(registry, requester);
+    }
+
+    function _createAuditRequestForWithRegistry(
+        ProofOfAudit targetRegistry,
+        address requester
+    ) internal returns (uint256 requestId) {
+        vm.prank(requester);
+        requestId = targetRegistry.createAuditRequest{value: BOUNTY}(
             target,
             uint96(BOUNTY),
             uint64(WINDOW),
             _defaultEligibility(),
             new address[](0)
+        );
+    }
+
+    function _newFeeRegistry(
+        uint256 protocolFeeBps,
+        uint256 resolutionFeeBps
+    ) internal returns (ProofOfAudit feeRegistry) {
+        feeRegistry = new ProofOfAudit(
+            arbiter,
+            treasury,
+            STAKE,
+            BOND,
+            WINDOW,
+            protocolFeeBps,
+            resolutionFeeBps
         );
     }
 

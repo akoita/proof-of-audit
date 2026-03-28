@@ -101,9 +101,106 @@ class PublishVerificationRetryTest(unittest.TestCase):
 
         self.assertEqual(resolution.claim_id, claim.claim_id)
         self.assertEqual(resolution.resolution, "upheld")
+        self.assertEqual(resolution.gross_payout_wei, 10**16 + 5 * 10**15)
+        self.assertEqual(resolution.resolution_fee_wei, 0)
+        self.assertEqual(resolution.payout_wei, 10**16 + 5 * 10**15)
         resolved_claim = onchain.publisher.get_audit_request_claim(claim.claim_id)
         self.assertEqual(resolved_claim.state, "slashed")
         self.assertEqual(resolved_claim.resolution, "upheld")
+
+    def test_request_settlement_lifecycle_returns_distribution_metadata(self) -> None:
+        onchain = build_onchain_test_context()
+        created = onchain.publisher.create_audit_request(
+            target_address=onchain.web3.eth.accounts[3],
+            bounty_wei=2 * 10**17,
+            response_window_seconds=3600,
+        )
+        claim = onchain.publisher.submit_audit_request_claim(
+            request_id=created.request_id,
+            agent_registry=onchain.contract_config.auditor_agent_registry or "",
+            agent_id=onchain.contract_config.auditor_agent_id or 0,
+            report_hash="0x" + "11" * 32,
+            metadata_hash="0x" + "22" * 32,
+            max_severity=3,
+            finding_count=1,
+            stake_wei=10**16,
+        )
+
+        tester = onchain.web3.provider.ethereum_tester
+        latest = tester.get_block_by_number("latest")
+        tester.time_travel(int(latest["timestamp"]) + 86401)
+        tester.mine_block()
+
+        onchain.publisher.classify_audit_request_claims(
+            request_id=created.request_id,
+            max_claims=1,
+        )
+        onchain.publisher.finalize_audit_request_settlement(request_id=created.request_id)
+
+        settlement = onchain.publisher.get_audit_request_settlement(created.request_id)
+        self.assertTrue(settlement.finalized)
+        self.assertEqual(settlement.eligible_claim_count, 1)
+        self.assertEqual(settlement.eligible_stake_wei, 10**16)
+        self.assertEqual(settlement.distributable_bounty_wei, 2 * 10**17)
+
+        claim_preview = onchain.publisher.preview_audit_request_claim_settlement(
+            claim.claim_id
+        )
+        self.assertTrue(claim_preview.eligible)
+        self.assertFalse(claim_preview.withdrawn)
+        self.assertEqual(claim_preview.bounty_share_wei, 2 * 10**17)
+        self.assertEqual(claim_preview.payout_wei, 2 * 10**17 + 10**16)
+
+        withdrawal = onchain.publisher.withdraw_audit_request_claim_settlement(
+            claim_id=claim.claim_id
+        )
+        self.assertEqual(withdrawal.request_id, created.request_id)
+        self.assertEqual(withdrawal.claim_id, claim.claim_id)
+        self.assertEqual(withdrawal.returned_stake_wei, 10**16)
+        self.assertEqual(withdrawal.bounty_share_wei, 2 * 10**17)
+        self.assertEqual(withdrawal.payout_wei, 2 * 10**17 + 10**16)
+
+        refund_preview = onchain.publisher.preview_audit_request_refund(created.request_id)
+        self.assertTrue(refund_preview.available)
+        self.assertEqual(refund_preview.refund_wei, 0)
+
+    def test_marketplace_fee_config_and_accruals_are_visible(self) -> None:
+        onchain = build_onchain_test_context(protocol_fee_bps=500, resolution_fee_bps=1000)
+        fee_config = onchain.publisher.get_marketplace_fee_config()
+        self.assertEqual(fee_config.treasury_address, onchain.contract_config.treasury_address)
+        self.assertEqual(fee_config.protocol_fee_bps, 500)
+        self.assertEqual(fee_config.resolution_fee_bps, 1000)
+        self.assertEqual(fee_config.fee_denominator, 10_000)
+
+        created = onchain.publisher.create_audit_request(
+            target_address=onchain.web3.eth.accounts[3],
+            bounty_wei=2 * 10**17,
+            response_window_seconds=3600,
+        )
+        claim = onchain.publisher.submit_audit_request_claim(
+            request_id=created.request_id,
+            agent_registry=onchain.contract_config.auditor_agent_registry or "",
+            agent_id=onchain.contract_config.auditor_agent_id or 0,
+            report_hash="0x" + "11" * 32,
+            metadata_hash="0x" + "22" * 32,
+            max_severity=3,
+            finding_count=1,
+            stake_wei=10**16,
+        )
+        tester = onchain.web3.provider.ethereum_tester
+        latest = tester.get_block_by_number("latest")
+        tester.time_travel(int(latest["timestamp"]) + 86401)
+        tester.mine_block()
+
+        onchain.publisher.classify_audit_request_claims(
+            request_id=created.request_id,
+            max_claims=1,
+        )
+        onchain.publisher.finalize_audit_request_settlement(request_id=created.request_id)
+
+        settlement = onchain.publisher.get_audit_request_settlement(created.request_id)
+        self.assertEqual(settlement.protocol_fee_wei, 10**16)
+        self.assertEqual(settlement.distributable_bounty_wei, 19 * 10**16)
 
     def test_verify_published_record_retries_until_chain_state_catches_up(self) -> None:
         publisher = build_onchain_test_context().publisher

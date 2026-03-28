@@ -580,6 +580,9 @@ class ContractConfig:
     required_stake_wei: int
     required_challenge_bond_wei: int
     challenge_window_seconds: int
+    treasury_address: str | None
+    protocol_fee_bps: int
+    resolution_fee_bps: int
     auditor: AuditorProfile
     auditor_manifest_file: Path | None
     auditor_published_registration_file: Path
@@ -660,6 +663,9 @@ class ContractConfig:
         registration_document = deployment_manifest.get("registration_document", {})
         if not isinstance(registration_document, dict):
             registration_document = {}
+        constructor_args = deployment_manifest.get("constructor_args", {})
+        if not isinstance(constructor_args, dict):
+            constructor_args = {}
         auditor_catalog_file = (
             Path(source["PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE"])
             if source.get("PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE")
@@ -719,6 +725,33 @@ class ContractConfig:
             ),
             challenge_window_seconds=int(
                 source.get("PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS", "86400")
+            ),
+            treasury_address=(
+                source.get("PROOF_OF_AUDIT_TREASURY_ADDRESS")
+                or source.get("PROOF_OF_AUDIT_TREASURY")
+                or deployment_manifest.get("treasury_address")
+                or constructor_args.get("treasury")
+                or None
+            ),
+            protocol_fee_bps=int(
+                source.get(
+                    "PROOF_OF_AUDIT_PROTOCOL_FEE_BPS",
+                    str(
+                        constructor_args.get("protocol_fee_bps")
+                        or deployment_manifest.get("protocol_fee_bps")
+                        or "0"
+                    ),
+                )
+            ),
+            resolution_fee_bps=int(
+                source.get(
+                    "PROOF_OF_AUDIT_RESOLUTION_FEE_BPS",
+                    str(
+                        constructor_args.get("resolution_fee_bps")
+                        or deployment_manifest.get("resolution_fee_bps")
+                        or "0"
+                    ),
+                )
             ),
             auditor=AuditorProfile.from_manifest_file(manifest_file),
             auditor_manifest_file=manifest_file if manifest_file.exists() else None,

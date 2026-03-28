@@ -184,6 +184,62 @@ class AuditServiceTest(unittest.TestCase):
                 "high",
             )
 
+    def test_request_settlement_syncs_to_request_and_claim_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context(protocol_fee_bps=500)
+            service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            request_record = service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                submitted_by="market-user",
+            )
+            draft = service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor",
+            )
+            published = service.submit_audit_request_claim(
+                request_record["request_id"],
+                audit_id=draft["id"],
+                stake_wei=10**16,
+            )
+
+            tester = onchain.web3.provider.ethereum_tester
+            latest = tester.get_block_by_number("latest")
+            tester.time_travel(int(latest["timestamp"]) + 86401)
+            tester.mine_block()
+
+            onchain.publisher.classify_audit_request_claims(request_id=1, max_claims=1)
+            onchain.publisher.finalize_audit_request_settlement(request_id=1)
+            onchain.publisher.withdraw_audit_request_claim_settlement(claim_id=1)
+
+            refreshed_request = service.get_audit_request(request_record["request_id"])
+            self.assertIsNotNone(refreshed_request)
+            assert refreshed_request is not None
+            self.assertTrue(refreshed_request["settlement_finalized"])
+            self.assertEqual(refreshed_request["protocol_fee_wei"], 10**16)
+            self.assertEqual(refreshed_request["classified_claim_count"], 1)
+            self.assertEqual(refreshed_request["eligible_claim_count"], 1)
+            self.assertEqual(refreshed_request["claimant_withdrawn_count"], 1)
+            self.assertEqual(refreshed_request["eligible_stake_wei"], 10**16)
+            self.assertEqual(refreshed_request["distributable_bounty_wei"], 19 * 10**16)
+            self.assertTrue(refreshed_request["requester_refund_available"])
+            self.assertEqual(refreshed_request["requester_refund_wei"], 0)
+
+            claims = service.list_audit_request_claims(request_record["request_id"])
+            self.assertEqual(len(claims), 1)
+            self.assertEqual(claims[0]["claim_id"], str(published["onchain"]["request_claim_id"]))
+            self.assertTrue(claims[0]["eligible_for_bounty"])
+            self.assertTrue(claims[0]["settlement_withdrawn"])
+            self.assertEqual(claims[0]["bounty_share_wei"], 19 * 10**16)
+            self.assertEqual(claims[0]["settlement_payout_wei"], 20 * 10**16)
+
     def test_cross_auditor_request_claim_challenge_uses_verifier_and_slashes_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()
