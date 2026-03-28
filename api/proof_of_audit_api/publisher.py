@@ -95,6 +95,28 @@ class AuditRequestClaimResult:
 
 
 @dataclass(frozen=True)
+class AuditRequestClaimChallengeResult:
+    request_id: int
+    claim_id: int
+    tx_hash: str
+    chain_id: int
+    evidence_hash: str
+    challenger_address: str
+    challenge_bond_wei: int
+
+
+@dataclass(frozen=True)
+class AuditRequestClaimResolutionResult:
+    request_id: int
+    claim_id: int
+    tx_hash: str
+    chain_id: int
+    resolution: str
+    beneficiary_address: str
+    payout_wei: int
+
+
+@dataclass(frozen=True)
 class OnchainAuditRequestClaim:
     claim_id: int
     request_id: int
@@ -102,12 +124,17 @@ class OnchainAuditRequestClaim:
     agent_registry: str
     agent_id: int
     submitted_at: int
+    challenged_at: int
     stake_wei: int
+    challenge_bond_wei: int
     report_hash: str
     metadata_hash: str
     max_severity: int
     finding_count: int
     state: str
+    resolution: str
+    challenger_address: str | None
+    evidence_hash: str | None
 
 
 def load_contract_artifact() -> dict[str, Any]:
@@ -527,12 +554,154 @@ class ProofOfAuditPublisher:
             agent_registry=Web3.to_checksum_address(record[2]),
             agent_id=int(record[3]),
             submitted_at=int(record[4]),
-            stake_wei=int(record[5]),
-            report_hash=Web3.to_hex(record[6]),
-            metadata_hash=Web3.to_hex(record[7]),
-            max_severity=int(record[8]),
-            finding_count=int(record[9]),
-            state=self._request_claim_state_label(int(record[10])),
+            challenged_at=int(record[5]),
+            stake_wei=int(record[6]),
+            challenge_bond_wei=int(record[7]),
+            report_hash=Web3.to_hex(record[8]),
+            metadata_hash=Web3.to_hex(record[9]),
+            max_severity=int(record[10]),
+            finding_count=int(record[11]),
+            state=self._request_claim_state_label(int(record[12])),
+            resolution=self._resolution_label(int(record[13])),
+            challenger_address=(
+                None
+                if int(record[14], 16) == 0
+                else Web3.to_checksum_address(record[14])
+            ),
+            evidence_hash=(
+                None
+                if Web3.to_hex(record[15]) == "0x0000000000000000000000000000000000000000000000000000000000000000"
+                else Web3.to_hex(record[15])
+            ),
+        )
+
+    def challenge_audit_request_claim(
+        self,
+        *,
+        claim_id: int,
+        agent_registry: str,
+        agent_id: int,
+        evidence_hash: str,
+        challenge_bond_wei: int,
+    ) -> AuditRequestClaimChallengeResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        challenge_call = self.contract.functions.challengeAuditRequestClaim(
+            claim_id,
+            Web3.to_checksum_address(agent_registry),
+            agent_id,
+            HexBytes(evidence_hash),
+        )
+        receipt = self._submit_transaction(
+            challenge_call,
+            value_wei=challenge_bond_wei,
+            chain_id=runtime_chain_id,
+            action_label="open audit request claim challenge",
+            error_cls=OnchainChallengeError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainChallengeError(
+                "Audit request claim challenge transaction reverted on-chain."
+            )
+        events = self.contract.events.AuditRequestClaimChallengeOpened().process_receipt(
+            receipt
+        )
+        if not events:
+            raise OnchainChallengeError(
+                "Audit request claim challenge transaction succeeded but "
+                "AuditRequestClaimChallengeOpened event was missing."
+            )
+        event = events[0]["args"]
+        event_claim_id = int(event["claimId"])
+        if event_claim_id != claim_id:
+            raise OnchainChallengeError(
+                "Audit request claim challenge transaction emitted an unexpected claim id."
+            )
+        event_challenger = Web3.to_checksum_address(event["challenger"])
+        event_evidence_hash = Web3.to_hex(event["evidenceHash"])
+        event_bond = int(event["challengeBond"])
+        if event_evidence_hash != evidence_hash:
+            raise OnchainChallengeError(
+                "Audit request claim challenge emitted an unexpected evidence hash."
+            )
+        if event_bond != challenge_bond_wei:
+            raise OnchainChallengeError(
+                "Audit request claim challenge emitted an unexpected challenge bond."
+            )
+
+        onchain_claim = self.get_audit_request_claim(claim_id)
+        self._verify_onchain_request_claim_challenge(
+            claim_id=claim_id,
+            challenger_address=event_challenger,
+            evidence_hash=evidence_hash,
+            challenge_bond_wei=challenge_bond_wei,
+        )
+        return AuditRequestClaimChallengeResult(
+            request_id=onchain_claim.request_id,
+            claim_id=claim_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+            evidence_hash=evidence_hash,
+            challenger_address=event_challenger,
+            challenge_bond_wei=challenge_bond_wei,
+        )
+
+    def resolve_audit_request_claim_challenge(
+        self,
+        *,
+        claim_id: int,
+        upheld: bool,
+    ) -> AuditRequestClaimResolutionResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        resolution = "upheld" if upheld else "rejected"
+        resolve_call = self.contract.functions.resolveAuditRequestClaimChallenge(
+            claim_id,
+            upheld,
+        )
+        receipt = self._submit_transaction(
+            resolve_call,
+            value_wei=0,
+            chain_id=runtime_chain_id,
+            action_label="resolve audit request claim challenge",
+            error_cls=OnchainResolveError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainResolveError(
+                "Audit request claim resolution transaction reverted on-chain."
+            )
+        events = self.contract.events.AuditRequestClaimChallengeResolved().process_receipt(
+            receipt
+        )
+        if not events:
+            raise OnchainResolveError(
+                "Audit request claim resolution transaction succeeded but "
+                "AuditRequestClaimChallengeResolved event was missing."
+            )
+        event = events[0]["args"]
+        event_claim_id = int(event["claimId"])
+        if event_claim_id != claim_id:
+            raise OnchainResolveError(
+                "Audit request claim resolution transaction emitted an unexpected claim id."
+            )
+        event_resolution = self._resolution_label(int(event["resolution"]))
+        if event_resolution != resolution:
+            raise OnchainResolveError(
+                "Audit request claim resolution emitted an unexpected resolution."
+            )
+        beneficiary_address = Web3.to_checksum_address(event["beneficiary"])
+        payout_wei = int(event["payout"])
+        onchain_claim = self.get_audit_request_claim(claim_id)
+        self._verify_onchain_request_claim_resolution(
+            claim_id=claim_id,
+            resolution=resolution,
+        )
+        return AuditRequestClaimResolutionResult(
+            request_id=onchain_claim.request_id,
+            claim_id=claim_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+            resolution=resolution,
+            beneficiary_address=beneficiary_address,
+            payout_wei=payout_wei,
         )
 
     def _verify_onchain_record(
@@ -598,6 +767,47 @@ class ProofOfAuditPublisher:
         if self._resolution_label(int(record[11])) != resolution:
             raise OnchainResolveError(
                 "On-chain resolution did not match resolution transaction output."
+            )
+
+    def _verify_onchain_request_claim_challenge(
+        self,
+        *,
+        claim_id: int,
+        challenger_address: str,
+        evidence_hash: str,
+        challenge_bond_wei: int,
+    ) -> None:
+        claim = self.get_audit_request_claim(claim_id)
+        if claim.state != "challenged":
+            raise OnchainChallengeError("On-chain audit request claim state is not Challenged.")
+        if claim.challenge_bond_wei != challenge_bond_wei:
+            raise OnchainChallengeError(
+                "On-chain audit request claim challenge bond did not match challenge input."
+            )
+        if claim.challenger_address != challenger_address:
+            raise OnchainChallengeError(
+                "On-chain audit request claim challenger did not match challenge input."
+            )
+        if claim.evidence_hash != evidence_hash:
+            raise OnchainChallengeError(
+                "On-chain audit request claim evidence hash did not match challenge input."
+            )
+
+    def _verify_onchain_request_claim_resolution(
+        self,
+        *,
+        claim_id: int,
+        resolution: str,
+    ) -> None:
+        claim = self.get_audit_request_claim(claim_id)
+        if claim.resolution != resolution:
+            raise OnchainResolveError(
+                "On-chain audit request claim resolution did not match transaction output."
+            )
+        expected_state = "slashed" if resolution == "upheld" else "resolved"
+        if claim.state != expected_state:
+            raise OnchainResolveError(
+                "On-chain audit request claim state did not match transaction output."
             )
 
     def _build_contract(self, contract_config: ContractConfig) -> Contract:
@@ -735,4 +945,10 @@ class ProofOfAuditPublisher:
     def _request_claim_state_label(self, state: int) -> str:
         if state == 1:
             return "submitted"
+        if state == 2:
+            return "challenged"
+        if state == 3:
+            return "slashed"
+        if state == 4:
+            return "resolved"
         return "none"

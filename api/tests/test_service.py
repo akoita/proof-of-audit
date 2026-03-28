@@ -184,6 +184,121 @@ class AuditServiceTest(unittest.TestCase):
                 "high",
             )
 
+    def test_cross_auditor_request_claim_challenge_uses_verifier_and_slashes_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            primary_service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            request_record = primary_service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                submitted_by="market-user",
+            )
+            draft = primary_service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor",
+            )
+            published = primary_service.submit_audit_request_claim(
+                request_record["request_id"],
+                audit_id=draft["id"],
+                stake_wei=10**16,
+            )
+
+            verifier = RecordingVerifier(
+                ChallengeVerificationResult(
+                    verifier="cross-auditor-verifier-v1",
+                    status="verified",
+                    summary="competing auditor produced a valid contradiction",
+                    detail="the competing claim establishes a material disagreement",
+                    resolution="upheld",
+                    advisory_only=False,
+                )
+            )
+            challenger_service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.secondary_contract_config,
+                publisher=onchain.secondary_publisher,
+                arbiter_client=onchain.arbiter_client,
+                challenge_verifiers={"deterministic_fixture": verifier},
+            )
+
+            challenged = challenger_service.challenge_audit(
+                published["id"],
+                "ipfs://competing-auditor/disagreement-proof",
+                challenger="competing-auditor",
+            )
+
+            self.assertIsNotNone(verifier.last_context)
+            self.assertEqual(challenged["status"], "resolved")
+            self.assertEqual(challenged["challenge"]["resolution"], "upheld")
+            self.assertEqual(challenged["challenge"]["resolution_path"], "deterministic")
+            self.assertEqual(
+                challenged["challenge"]["challenger_address"],
+                onchain.secondary_publisher.account.address,
+            )
+            self.assertEqual(challenged["onchain"]["request_claim_id"], 1)
+            self.assertEqual(challenged["onchain"]["claim_state"], "slashed")
+            claims = challenger_service.list_audit_request_claims(request_record["request_id"])
+            self.assertEqual(claims[0]["claim_state"], "slashed")
+
+    def test_request_claim_challenge_policy_blocks_inadmissible_upheld_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            primary_service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+            request_record = primary_service.create_audit_request(
+                contract_address=onchain.web3.eth.accounts[3],
+                bounty_wei=2 * 10**17,
+                response_window_seconds=3600,
+                submitted_by="market-user",
+            )
+            draft = primary_service.create_audit(
+                onchain.web3.eth.accounts[3],
+                submitted_by="auditor",
+            )
+            published = primary_service.submit_audit_request_claim(
+                request_record["request_id"],
+                audit_id=draft["id"],
+                stake_wei=10**16,
+                challenge_policy={"admissibility_mode": "strict"},
+            )
+
+            challenger_service = AuditService(
+                Path(tmpdir),
+                contract_config=onchain.secondary_contract_config,
+                publisher=onchain.secondary_publisher,
+                arbiter_client=onchain.arbiter_client,
+            )
+
+            challenged = challenger_service.challenge_audit(
+                published["id"],
+                "ipfs://competing-auditor/manual-proof",
+                challenger="competing-auditor",
+            )
+
+            self.assertEqual(challenged["status"], "challenged")
+            self.assertEqual(
+                challenged["challenge"]["policy_admissibility_status"],
+                "inadmissible_policy_scope",
+            )
+            with self.assertRaisesRegex(
+                ValueError, "inadmissible challenges cannot be upheld"
+            ):
+                challenger_service.resolve_audit(
+                    published["id"],
+                    upheld=True,
+                    resolved_by="arbiter-operator",
+                )
+
     def test_create_audit_request_persists_and_syncs_onchain_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()

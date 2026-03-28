@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -73,6 +74,8 @@ class OnchainTestContext:
     reputation_registry: Contract
     contract_config: ContractConfig
     publisher: ProofOfAuditPublisher
+    secondary_contract_config: ContractConfig
+    secondary_publisher: ProofOfAuditPublisher
     arbiter_client: ProofOfAuditPublisher
     validation_bridge: ValidationRegistryBridge
     reputation_bridge: ReputationRegistryBridge
@@ -88,6 +91,8 @@ def build_onchain_test_context() -> OnchainTestContext:
     arbiter_key = backend.account_keys[1]
     validator_address = tester.get_accounts()[2]
     validator_key = backend.account_keys[2]
+    secondary_auditor_key = backend.account_keys[4]
+    secondary_auditor_address = web3.eth.account.from_key(secondary_auditor_key).address
 
     contract_factory = web3.eth.contract(
         abi=load_contract_abi(),
@@ -162,6 +167,27 @@ def build_onchain_test_context() -> OnchainTestContext:
         signed_register_identity.raw_transaction
     )
     web3.eth.wait_for_transaction_receipt(register_identity_hash)
+    register_secondary_identity = identity_registry.functions.registerAgent(
+        secondary_auditor_address,
+        "https://example.invalid/secondary-auditor-registration.json",
+    ).build_transaction(
+        {
+            "from": deployer_address,
+            "nonce": web3.eth.get_transaction_count(deployer_address),
+            "gas": 3_000_000,
+            "maxFeePerGas": web3.to_wei(2, "gwei"),
+            "maxPriorityFeePerGas": web3.to_wei(1, "gwei"),
+            "chainId": web3.eth.chain_id,
+        }
+    )
+    signed_register_secondary_identity = web3.eth.account.sign_transaction(
+        register_secondary_identity,
+        deployer_key.to_hex(),
+    )
+    register_secondary_identity_hash = web3.eth.send_raw_transaction(
+        signed_register_secondary_identity.raw_transaction
+    )
+    web3.eth.wait_for_transaction_receipt(register_secondary_identity_hash)
 
     validation_factory = web3.eth.contract(
         abi=load_validation_bridge_abi(),
@@ -245,6 +271,13 @@ def build_onchain_test_context() -> OnchainTestContext:
         }
     )
     publisher = ProofOfAuditPublisher(contract_config, web3=web3)
+    secondary_contract_config = replace(
+        contract_config,
+        publisher_private_key=secondary_auditor_key.to_hex(),
+        auditor_owner_private_key=secondary_auditor_key.to_hex(),
+        auditor_agent_id=2,
+    )
+    secondary_publisher = ProofOfAuditPublisher(secondary_contract_config, web3=web3)
     arbiter_client = ProofOfAuditPublisher(
         contract_config,
         web3=web3,
@@ -260,6 +293,8 @@ def build_onchain_test_context() -> OnchainTestContext:
         reputation_registry=reputation_registry,
         contract_config=contract_config,
         publisher=publisher,
+        secondary_contract_config=secondary_contract_config,
+        secondary_publisher=secondary_publisher,
         arbiter_client=arbiter_client,
         validation_bridge=validation_bridge,
         reputation_bridge=reputation_bridge,

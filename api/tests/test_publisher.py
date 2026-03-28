@@ -59,6 +59,52 @@ class PublishVerificationRetryTest(unittest.TestCase):
         self.assertEqual(onchain_claim.state, "submitted")
         self.assertEqual(onchain_claim.agent_id, onchain.contract_config.auditor_agent_id)
 
+    def test_request_claim_challenge_and_resolution_return_metadata(self) -> None:
+        onchain = build_onchain_test_context()
+        created = onchain.publisher.create_audit_request(
+            target_address=onchain.web3.eth.accounts[3],
+            bounty_wei=2 * 10**17,
+            response_window_seconds=3600,
+        )
+        claim = onchain.publisher.submit_audit_request_claim(
+            request_id=created.request_id,
+            agent_registry=onchain.contract_config.auditor_agent_registry or "",
+            agent_id=onchain.contract_config.auditor_agent_id or 0,
+            report_hash="0x" + "11" * 32,
+            metadata_hash="0x" + "22" * 32,
+            max_severity=3,
+            finding_count=1,
+            stake_wei=10**16,
+        )
+
+        challenge = onchain.secondary_publisher.challenge_audit_request_claim(
+            claim_id=claim.claim_id,
+            agent_registry=onchain.secondary_contract_config.auditor_agent_registry or "",
+            agent_id=onchain.secondary_contract_config.auditor_agent_id or 0,
+            evidence_hash="0x" + "33" * 32,
+            challenge_bond_wei=5 * 10**15,
+        )
+
+        self.assertEqual(challenge.request_id, created.request_id)
+        self.assertEqual(challenge.claim_id, claim.claim_id)
+        challenged_claim = onchain.publisher.get_audit_request_claim(claim.claim_id)
+        self.assertEqual(challenged_claim.state, "challenged")
+        self.assertEqual(
+            challenged_claim.challenger_address,
+            onchain.secondary_publisher.account.address,
+        )
+
+        resolution = onchain.arbiter_client.resolve_audit_request_claim_challenge(
+            claim_id=claim.claim_id,
+            upheld=True,
+        )
+
+        self.assertEqual(resolution.claim_id, claim.claim_id)
+        self.assertEqual(resolution.resolution, "upheld")
+        resolved_claim = onchain.publisher.get_audit_request_claim(claim.claim_id)
+        self.assertEqual(resolved_claim.state, "slashed")
+        self.assertEqual(resolved_claim.resolution, "upheld")
+
     def test_verify_published_record_retries_until_chain_state_catches_up(self) -> None:
         publisher = build_onchain_test_context().publisher
 

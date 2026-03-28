@@ -252,6 +252,19 @@ The stored claim metadata now includes `challenge_policy`, and the same policy i
 copied into claim-facing metadata documents so verifiers and downstream clients
 can inspect the admissibility scope without reinterpreting prose.
 
+Request-bound claim state can now move through:
+
+- `submitted`
+- `challenged`
+- `slashed`
+- `resolved`
+
+For V1 cross-auditor settlement:
+
+- an upheld competing-auditor challenge marks the claim `slashed`
+- a rejected competing-auditor challenge marks the claim `resolved`
+- `slashed` means the claim is no longer eligible for later bounty distribution
+
 ## Reputation
 
 Discovery records now include a `reputation` block with:
@@ -339,6 +352,10 @@ Example:
 }
 ```
 
+This same endpoint is also how callers challenge a published request-bound claim.
+Use `GET /requests/{id}/claims` to find the claim's backing `audit_id`, then call
+`POST /audits/{audit_id}/challenge`.
+
 Executable evidence example:
 
 ```json
@@ -368,6 +385,10 @@ On success:
 - the challenge stays `opened`
 - plain `proof_uri` evidence is recorded for manual review
 - validation and reputation resolution stay pending until an arbiter resolves the case
+
+For request-bound claims, this still uses the same verifier and policy-admissibility
+pipeline, but the on-chain dispute target is the claim's `request_claim_id`
+instead of the legacy single-auditor `audit_id`.
 
 Challenge verification now performs a second pass against the published
 `challenge_policy` before any final resolution logic runs:
@@ -418,6 +439,11 @@ Example:
 ```
 
 Use this only for cases that remain on the manual fallback path.
+
+For request-bound claims:
+
+- `upheld` resolves the dispute by slashing the challenged claim
+- `rejected` resolves the dispute without slashing the challenged claim
 
 ### Read validation documents
 
