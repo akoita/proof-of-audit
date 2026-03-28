@@ -58,4 +58,4 @@ def test_base_sepolia_deployed_address_missing_verified_source_fails_without_fal
     assert response.status_code == 400, response.text
     payload = response.json()
     assert payload["error"] == "invalid_payload"
-    assert "require live agent-forge analysis" in payload["message"]
+    assert "use live hosted agent-forge analysis" in payload["message"]

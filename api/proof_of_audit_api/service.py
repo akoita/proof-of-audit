@@ -525,7 +525,7 @@ class AuditService:
             return
 
         raise ValueError(
-            f"deployed_address submissions on {self.contract_config.network} require live agent-forge analysis; deterministic fallback is disabled for this address"
+            f"deployed_address submissions on {self.contract_config.network} use live hosted agent-forge analysis; local deterministic fallback is disabled for this target type"
         )
 
     def _is_local_network(self) -> bool:
