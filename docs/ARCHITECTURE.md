@@ -102,6 +102,7 @@ Key file:
 
 Protocol note:
 - `/home/koita/dev/hackatons/proof-of-audit/docs/AUDIT_REQUEST_PROTOCOL.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/MARKETPLACE_SETTLEMENT_ACCOUNTING.md`
 
 ### Pluggable auditor boundary
 

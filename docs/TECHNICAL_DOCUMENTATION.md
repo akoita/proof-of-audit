@@ -598,6 +598,7 @@ you need implementation detail or presentation material:
 
 - [Architecture](./ARCHITECTURE.md)
 - [Agent API](./AGENT_API.md)
+- [Marketplace settlement accounting](./MARKETPLACE_SETTLEMENT_ACCOUNTING.md)
 - [Deployment](./DEPLOYMENT.md)
 - [Executable evidence bundle](./EXECUTABLE_EVIDENCE_BUNDLE.md)
 - [Challenge Verifier V2](./CHALLENGE_VERIFIER_V2.md)
