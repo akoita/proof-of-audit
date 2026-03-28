@@ -1005,6 +1005,39 @@ class AuditServiceTest(unittest.TestCase):
             self.assertEqual(int(onchain_reputation[3]), 1)
             self.assertEqual(int(onchain_reputation[6]), 0)
 
+    def test_publish_audit_prefers_public_api_base_url_for_validation_and_reputation_uris(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            onchain = build_onchain_test_context()
+            contract_config = replace(
+                onchain.contract_config,
+                auditor_public_api_base_url="https://api.proof-of-audit.example.invalid",
+            )
+            service = AuditService(
+                Path(tmpdir) / "public-api-seed-data",
+                contract_config=contract_config,
+                publisher=onchain.publisher,
+                arbiter_client=onchain.arbiter_client,
+                validation_bridge=onchain.validation_bridge,
+                reputation_bridge=onchain.reputation_bridge,
+            )
+
+            created = service.create_audit(
+                onchain.web3.eth.accounts[2],
+                submitted_by="judge",
+            )
+            published = service.publish_audit(created["id"], 10**16, None)
+
+            self.assertEqual(
+                published["validation"]["request_uri"],
+                f"https://api.proof-of-audit.example.invalid/audits/{created['id']}/validation/request",
+            )
+            self.assertEqual(
+                published["reputation_trail"]["claim_uri"],
+                f"https://api.proof-of-audit.example.invalid/audits/{created['id']}/reputation/claim",
+            )
+
     def test_challenger_feed_tracks_published_opened_and_resolved_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             onchain = build_onchain_test_context()

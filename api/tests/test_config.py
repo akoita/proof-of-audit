@@ -238,6 +238,30 @@ class ContractConfigTest(unittest.TestCase):
             "uploads/agent-forge",
         )
 
+    def test_public_api_base_url_prefers_request_when_public_url_is_unset(self) -> None:
+        config = ContractConfig.from_env(
+            {
+                "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:8080",
+            }
+        )
+
+        self.assertEqual(
+            config.public_api_base_url("https://api.proof-of-audit.example.invalid/"),
+            "https://api.proof-of-audit.example.invalid",
+        )
+
+    def test_public_api_base_url_uses_non_local_runtime_url(self) -> None:
+        config = ContractConfig.from_env(
+            {
+                "PROOF_OF_AUDIT_RUNTIME_API_URL": "https://api.proof-of-audit.example.invalid/",
+            }
+        )
+
+        self.assertEqual(
+            config.public_api_base_url(),
+            "https://api.proof-of-audit.example.invalid",
+        )
+
     def test_reads_env_file_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             env_file = Path(tmpdir) / ".env.local"

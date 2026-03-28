@@ -21,6 +21,8 @@ type SubmitPanelProps = {
   sourceBundleUri: string;
   sourceBundleLabel: string;
   selectedFixture: DemoFixture | undefined;
+  isLoaded: boolean;
+  loadError: string | null;
   isPending: boolean;
   activeAction: string | null;
   config: PublicContractConfig | null;
@@ -66,6 +68,8 @@ export function SubmitPanel({
   sourceBundleUri,
   sourceBundleLabel,
   selectedFixture,
+  isLoaded,
+  loadError,
   isPending,
   activeAction,
   config,
@@ -95,6 +99,11 @@ export function SubmitPanel({
         selectedAuditorService.name,
       )
     : null;
+  const auditorServiceStatusMessage = !isLoaded
+    ? "Loading auditor services..."
+    : loadError
+      ? "Auditor services could not be loaded."
+      : "No auditor services are currently available.";
   const canSubmit =
     !isPending &&
     selectedServiceSupportsMode &&
@@ -155,7 +164,7 @@ export function SubmitPanel({
             className="input-field"
             value={selectedServiceId}
             onChange={(e) => onSelectedServiceIdChange(e.target.value)}
-            disabled={isPending || auditorServices.length === 0}
+            disabled={isPending || !isLoaded || auditorServices.length === 0}
             data-testid="auditor-service-select"
           >
             {auditorServices.map((service) => (
@@ -179,7 +188,7 @@ export function SubmitPanel({
             </>
           ) : (
             <p className="muted" style={{ fontSize: "0.78rem", marginTop: 8 }}>
-              No auditor services are currently available.
+              {auditorServiceStatusMessage}
             </p>
           )}
           {selectedAuditorService && !selectedServiceSupportsMode ? (

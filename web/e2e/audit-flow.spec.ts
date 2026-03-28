@@ -176,6 +176,132 @@ test("web app resolves the API base URL from runtime config", async ({ page }) =
   );
 });
 
+test("workbench shows loading copy instead of unavailable placeholders before hydration completes", async ({ page }) => {
+  const runtimeApiBaseUrl = "http://127.0.0.1:65502";
+  let releaseBootRequests: (() => void) | null = null;
+  const bootRequestsReleased = new Promise<void>((resolve) => {
+    releaseBootRequests = resolve;
+  });
+
+  const auditorService = {
+    service_id: "auditor-local",
+    name: "Proof-of-Audit Auditor",
+    manifest_schema: "proof-of-audit/v1",
+    manifest_hash: "sha256:manifest",
+    registration_kind: "local",
+    registration_type: "service",
+    registration_endpoint: "https://auditor.example.com",
+    registration_uri: "ipfs://auditor-service",
+    capability: "deterministic-audit",
+    discovery_path: "/discover",
+    submit_path: "/audits",
+    execution_mode: "deterministic",
+    execution_endpoint: "https://auditor.example.com/run",
+    publish_path_template: "/audits/{id}/publish",
+    challenge_path_template: "/audits/{id}/challenge",
+    network: "anvil-e2e",
+    active: true,
+    supported_trust: ["deterministic"],
+    settlement_mode: "manual",
+    publication_mode: "onchain",
+    staking_adapter_kind: "native",
+    publication_scope: "public",
+    validation_request_path_template: "/validation/{id}/request",
+    validation_response_path_template: "/validation/{id}/response",
+    reputation_path_template: "/reputation/{id}",
+    submission_modes: ["demo_fixture", "deployed_address", "source_bundle"],
+    resolution_modes: ["manual"],
+    deterministic_resolution_supported: true,
+    manual_fallback_supported: true,
+  };
+
+  await page.route("**/api/runtime-config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseUrl: runtimeApiBaseUrl }),
+    });
+  });
+
+  await page.route(`${runtimeApiBaseUrl}/**`, async (route) => {
+    await bootRequestsReleased;
+    const url = new URL(route.request().url());
+
+    if (url.pathname === "/audits" || url.pathname === "/fixtures") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/config") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          network: "base-sepolia",
+          chain_id: 84532,
+          contract_address: "0x0000000000000000000000000000000000000006",
+          explorer_base_url: "https://sepolia.basescan.org",
+          arbiter: "0x0000000000000000000000000000000000000007",
+          auditor: {
+            id: "proof-of-audit-auditor",
+            name: "Proof-of-Audit Auditor",
+            version: "0.1.0",
+            manifest_schema: "proof-of-audit/v1",
+            service_type: "deterministic-auditor",
+            description: "Deterministic smart contract auditor",
+            capabilities: ["deterministic-audit"],
+            operator: "Proof-of-Audit",
+            resolution_policy: "manual fallback",
+          },
+          auditor_service: auditorService,
+          required_stake_wei: 10_000_000_000_000_000,
+          required_challenge_bond_wei: 5_000_000_000_000_000,
+          challenge_window_seconds: 86_400,
+          deployment_ready: true,
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditor") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(auditorService),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditors") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [auditorService] }),
+      });
+      return;
+    }
+
+    throw new Error(`unexpected runtime API request: ${route.request().url()}`);
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Audit Workbench" })).toBeVisible();
+  await expect(page.getByText("Loading auditor services...")).toBeVisible();
+  await expect(page.getByText("Loading network...")).toBeVisible();
+  await expect(page.getByText("No auditor services are currently available.")).toHaveCount(0);
+  await expect(page.getByText("Network unavailable")).toHaveCount(0);
+
+  releaseBootRequests?.();
+
+  await expect(page.getByText("Proof-of-Audit Auditor").first()).toBeVisible();
+  await expect(page.getByText("base-sepolia · Chain 84532")).toBeVisible();
+  await expect(page.getByText("Loading auditor services...")).toHaveCount(0);
+});
+
 test("connect wallet uses an injected provider and renders the connected account", async ({ page }) => {
   await page.addInitScript(() => {
     const listeners = new Map<string, Set<(...args: unknown[]) => void>>();

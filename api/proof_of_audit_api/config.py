@@ -40,6 +40,23 @@ OFFICIAL_ERC8004_VALIDATION_REGISTRIES = {
 DEFAULT_RUNTIME_API_BASE_URL = "http://127.0.0.1:8080"
 
 
+def _normalize_url_root(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip().rstrip("/")
+    return trimmed or None
+
+
+def _is_local_url(value: str | None) -> bool:
+    normalized = (_normalize_url_root(value) or "").lower()
+    return (
+        normalized.startswith("http://127.0.0.1")
+        or normalized.startswith("https://127.0.0.1")
+        or normalized.startswith("http://localhost")
+        or normalized.startswith("https://localhost")
+    )
+
+
 def load_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     if not path.exists():
@@ -1011,8 +1028,21 @@ class ContractConfig:
             content = json.dumps(self.auditor.to_dict(), sort_keys=True)
         return sha256(content.encode("utf-8")).hexdigest()
 
-    def auditor_registration_document(self) -> dict[str, object]:
-        payload = self.auditor.to_registration_dict()
+    def public_api_base_url(self, request_base_url: str | None = None) -> str | None:
+        explicit = _normalize_url_root(self.auditor_public_api_base_url)
+        if explicit:
+            return explicit
+        request_root = _normalize_url_root(request_base_url)
+        if request_root:
+            return request_root
+        runtime_root = _normalize_url_root(self.runtime_api_base_url)
+        if runtime_root and not _is_local_url(runtime_root):
+            return runtime_root
+        return runtime_root
+
+    def _canonical_auditor_services(
+        self, api_base_url: str | None = None
+    ) -> list[dict[str, object]]:
         extra_services = [
             service.to_dict()
             for service in self.auditor.services
@@ -1028,15 +1058,29 @@ class ContractConfig:
                 "endpoint": self.auditor_registration_uri,
             },
         ]
-        if self.auditor_public_api_base_url:
+        public_api_base_url = self.public_api_base_url(api_base_url)
+        if public_api_base_url:
             services.append(
                 {
                     "name": "api",
-                    "endpoint": f"{self.auditor_public_api_base_url.rstrip('/')}/auditor",
+                    "endpoint": f"{public_api_base_url}/auditor",
                     "version": f"v{self.auditor.version}",
                 }
             )
-        payload["services"] = services + extra_services
+        return services + extra_services
+
+    def auditor_public_profile(
+        self, api_base_url: str | None = None
+    ) -> dict[str, object]:
+        payload = self.auditor.to_dict()
+        payload["services"] = self._canonical_auditor_services(api_base_url)
+        return payload
+
+    def auditor_registration_document(
+        self, api_base_url: str | None = None
+    ) -> dict[str, object]:
+        payload = self.auditor.to_registration_dict()
+        payload["services"] = self._canonical_auditor_services(api_base_url)
         extension = dict(payload.get("x-proof-of-audit", {}))
         extension.update(
             {

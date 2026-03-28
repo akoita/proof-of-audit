@@ -132,6 +132,7 @@ def test_verify_release_dry_run_uses_recorded_constructor_args(tmp_path: Path) -
                 "PROOF_OF_AUDIT_AUDITOR_PUBLISHED_REGISTRATION_FILE": str(registration_file),
                 "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI": "https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
                 "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL": "https://proof-of-audit.example.invalid",
+                "PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL": "https://api.proof-of-audit.example.invalid",
                 "DEPLOYER_PRIVATE_KEY": DEFAULT_LOCAL_DEPLOYER_PRIVATE_KEY,
                 "PROOF_OF_AUDIT_ARBITER": DEFAULT_LOCAL_ARBITER,
                 "PYTHON_BIN": os.environ.get("PYTHON_BIN") or "python3",
