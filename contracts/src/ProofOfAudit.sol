@@ -29,7 +29,10 @@ contract ProofOfAudit {
 
     enum AuditRequestClaimState {
         None,
-        Submitted
+        Submitted,
+        Challenged,
+        Slashed,
+        Resolved
     }
 
     struct EligibilityConfig {
@@ -73,12 +76,17 @@ contract ProofOfAudit {
         address agentRegistry;
         uint256 agentId;
         uint64 submittedAt;
+        uint64 challengedAt;
         uint96 stakeAmount;
+        uint96 challengeBond;
         bytes32 reportHash;
         bytes32 metadataHash;
         uint8 maxSeverity;
         uint8 findingCount;
         AuditRequestClaimState state;
+        Resolution resolution;
+        address challenger;
+        bytes32 evidenceHash;
     }
 
     error IncorrectStake();
@@ -97,6 +105,8 @@ contract ProofOfAudit {
     error RequestClaimNotAllowlisted();
     error RequestClaimIdentityRegistryMismatch();
     error RequestClaimAgentIdMismatch();
+    error InvalidAuditRequestClaim();
+    error RequestClaimSelfChallengeNotAllowed();
     error ChallengeWindowClosed();
     error ChallengeWindowOpen();
     error ResponseWindowOpen();
@@ -171,6 +181,24 @@ contract ProofOfAudit {
         bytes32 metadataHash,
         uint8 maxSeverity,
         uint8 findingCount
+    );
+
+    event AuditRequestClaimChallengeOpened(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        address indexed challenger,
+        address agentRegistry,
+        uint256 agentId,
+        bytes32 evidenceHash,
+        uint256 challengeBond
+    );
+
+    event AuditRequestClaimChallengeResolved(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        Resolution resolution,
+        address indexed beneficiary,
+        uint256 payout
     );
 
     uint256 public immutable requiredStake;
@@ -374,12 +402,17 @@ contract ProofOfAudit {
             agentRegistry: agentRegistry,
             agentId: agentId,
             submittedAt: uint64(block.timestamp),
+            challengedAt: 0,
             stakeAmount: uint96(msg.value),
+            challengeBond: 0,
             reportHash: reportHash,
             metadataHash: metadataHash,
             maxSeverity: maxSeverity,
             findingCount: findingCount,
-            state: AuditRequestClaimState.Submitted
+            state: AuditRequestClaimState.Submitted,
+            resolution: Resolution.None,
+            challenger: address(0),
+            evidenceHash: bytes32(0)
         });
         auditRequestClaimIds[requestId].push(claimId);
         auditRequest.claimCount += 1;
@@ -395,6 +428,44 @@ contract ProofOfAudit {
             metadataHash,
             maxSeverity,
             findingCount
+        );
+    }
+
+    function challengeAuditRequestClaim(
+        uint256 claimId,
+        address agentRegistry,
+        uint256 agentId,
+        bytes32 evidenceHash
+    ) external payable {
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        if (claim.requestId == 0) revert InvalidAuditRequestClaim();
+        if (claim.state != AuditRequestClaimState.Submitted) revert InvalidState();
+        if (claim.auditor == msg.sender) revert RequestClaimSelfChallengeNotAllowed();
+        if (block.timestamp > claim.submittedAt + challengeWindow) {
+            revert ChallengeWindowClosed();
+        }
+        if (msg.value != requiredChallengeBond) revert IncorrectChallengeBond();
+
+        _requireRequestClaimAuditorEligibility(
+            claim.requestId,
+            agentRegistry,
+            agentId
+        );
+
+        claim.state = AuditRequestClaimState.Challenged;
+        claim.challengedAt = uint64(block.timestamp);
+        claim.challengeBond = uint96(msg.value);
+        claim.challenger = msg.sender;
+        claim.evidenceHash = evidenceHash;
+
+        emit AuditRequestClaimChallengeOpened(
+            claim.requestId,
+            claimId,
+            msg.sender,
+            agentRegistry,
+            agentId,
+            evidenceHash,
+            msg.value
         );
     }
 
@@ -421,6 +492,41 @@ contract ProofOfAudit {
 
         _sendValue(beneficiary, payout);
         emit ChallengeResolved(auditId, audit.resolution, beneficiary, payout);
+    }
+
+    function resolveAuditRequestClaimChallenge(
+        uint256 claimId,
+        bool upheld
+    ) external {
+        if (msg.sender != arbiter) revert NotArbiter();
+
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        if (claim.requestId == 0) revert InvalidAuditRequestClaim();
+        if (claim.state != AuditRequestClaimState.Challenged) revert InvalidState();
+
+        address beneficiary;
+        uint256 payout;
+
+        if (upheld) {
+            claim.state = AuditRequestClaimState.Slashed;
+            claim.resolution = Resolution.ChallengeUpheld;
+            beneficiary = claim.challenger;
+            payout = uint256(claim.stakeAmount) + uint256(claim.challengeBond);
+        } else {
+            claim.state = AuditRequestClaimState.Resolved;
+            claim.resolution = Resolution.ChallengeRejected;
+            beneficiary = claim.auditor;
+            payout = uint256(claim.challengeBond);
+        }
+
+        _sendValue(beneficiary, payout);
+        emit AuditRequestClaimChallengeResolved(
+            claim.requestId,
+            claimId,
+            claim.resolution,
+            beneficiary,
+            payout
+        );
     }
 
     function releaseStake(uint256 auditId) external {
@@ -528,6 +634,39 @@ contract ProofOfAudit {
     function _sendValue(address to, uint256 amount) private {
         (bool ok, ) = payable(to).call{value: amount}("");
         if (!ok) revert TransferFailed();
+    }
+
+    function _requireRequestClaimAuditorEligibility(
+        uint256 requestId,
+        address agentRegistry,
+        uint256 agentId
+    ) private view {
+        AuditRequest storage auditRequest = auditRequests[requestId];
+        if (auditRequest.createdAt == 0) revert InvalidAuditRequest();
+        if (agentRegistry == address(0) || agentId == 0) {
+            revert RequestClaimIdentityRegistryMismatch();
+        }
+        if (
+            auditRequest.eligibility.allowlistEnabled &&
+            !requestClaimAllowlistedAuditors[requestId][msg.sender]
+        ) {
+            revert RequestClaimNotAllowlisted();
+        }
+        if (
+            auditRequest.eligibility.identityRegistry != address(0) &&
+            auditRequest.eligibility.identityRegistry != agentRegistry
+        ) {
+            revert RequestClaimIdentityRegistryMismatch();
+        }
+        if (
+            auditRequest.eligibility.requiredAgentId != 0 &&
+            auditRequest.eligibility.requiredAgentId != agentId
+        ) {
+            revert RequestClaimAgentIdMismatch();
+        }
+        if (IAgentIdentityRegistry(agentRegistry).ownerOf(agentId) != msg.sender) {
+            revert IdentityOwnerMismatch();
+        }
     }
 
     function _allowlistCommitment(uint256 requestId) private view returns (bytes32) {

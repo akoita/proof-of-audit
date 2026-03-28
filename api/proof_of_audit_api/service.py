@@ -1531,6 +1531,60 @@ class AuditService:
             return self._normalize_challenge_policy(onchain.get("challenge_policy"))
         return self._normalize_challenge_policy(None)
 
+    def _request_claim_context(self, record: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+        onchain = record.get("onchain")
+        if not isinstance(onchain, dict):
+            raise ValueError("audit must be published before challenge")
+        request_id = onchain.get("request_id")
+        request_claim_id = onchain.get("request_claim_id")
+        if not isinstance(request_id, int) or not isinstance(request_claim_id, int):
+            raise ValueError("published request claim is missing its on-chain request metadata")
+        request_record = self.get_audit_request(str(request_id))
+        if request_record is None:
+            raise ValueError("request claim is missing its parent audit request")
+        return request_record, request_id, request_claim_id
+
+    def _configured_request_claim_challenger_identity(
+        self, record: dict[str, Any]
+    ) -> tuple[str, int]:
+        _request_record, request_id, _request_claim_id = self._request_claim_context(record)
+        service = self.contract_config.auditor_service
+        agent_registry = str(
+            service.agent_registry or self.contract_config.auditor_agent_registry or ""
+        ).strip()
+        agent_id = service.agent_id or self.contract_config.auditor_agent_id
+        if not agent_registry or not isinstance(agent_id, int) or agent_id <= 0:
+            raise ValueError(
+                "configured auditor service is missing the canonical on-chain identity required for request-claim challenges"
+            )
+
+        onchain = record.get("onchain") or {}
+        current_registry = str(onchain.get("agent_registry") or "").strip().lower()
+        current_agent_id = onchain.get("agent_id")
+        current_auditor_address = str(onchain.get("auditor_address") or "").strip().lower()
+        configured_address = (
+            self.publisher.account.address.lower() if self.publisher is not None else ""
+        )
+        if (
+            current_registry == agent_registry.lower()
+            and current_agent_id == agent_id
+        ) or (configured_address and current_auditor_address == configured_address):
+            raise ValueError("configured auditor cannot challenge its own request claim")
+
+        eligibility = self.build_audit_request_eligibility(str(request_id), service.service_id)
+        if eligibility is None or not bool(eligibility.get("eligible")):
+            reasons = (
+                ", ".join(str(item) for item in (eligibility or {}).get("reasons") or [])
+                if isinstance(eligibility, dict)
+                else ""
+            )
+            detail = f" {reasons}" if reasons else ""
+            raise ValueError(
+                "configured auditor service is not eligible to challenge this request claim."
+                + detail
+            )
+        return agent_registry, agent_id
+
     def _admissible_material_incorrectness(
         self, verification_dossier: dict[str, Any] | None
     ) -> bool:
@@ -1851,9 +1905,6 @@ class AuditService:
             materialized_evidence_manifest["pinned_block_number"] = int(
                 snapshot["snapshot_block_number"]
             )
-        onchain_audit_id = record["onchain"].get("audit_id")
-        if not isinstance(onchain_audit_id, int):
-            raise ValueError("published audit is missing its on-chain audit id")
         if self.publisher is None:
             raise OnchainConfigurationError(
                 "On-chain challenge submission is not configured for this API instance."
@@ -1868,12 +1919,29 @@ class AuditService:
             evidence_manifest=materialized_evidence_manifest,
             chain_id=int(record["onchain"].get("chain_id") or self.contract_config.chain_id),
         )
-
-        challenge_result = self.publisher.challenge_audit(
-            audit_id=onchain_audit_id,
-            evidence_hash=evidence_hash,
-            challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
-        )
+        onchain = record["onchain"]
+        request_claim_id = onchain.get("request_claim_id")
+        onchain_audit_id = onchain.get("audit_id")
+        if isinstance(request_claim_id, int):
+            challenger_agent_registry, challenger_agent_id = (
+                self._configured_request_claim_challenger_identity(record)
+            )
+            challenge_result = self.publisher.challenge_audit_request_claim(
+                claim_id=request_claim_id,
+                agent_registry=challenger_agent_registry,
+                agent_id=challenger_agent_id,
+                evidence_hash=evidence_hash,
+                challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
+            )
+            onchain["claim_state"] = "challenged"
+        else:
+            if not isinstance(onchain_audit_id, int):
+                raise ValueError("published audit is missing its on-chain audit id")
+            challenge_result = self.publisher.challenge_audit(
+                audit_id=onchain_audit_id,
+                evidence_hash=evidence_hash,
+                challenge_bond_wei=self.contract_config.required_challenge_bond_wei,
+            )
         challenge_record = {
             "challenger": challenger,
             "challenger_address": challenge_result.challenger_address,
@@ -2082,10 +2150,21 @@ class AuditService:
             and self.arbiter_client is not None
         ):
             try:
-                resolution_result = self.arbiter_client.resolve_challenge(
-                    audit_id=onchain_audit_id,
-                    upheld=verification_result.upheld,
-                )
+                if isinstance(request_claim_id, int):
+                    resolution_result = (
+                        self.arbiter_client.resolve_audit_request_claim_challenge(
+                            claim_id=request_claim_id,
+                            upheld=verification_result.upheld,
+                        )
+                    )
+                    onchain["claim_state"] = (
+                        "slashed" if verification_result.upheld else "resolved"
+                    )
+                else:
+                    resolution_result = self.arbiter_client.resolve_challenge(
+                        audit_id=onchain_audit_id,
+                        upheld=verification_result.upheld,
+                    )
             except OnchainResolveError as exc:
                 challenge_record["verification_detail"] = (
                     f"{verification_result.detail} Automatic on-chain resolution failed: {exc}"
@@ -2129,18 +2208,27 @@ class AuditService:
             "inadmissible_"
         ):
             raise ValueError("inadmissible challenges cannot be upheld")
-        onchain_audit_id = record.get("onchain", {}).get("audit_id")
-        if not isinstance(onchain_audit_id, int):
-            raise ValueError("challenged audit is missing its on-chain audit id")
+        onchain = record.get("onchain", {})
+        request_claim_id = onchain.get("request_claim_id") if isinstance(onchain, dict) else None
+        onchain_audit_id = onchain.get("audit_id") if isinstance(onchain, dict) else None
+        if not isinstance(request_claim_id, int) and not isinstance(onchain_audit_id, int):
+            raise ValueError("challenged audit is missing its on-chain challenge target")
         if self.arbiter_client is None:
             raise OnchainConfigurationError(
                 "On-chain resolution is not configured for this API instance."
             )
 
-        resolution_result = self.arbiter_client.resolve_challenge(
-            audit_id=onchain_audit_id,
-            upheld=upheld,
-        )
+        if isinstance(request_claim_id, int):
+            resolution_result = self.arbiter_client.resolve_audit_request_claim_challenge(
+                claim_id=request_claim_id,
+                upheld=upheld,
+            )
+            onchain["claim_state"] = "slashed" if upheld else "resolved"
+        else:
+            resolution_result = self.arbiter_client.resolve_challenge(
+                audit_id=onchain_audit_id,
+                upheld=upheld,
+            )
         challenge.update(
             {
                 "status": resolution_result.resolution,
@@ -2297,6 +2385,21 @@ class AuditService:
             onchain["challenge_policy"] = self._normalize_challenge_policy(
                 onchain.get("challenge_policy")
             )
+            request_claim_id = onchain.get("request_claim_id")
+            if self.publisher is not None and request_claim_id is not None:
+                try:
+                    onchain_claim = self.publisher.get_audit_request_claim(int(request_claim_id))
+                except Exception:
+                    onchain_claim = None
+                else:
+                    onchain["claim_state"] = onchain_claim.state
+                    onchain["published_at"] = self._isoformat_unix_timestamp(
+                        onchain_claim.submitted_at
+                    )
+                    onchain["stake_wei"] = onchain_claim.stake_wei
+                    onchain["agent_id"] = onchain_claim.agent_id
+                    onchain["agent_registry"] = onchain_claim.agent_registry.lower()
+                    onchain["auditor_address"] = onchain_claim.auditor_address.lower()
             normalized["onchain"] = onchain
         challenge = normalized.get("challenge")
         if isinstance(challenge, dict):

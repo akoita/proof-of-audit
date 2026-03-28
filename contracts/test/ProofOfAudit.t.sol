@@ -236,6 +236,8 @@ contract ProofOfAuditTest is Test {
         assertEq(claim.agentId, 1);
         assertEq(uint256(claim.stakeAmount), STAKE);
         assertEq(uint256(claim.state), uint256(ProofOfAudit.AuditRequestClaimState.Submitted));
+        assertEq(uint256(claim.challengeBond), 0);
+        assertEq(uint256(claim.resolution), uint256(ProofOfAudit.Resolution.None));
         assertEq(uint256(requestRecord.claimCount), 1);
 
         uint256[] memory claimIds = registry.getAuditRequestClaimIds(requestId);
@@ -407,6 +409,121 @@ contract ProofOfAuditTest is Test {
         assertEq(stored[1], secondAuditor);
         assertTrue(registry.isAuditRequestAuditorAllowlisted(requestId, auditor));
         assertTrue(registry.isAuditRequestAuditorAllowlisted(requestId, secondAuditor));
+    }
+
+    function testEligibleAgentCanChallengeAuditRequestClaimAndSlashIt() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        uint256 challengerBalanceBefore = secondAuditor.balance;
+        bytes32 evidenceHash = keccak256("claim-poc");
+
+        vm.prank(secondAuditor);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            evidenceHash
+        );
+
+        ProofOfAudit.AuditRequestClaim memory challengedClaim = registry
+            .getAuditRequestClaim(claimId);
+        assertEq(
+            uint256(challengedClaim.state),
+            uint256(ProofOfAudit.AuditRequestClaimState.Challenged)
+        );
+        assertEq(challengedClaim.challenger, secondAuditor);
+        assertEq(challengedClaim.evidenceHash, evidenceHash);
+        assertEq(uint256(challengedClaim.challengeBond), BOND);
+
+        vm.prank(arbiter);
+        registry.resolveAuditRequestClaimChallenge(claimId, true);
+
+        ProofOfAudit.AuditRequestClaim memory slashedClaim = registry
+            .getAuditRequestClaim(claimId);
+        assertEq(
+            uint256(slashedClaim.state),
+            uint256(ProofOfAudit.AuditRequestClaimState.Slashed)
+        );
+        assertEq(
+            uint256(slashedClaim.resolution),
+            uint256(ProofOfAudit.Resolution.ChallengeUpheld)
+        );
+        assertEq(secondAuditor.balance, challengerBalanceBefore + STAKE);
+    }
+
+    function testRejectedAuditRequestClaimChallengeOnlyTransfersBond() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        uint256 auditorBalanceBeforeChallenge = auditor.balance;
+
+        vm.prank(secondAuditor);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("weak-claim-poc")
+        );
+
+        vm.prank(arbiter);
+        registry.resolveAuditRequestClaimChallenge(claimId, false);
+
+        ProofOfAudit.AuditRequestClaim memory resolvedClaim = registry
+            .getAuditRequestClaim(claimId);
+        assertEq(
+            uint256(resolvedClaim.state),
+            uint256(ProofOfAudit.AuditRequestClaimState.Resolved)
+        );
+        assertEq(
+            uint256(resolvedClaim.resolution),
+            uint256(ProofOfAudit.Resolution.ChallengeRejected)
+        );
+        assertEq(auditor.balance, auditorBalanceBeforeChallenge + BOND);
+    }
+
+    function testAuditRequestClaimChallengeRejectsSelfChallenge() public {
+        uint256 requestId = _createDefaultAuditRequest();
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.RequestClaimSelfChallengeNotAllowed.selector);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            1,
+            keccak256("self-poc")
+        );
     }
 
     function _publishDefaultAudit() internal returns (uint256 auditId) {

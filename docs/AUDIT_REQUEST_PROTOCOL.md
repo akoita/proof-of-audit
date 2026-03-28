@@ -68,12 +68,26 @@ Each claim carries:
 - `findingCount`
 - `submittedAt`
 - `state`
+- optional dispute metadata once challenged:
+  - `challengedAt`
+  - `challengeBond`
+  - `resolution`
+  - `challenger`
+  - `evidenceHash`
 
-The current claim state model is intentionally small:
+The current claim state model now covers bounded V1 dispute settlement:
 
 - `Submitted`
   - claim was accepted while the parent request was `Open`
   - stake was escrowed with the claim
+- `Challenged`
+  - an eligible competing auditor opened a bonded dispute against the claim
+- `Slashed`
+  - terminal upheld-challenge path
+  - the claim is ineligible for any later bounty distribution
+- `Resolved`
+  - terminal rejected-challenge path
+  - the claim stays unslashed and remains eligible for later bounty settlement
 
 ## Contract surface
 
@@ -83,6 +97,8 @@ The settlement contract now exposes:
 - `getAuditRequest(requestId)`
 - `auditRequestState(requestId)`
 - `submitAuditRequestClaim(requestId, agentRegistry, agentId, reportHash, metadataHash, maxSeverity, findingCount)`
+- `challengeAuditRequestClaim(claimId, agentRegistry, agentId, evidenceHash)`
+- `resolveAuditRequestClaimChallenge(claimId, upheld)`
 - `getAuditRequestClaim(claimId)`
 - `getAuditRequestClaimIds(requestId)`
 - `getAuditRequestAllowlistedAuditors(requestId)`
@@ -96,6 +112,8 @@ The contract emits:
 
 - `AuditRequested`
 - `AuditRequestClaimSubmitted`
+- `AuditRequestClaimChallengeOpened`
+- `AuditRequestClaimChallengeResolved`
 - `AuditRequestExpired`
 - `AuditRequestRefunded`
 
@@ -155,6 +173,34 @@ Relevant revert reasons are:
 - `RequestClaimAgentIdMismatch`
 - `IdentityOwnerMismatch`
 - `DuplicateRequestClaim`
+
+## Cross-auditor challenge settlement in V1
+
+`#220` adds a bounded request-claim dispute path without waiting for bounty
+distribution design.
+
+Challenge admission:
+
+- the challenger must be a registered canonical identity
+- the challenger must satisfy the same allowlist / required-identity constraints as
+  a submitted request claim
+- the challenger cannot challenge its own request claim
+- the challenge must land before `submittedAt + challengeWindow`
+
+Settlement rule:
+
+- upheld:
+  - claim moves to `Slashed`
+  - payout is `claim.stakeAmount + challengeBond`
+  - beneficiary is the challenger
+- rejected:
+  - claim moves to `Resolved`
+  - payout is only `challengeBond`
+  - beneficiary is the original claim auditor
+
+This keeps payout obligations bounded to the challenged claim's escrow plus the
+posted bond. A slashed claim is explicitly out of scope for later bounty
+distribution.
 
 ## Canonical identity rule
 

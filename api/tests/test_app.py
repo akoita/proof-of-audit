@@ -1014,6 +1014,74 @@ class AuditApiAppTest(unittest.TestCase):
             False,
         )
 
+    def test_request_claim_can_be_challenged_through_audit_challenge_endpoint(self) -> None:
+        onchain = build_onchain_test_context()
+        data_root = Path(self.tempdir.name) / "request-claim-challenge-data"
+        primary_service = AuditService(
+            data_root,
+            contract_config=onchain.contract_config,
+            publisher=onchain.publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        primary_client = TestClient(create_app(audit_service=primary_service))
+
+        created_request = primary_client.post(
+            "/requests",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "response_window_seconds": 3600,
+                "filters": {},
+            },
+        )
+        self.assertEqual(created_request.status_code, 201)
+        request_id = created_request.json()["request_id"]
+
+        draft = primary_client.post(
+            "/audits",
+            json={
+                "contract_address": onchain.web3.eth.accounts[3],
+                "submitted_by": "market-auditor",
+            },
+        )
+        self.assertEqual(draft.status_code, 201)
+        audit_id = draft.json()["id"]
+
+        claimed = primary_client.post(
+            f"/requests/{request_id}/claims",
+            json={
+                "audit_id": audit_id,
+                "stake_wei": 10**16,
+            },
+        )
+        self.assertEqual(claimed.status_code, 200)
+
+        challenger_service = AuditService(
+            data_root,
+            contract_config=onchain.secondary_contract_config,
+            publisher=onchain.secondary_publisher,
+            arbiter_client=onchain.arbiter_client,
+        )
+        challenger_client = TestClient(create_app(audit_service=challenger_service))
+
+        challenged = challenger_client.post(
+            f"/audits/{audit_id}/challenge",
+            json={
+                "proof_uri": "ipfs://competing-auditor/disagreement-proof",
+                "challenger": "competing-auditor",
+            },
+        )
+
+        self.assertEqual(challenged.status_code, 200)
+        payload = challenged.json()
+        self.assertEqual(payload["status"], "challenged")
+        self.assertEqual(payload["onchain"]["request_claim_id"], 1)
+        self.assertEqual(payload["onchain"]["claim_state"], "challenged")
+        self.assertEqual(
+            payload["challenge"]["challenger_address"],
+            onchain.secondary_publisher.account.address,
+        )
+
     def test_auditor_registration_endpoint_returns_registration_document(self) -> None:
         response = self.client.get("/auditor/registration")
 
