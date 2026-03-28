@@ -1932,7 +1932,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         payload = response.json()
         self.assertEqual(payload["error"], "invalid_payload")
-        self.assertIn("require live agent-forge analysis", payload["message"])
+        self.assertIn("use live hosted agent-forge analysis", payload["message"])
 
     def test_deployed_address_submission_hybrid_rejects_fixture_benchmark_fallbacks(self) -> None:
         self.fixtures_file.write_text(
@@ -1980,7 +1980,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         payload = response.json()
         self.assertEqual(payload["error"], "invalid_payload")
-        self.assertIn("require live agent-forge analysis", payload["message"])
+        self.assertIn("use live hosted agent-forge analysis", payload["message"])
 
     def test_deployed_address_submission_trims_fixture_address_whitespace_for_live_execution(self) -> None:
         self.fixtures_file.write_text(

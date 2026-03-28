@@ -71,7 +71,7 @@ def test_deployed_address_submission_can_disable_deterministic_fallback() -> Non
 
     with pytest.raises(
         ValueError,
-        match="deployed_address submissions require live agent-forge analysis",
+        match="deployed_address submissions use live hosted agent-forge analysis",
     ):
         worker.run_submission(
             audit_id="audit-deployed-live-only",

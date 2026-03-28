@@ -454,7 +454,7 @@ class AuditServiceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
 
-            with self.assertRaisesRegex(ValueError, "require live agent-forge analysis"):
+            with self.assertRaisesRegex(ValueError, "use live hosted agent-forge analysis"):
                 service.create_audit(
                     "0xEbB43aa379270bcBbffDf33656AC37eBD7C81A11",
                     submitted_by="testnet-user",
@@ -481,7 +481,7 @@ class AuditServiceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AuditService(Path(tmpdir))
 
-            with self.assertRaisesRegex(ValueError, "require live agent-forge analysis"):
+            with self.assertRaisesRegex(ValueError, "use live hosted agent-forge analysis"):
                 service.create_audit(
                     "0x1234000000000000000000000000000000009876",
                     submitted_by="testnet-user",
