@@ -384,6 +384,10 @@ class AuditApiAppTest(unittest.TestCase):
         )
         self.assertEqual(payload["auditor"]["service_type"], "audit_contract")
         self.assertEqual(
+            payload["auditor"]["services"][2]["endpoint"],
+            "http://testserver/auditor",
+        )
+        self.assertEqual(
             payload["auditor_service"]["service_id"],
             "proof-of-audit-auditor",
         )
@@ -1190,6 +1194,10 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(
             payload["services"][1]["endpoint"],
             "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
+        )
+        self.assertEqual(
+            payload["services"][2]["endpoint"],
+            "http://testserver/auditor",
         )
         self.assertEqual(payload["registrations"], [])
         self.assertEqual(payload["x-proof-of-audit"]["network"], "anvil-local")

@@ -202,9 +202,11 @@ export function AuditWorkbench() {
     : isLoaded
       ? `AUDITS LOADED: ${recentAudits.length}`
       : "LOADING WORKSPACE";
-  const footerNetwork = contractConfig
-    ? `${contractConfig.network} · Chain ${contractConfig.chain_id}`
-    : "Network unavailable";
+  const footerNetwork = !isLoaded
+    ? "Loading network..."
+    : contractConfig
+      ? `${contractConfig.network} · Chain ${contractConfig.chain_id}`
+      : "Network unavailable";
   const demoFixturesEnabled = supportsDemoFixtures(contractConfig);
   const selectedAuditorService =
     auditorServices.find((service) => service.service_id === selectedServiceId) ??
@@ -618,10 +620,12 @@ export function AuditWorkbench() {
                   entryContract={entryContract}
                   sourceBundleUri={sourceBundleUri}
                   sourceBundleLabel={sourceBundleLabel}
-                  selectedFixture={selectedFixture}
-                  isPending={isPending || isUploadingSourceBundle}
-                  activeAction={activeAction}
-                  config={contractConfig}
+                        selectedFixture={selectedFixture}
+                        isLoaded={isLoaded}
+                        loadError={loadError}
+                        isPending={isPending || isUploadingSourceBundle}
+                        activeAction={activeAction}
+                        config={contractConfig}
                   onModeChange={setSubmissionMode}
                   onSelectedServiceIdChange={setSelectedServiceId}
                   onContractAddressChange={setContractAddress}
@@ -658,13 +662,15 @@ export function AuditWorkbench() {
 
                 {/* Agent sidebar cards */}
                 <div id="agent-info">
-                  <AgentSidebar
-                    config={contractConfig}
-                    auditorService={activeAudit?.auditor_service ?? selectedAuditorService ?? auditorService}
-                    publishStake={publishStake}
-                    challengeBond={challengeBond}
-                  />
-                </div>
+                      <AgentSidebar
+                        config={contractConfig}
+                        auditorService={activeAudit?.auditor_service ?? selectedAuditorService ?? auditorService}
+                        publishStake={publishStake}
+                        challengeBond={challengeBond}
+                        isLoaded={isLoaded}
+                        loadError={loadError}
+                      />
+                    </div>
               </div>
 
               {/* Right column: audit report */}

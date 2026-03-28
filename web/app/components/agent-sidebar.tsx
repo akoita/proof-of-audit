@@ -8,6 +8,8 @@ type AgentSidebarProps = {
   auditorService: AuditorServiceRecord | null;
   publishStake: number;
   challengeBond: number;
+  isLoaded: boolean;
+  loadError: string | null;
 };
 
 export function AgentSidebar({
@@ -15,6 +17,8 @@ export function AgentSidebar({
   auditorService,
   publishStake,
   challengeBond,
+  isLoaded,
+  loadError,
 }: AgentSidebarProps) {
   const svc = auditorService;
   const agentName = svc?.name ?? "Proof-of-Audit Auditor";
@@ -33,6 +37,16 @@ export function AgentSidebar({
       : svc?.publication_mode === "self_published"
         ? "User wallet stakes"
         : svc?.publication_mode ?? "unknown";
+  const loadingValue = "Loading...";
+  const unavailableValue = loadError ? "Unavailable" : "—";
+  const challengeWindowLabel = !isLoaded
+    ? loadingValue
+    : config?.challenge_window_seconds
+      ? `${config.challenge_window_seconds}s`
+      : unavailableValue;
+  const networkLabel = !isLoaded
+    ? loadingValue
+    : config?.network ?? unavailableValue;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -98,8 +112,8 @@ export function AgentSidebar({
             <tr><td>Stake</td><td>{formatEth(Number(publishStake))}</td></tr>
             <tr><td>Bond</td><td>{formatEth(Number(challengeBond))}</td></tr>
             <tr><td>Stake payer</td><td>{svc?.publication_mode === "api_mediated" ? agentName : "Connected wallet"}</td></tr>
-            <tr><td>Window</td><td>{config?.challenge_window_seconds ? `${config.challenge_window_seconds}s` : "—"}</td></tr>
-            <tr><td>Network</td><td>{config?.network ?? "—"}</td></tr>
+            <tr><td>Window</td><td>{challengeWindowLabel}</td></tr>
+            <tr><td>Network</td><td>{networkLabel}</td></tr>
           </tbody>
         </table>
       </div>

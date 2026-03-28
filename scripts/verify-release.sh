@@ -13,6 +13,7 @@ MANIFEST_FILE="${PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE:-${ROOT_DIR}/deployment
 API_KEY="${PROOF_OF_AUDIT_VERIFY_API_KEY:-${BASESCAN_API_KEY:-}}"
 DRY_RUN="${PROOF_OF_AUDIT_VERIFY_DRY_RUN:-0}"
 CONTRACT_REFERENCE="${PROOF_OF_AUDIT_VERIFY_CONTRACT_REFERENCE:-src/ProofOfAudit.sol:ProofOfAudit}"
+PUBLIC_WEB_SMOKE_URL="${PROOF_OF_AUDIT_PUBLIC_WEB_SMOKE_URL:-}"
 
 : "${API_KEY:?PROOF_OF_AUDIT_VERIFY_API_KEY or BASESCAN_API_KEY must be set}"
 
@@ -33,6 +34,37 @@ if not constructor_args:
 print(address, constructor_args)
 PY
 )
+
+REGISTRATION_FILE="$("${PYTHON_BIN}" - "${MANIFEST_FILE}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+registration = payload.get("registration_document") or {}
+if isinstance(registration, dict):
+    print(registration.get("file") or "")
+else:
+    print("")
+PY
+)"
+
+if [[ -n "${REGISTRATION_FILE}" ]]; then
+  "${PYTHON_BIN}" - "${REGISTRATION_FILE}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+serialized = json.dumps(payload, sort_keys=True)
+if "127.0.0.1" in serialized or "localhost" in serialized:
+    raise SystemExit(
+        f"Published registration document still contains localhost endpoints: {path}"
+    )
+PY
+fi
 
 VERIFY_CMD=(
   forge verify-contract
@@ -83,3 +115,9 @@ PY
   --verified-at "${VERIFIED_AT}"
 
 echo "Verification recorded in ${MANIFEST_FILE}."
+
+if [[ -n "${PUBLIC_WEB_SMOKE_URL}" ]]; then
+  echo "Running public web smoke against ${PUBLIC_WEB_SMOKE_URL}."
+  PROOF_OF_AUDIT_PUBLIC_WEB_SMOKE_URL="${PUBLIC_WEB_SMOKE_URL}" \
+    "${ROOT_DIR}/scripts/run-public-web-smoke.sh"
+fi

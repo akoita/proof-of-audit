@@ -3112,12 +3112,10 @@ class AuditService:
         }
 
     def _reputation_claim_uri(self, audit_id: str) -> str:
-        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/reputation/claim"
+        return f"{self._public_api_base_url()}/audits/{audit_id}/reputation/claim"
 
     def _reputation_resolution_uri(self, audit_id: str) -> str:
-        return (
-            f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/reputation/resolution"
-        )
+        return f"{self._public_api_base_url()}/audits/{audit_id}/reputation/resolution"
 
     def _build_reputation_claim_document(
         self, record: dict[str, Any]
@@ -3155,7 +3153,7 @@ class AuditService:
             "service": {
                 "registrationUri": service.get("registration_uri"),
                 "registrationEndpoint": (
-                    f"{self.contract_config.runtime_api_base_url}"
+                    f"{self._public_api_base_url()}"
                     f"{service.get('registration_endpoint') or '/auditor/registration'}"
                 ),
             },
@@ -3231,10 +3229,10 @@ class AuditService:
         }
 
     def _validation_request_uri(self, audit_id: str) -> str:
-        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/validation/request"
+        return f"{self._public_api_base_url()}/audits/{audit_id}/validation/request"
 
     def _validation_response_uri(self, audit_id: str) -> str:
-        return f"{self.contract_config.runtime_api_base_url}/audits/{audit_id}/validation/response"
+        return f"{self._public_api_base_url()}/audits/{audit_id}/validation/response"
 
     def _hash_payload(self, payload: dict[str, Any]) -> str:
         return "0x" + sha256(
@@ -3319,11 +3317,17 @@ class AuditService:
             "service": {
                 "registrationUri": service.get("registration_uri"),
                 "registrationEndpoint": (
-                    f"{self.contract_config.runtime_api_base_url}"
+                    f"{self._public_api_base_url()}"
                     f"{service.get('registration_endpoint') or '/auditor/registration'}"
                 ),
             },
         }
+
+    def _public_api_base_url(self) -> str:
+        return (
+            self.contract_config.public_api_base_url()
+            or self.contract_config.runtime_api_base_url
+        )
 
     def _build_validation_response_document(
         self, record: dict[str, Any]

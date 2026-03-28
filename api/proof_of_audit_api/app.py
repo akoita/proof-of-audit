@@ -147,6 +147,7 @@ def create_app(
     def config(request: Request) -> PublicContractConfigResponse:
         contract_config = request.app.state.contract_config
         service = _service(request)
+        public_api_base_url = _public_api_base_url(request)
         fee_config = None
         if service.publisher is not None:
             try:
@@ -164,7 +165,9 @@ def create_app(
                 if fee_config is not None
                 else contract_config.treasury_address
             ),
-            auditor=contract_config.auditor.to_dict(),
+            auditor=contract_config.auditor_public_profile(
+                api_base_url=public_api_base_url
+            ),
             auditor_service=service.get_auditor_service(
                 contract_config.auditor_service.service_id
             )
@@ -226,7 +229,9 @@ def create_app(
     def auditor_registration(request: Request) -> AuditorRegistrationDocumentModel:
         contract_config = request.app.state.contract_config
         return AuditorRegistrationDocumentModel.model_validate(
-            contract_config.auditor_registration_document()
+            contract_config.auditor_registration_document(
+                api_base_url=_public_api_base_url(request)
+            )
         )
 
     @app.get(
@@ -256,7 +261,14 @@ def create_app(
         service_id: str, request: Request
     ) -> AuditorRegistrationDocumentModel:
         contract_config = request.app.state.contract_config
-        payload = contract_config.auditor_registration_document_by_service_id(service_id)
+        if service_id == contract_config.auditor_service.service_id:
+            payload = contract_config.auditor_registration_document(
+                api_base_url=_public_api_base_url(request)
+            )
+        else:
+            payload = contract_config.auditor_registration_document_by_service_id(
+                service_id
+            )
         if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -794,6 +806,13 @@ def create_app(
 
 def _service(request: Request) -> AuditService:
     return request.app.state.audit_service
+
+
+def _public_api_base_url(request: Request) -> str:
+    contract_config = request.app.state.contract_config
+    return contract_config.public_api_base_url(str(request.base_url)) or str(
+        request.base_url
+    ).rstrip("/")
 
 
 def main() -> None:
