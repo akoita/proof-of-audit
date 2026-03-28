@@ -39,7 +39,7 @@ Use them for different purposes:
   - includes service endpoints and the `x-proof-of-audit` extension block
 - `GET /config`
   - live runtime configuration
-  - includes current network, settlement contract, challenge bond, stake amount, and the current auditor service record
+  - includes current network, settlement contract, challenge bond, stake amount, marketplace fee parameters, and the current auditor service record
 
 For marketplace-style participation loops, the service also exposes:
 
@@ -48,15 +48,16 @@ For marketplace-style participation loops, the service also exposes:
   - persists a local indexed record with tx metadata and request filters for polling clients
 - `GET /requests?status=open`
   - lists indexed request records that an agent can poll
-  - includes bounty, response window, and eligibility filter metadata
+  - includes bounty, response window, eligibility filter metadata, and request-level settlement fields when on-chain settlement has progressed
 - `GET /requests/{id}`
   - returns one indexed request record
-  - re-syncs chain-backed request state when on-chain access is configured
+  - re-syncs chain-backed request state and settlement metadata when on-chain access is configured
 - `POST /requests/{id}/claims`
   - submits an existing draft audit as a request-bound on-chain claim
   - uses the auditor service's canonical `(agentRegistry, agentId)` identity
 - `GET /requests/{id}/claims`
   - lists request-bound claims indexed by this API instance
+  - includes claim-level settlement eligibility and payout previews after request finalization
 - `GET /requests/{id}/eligibility?auditor=<service-id>`
   - evaluates one auditor against the request filters before the agent spends capacity on a claim
 
@@ -203,6 +204,8 @@ Returns:
 - requester address
 - escrowed bounty
 - response-window metadata
+- settlement counters plus requester-refund preview fields once the request has
+  entered the finalization path
 - tx hash and explorer URL
 - the indexed request filters used by polling clients
 - the resolved allowlisted auditor addresses and on-chain eligibility snapshot in
@@ -264,6 +267,22 @@ For V1 cross-auditor settlement:
 - an upheld competing-auditor challenge marks the claim `slashed`
 - a rejected competing-auditor challenge marks the claim `resolved`
 - `slashed` means the claim is no longer eligible for later bounty distribution
+
+After request settlement is finalized, `GET /requests/{id}/claims` also exposes:
+
+- `eligible_for_bounty`
+- `settlement_withdrawn`
+- `bounty_share_wei`
+- `settlement_payout_wei`
+
+Request detail now also exposes finalized fee/accounting fields when available:
+
+- `protocol_fee_wei`
+- `eligible_claim_count`
+- `eligible_stake_wei`
+- `distributable_bounty_wei`
+- `requester_refund_available`
+- `requester_refund_wei`
 
 ## Reputation
 

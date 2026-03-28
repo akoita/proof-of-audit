@@ -920,6 +920,25 @@ class AuditService:
                 if payload.get("request_tx_url") is not None
                 else None
             ),
+            "settlement_finalized": bool(payload.get("settlement_finalized")),
+            "classified_claim_count": max(int(payload.get("classified_claim_count") or 0), 0),
+            "eligible_claim_count": max(int(payload.get("eligible_claim_count") or 0), 0),
+            "claimant_withdrawn_count": max(
+                int(payload.get("claimant_withdrawn_count") or 0),
+                0,
+            ),
+            "eligible_stake_wei": max(int(payload.get("eligible_stake_wei") or 0), 0),
+            "distributable_bounty_wei": max(
+                int(payload.get("distributable_bounty_wei") or 0),
+                0,
+            ),
+            "cumulative_bounty_withdrawn_wei": max(
+                int(payload.get("cumulative_bounty_withdrawn_wei") or 0),
+                0,
+            ),
+            "requester_refund_available": bool(payload.get("requester_refund_available")),
+            "requester_refund_withdrawn": bool(payload.get("requester_refund_withdrawn")),
+            "requester_refund_wei": max(int(payload.get("requester_refund_wei") or 0), 0),
             "filters": self._normalize_marketplace_filters(payload.get("filters")),
             "metadata": (
                 dict(payload.get("metadata"))
@@ -976,6 +995,14 @@ class AuditService:
             onchain_request = self.publisher.get_audit_request(int(request_id))
         except Exception:
             return record
+        try:
+            onchain_settlement = self.publisher.get_audit_request_settlement(int(request_id))
+        except Exception:
+            onchain_settlement = None
+        try:
+            refund_preview = self.publisher.preview_audit_request_refund(int(request_id))
+        except Exception:
+            refund_preview = None
 
         synced = deepcopy(record)
         synced["status"] = onchain_request.state
@@ -983,10 +1010,59 @@ class AuditService:
         synced["contract_address"] = onchain_request.target_address.lower()
         synced["chain_id"] = self.contract_config.chain_id
         synced["bounty_wei"] = onchain_request.bounty_wei
+        synced["protocol_fee_wei"] = (
+            int(onchain_settlement.protocol_fee_wei)
+            if onchain_settlement is not None
+            else 0
+        )
         synced["claim_count"] = onchain_request.claim_count
         synced["created_at"] = self._isoformat_unix_timestamp(onchain_request.created_at)
         synced["response_window_end"] = self._isoformat_unix_timestamp(
             onchain_request.response_window_end
+        )
+        synced["settlement_finalized"] = (
+            bool(onchain_settlement.finalized) if onchain_settlement is not None else False
+        )
+        synced["classified_claim_count"] = (
+            int(onchain_settlement.classified_claim_count)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["eligible_claim_count"] = (
+            int(onchain_settlement.eligible_claim_count)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["claimant_withdrawn_count"] = (
+            int(onchain_settlement.claimant_withdrawn_count)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["eligible_stake_wei"] = (
+            int(onchain_settlement.eligible_stake_wei)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["distributable_bounty_wei"] = (
+            int(onchain_settlement.distributable_bounty_wei)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["cumulative_bounty_withdrawn_wei"] = (
+            int(onchain_settlement.cumulative_bounty_withdrawn_wei)
+            if onchain_settlement is not None
+            else 0
+        )
+        synced["requester_refund_available"] = (
+            bool(refund_preview.available) if refund_preview is not None else False
+        )
+        synced["requester_refund_withdrawn"] = (
+            bool(onchain_settlement.requester_refund_withdrawn)
+            if onchain_settlement is not None
+            else False
+        )
+        synced["requester_refund_wei"] = (
+            int(refund_preview.refund_wei) if refund_preview is not None else 0
         )
         filters = self._normalize_marketplace_filters(synced.get("filters"))
         if int(filters.get("minimum_stake_wei") or 0) == 0:
@@ -1030,6 +1106,7 @@ class AuditService:
     ) -> dict[str, Any]:
         onchain = deepcopy(record.get("onchain")) if isinstance(record.get("onchain"), dict) else {}
         request_claim_id = onchain.get("request_claim_id")
+        settlement_preview = None
         if self.publisher is not None and request_claim_id is not None:
             try:
                 onchain_claim = self.publisher.get_audit_request_claim(int(request_claim_id))
@@ -1044,6 +1121,12 @@ class AuditService:
                 onchain["agent_id"] = onchain_claim.agent_id
                 onchain["agent_registry"] = onchain_claim.agent_registry.lower()
                 onchain["auditor_address"] = onchain_claim.auditor_address.lower()
+            try:
+                settlement_preview = self.publisher.preview_audit_request_claim_settlement(
+                    int(request_claim_id)
+                )
+            except Exception:
+                settlement_preview = None
 
         service = self._record_auditor_service(record)
         report = record["report"]
@@ -1092,6 +1175,26 @@ class AuditService:
             ),
             "status": str(record.get("status") or "draft"),
             "target_contract": record["contract_address"],
+            "eligible_for_bounty": (
+                bool(settlement_preview.eligible)
+                if settlement_preview is not None
+                else False
+            ),
+            "settlement_withdrawn": (
+                bool(settlement_preview.withdrawn)
+                if settlement_preview is not None
+                else False
+            ),
+            "bounty_share_wei": (
+                int(settlement_preview.bounty_share_wei)
+                if settlement_preview is not None
+                else 0
+            ),
+            "settlement_payout_wei": (
+                int(settlement_preview.payout_wei)
+                if settlement_preview is not None
+                else 0
+            ),
             "challenge_policy": (
                 deepcopy(onchain.get("challenge_policy"))
                 if isinstance(onchain.get("challenge_policy"), dict)
@@ -2179,6 +2282,12 @@ class AuditService:
                         "resolved_at": datetime.now(UTC).isoformat(),
                         "resolved_by": "deterministic-verifier",
                         "beneficiary_address": resolution_result.beneficiary_address,
+                        "gross_payout_wei": getattr(
+                            resolution_result, "gross_payout_wei", resolution_result.payout_wei
+                        ),
+                        "resolution_fee_wei": getattr(
+                            resolution_result, "resolution_fee_wei", 0
+                        ),
                         "payout_wei": resolution_result.payout_wei,
                         "resolve_tx_hash": resolution_result.tx_hash,
                         "resolve_tx_url": self.contract_config.transaction_url(
@@ -2237,6 +2346,12 @@ class AuditService:
                 "resolved_at": datetime.now(UTC).isoformat(),
                 "resolved_by": resolved_by,
                 "beneficiary_address": resolution_result.beneficiary_address,
+                "gross_payout_wei": getattr(
+                    resolution_result, "gross_payout_wei", resolution_result.payout_wei
+                ),
+                "resolution_fee_wei": getattr(
+                    resolution_result, "resolution_fee_wei", 0
+                ),
                 "payout_wei": resolution_result.payout_wei,
                 "resolve_tx_hash": resolution_result.tx_hash,
                 "resolve_tx_url": self.contract_config.transaction_url(

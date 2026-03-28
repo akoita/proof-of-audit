@@ -81,7 +81,11 @@ class OnchainTestContext:
     reputation_bridge: ReputationRegistryBridge
 
 
-def build_onchain_test_context() -> OnchainTestContext:
+def build_onchain_test_context(
+    *,
+    protocol_fee_bps: int = 0,
+    resolution_fee_bps: int = 0,
+) -> OnchainTestContext:
     tester = EthereumTester(backend=PyEVMBackend())
     web3 = Web3(EthereumTesterProvider(tester))
     backend = tester.backend
@@ -93,6 +97,7 @@ def build_onchain_test_context() -> OnchainTestContext:
     validator_key = backend.account_keys[2]
     secondary_auditor_key = backend.account_keys[4]
     secondary_auditor_address = web3.eth.account.from_key(secondary_auditor_key).address
+    treasury_address = validator_address
 
     contract_factory = web3.eth.contract(
         abi=load_contract_abi(),
@@ -100,9 +105,12 @@ def build_onchain_test_context() -> OnchainTestContext:
     )
     deployment_transaction = contract_factory.constructor(
         arbiter_address,
+        treasury_address,
         10**16,
         5 * 10**15,
         86400,
+        protocol_fee_bps,
+        resolution_fee_bps,
     ).build_transaction(
         {
             "from": deployer_address,
@@ -258,6 +266,9 @@ def build_onchain_test_context() -> OnchainTestContext:
             "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": str(10**16),
             "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": str(5 * 10**15),
             "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "86400",
+            "PROOF_OF_AUDIT_TREASURY_ADDRESS": treasury_address,
+            "PROOF_OF_AUDIT_PROTOCOL_FEE_BPS": str(protocol_fee_bps),
+            "PROOF_OF_AUDIT_RESOLUTION_FEE_BPS": str(resolution_fee_bps),
             "PROOF_OF_AUDIT_AUDITOR_AGENT_ID": "1",
             "PROOF_OF_AUDIT_AUDITOR_AGENT_REGISTRY": identity_receipt["contractAddress"],
             "PROOF_OF_AUDIT_AUDITOR_IDENTITY_SOURCE": "project-local-custom",

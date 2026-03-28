@@ -18,11 +18,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--address")
     parser.add_argument("--status")
     parser.add_argument("--arbiter")
+    parser.add_argument("--treasury-address")
     parser.add_argument("--rpc-url")
     parser.add_argument("--explorer-base-url")
     parser.add_argument("--required-stake-wei")
     parser.add_argument("--required-challenge-bond-wei")
     parser.add_argument("--challenge-window-seconds", type=int)
+    parser.add_argument("--protocol-fee-bps", type=int)
+    parser.add_argument("--resolution-fee-bps", type=int)
     parser.add_argument("--deployment-tx-hash")
     parser.add_argument("--deployment-block-number", type=int)
     parser.add_argument("--deployer-address")
@@ -80,6 +83,7 @@ def main() -> None:
     set_if_present(manifest, "address", args.address)
     set_if_present(manifest, "status", args.status)
     set_if_present(manifest, "arbiter", args.arbiter)
+    set_if_present(manifest, "treasury_address", args.treasury_address)
     set_if_present(manifest, "rpc_url", args.rpc_url)
     set_if_present(manifest, "explorer_base_url", args.explorer_base_url)
     set_if_present(manifest, "required_stake_wei", args.required_stake_wei)
@@ -93,6 +97,8 @@ def main() -> None:
         "challenge_window_seconds",
         args.challenge_window_seconds,
     )
+    set_if_present(manifest, "protocol_fee_bps", args.protocol_fee_bps)
+    set_if_present(manifest, "resolution_fee_bps", args.resolution_fee_bps)
     set_if_present(manifest, "deployment_tx_hash", args.deployment_tx_hash)
     set_if_present(
         manifest,

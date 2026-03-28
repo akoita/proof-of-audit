@@ -87,6 +87,20 @@ class OnchainAuditRequest:
 
 
 @dataclass(frozen=True)
+class OnchainAuditRequestSettlement:
+    request_id: int
+    classified_claim_count: int
+    eligible_claim_count: int
+    claimant_withdrawn_count: int
+    finalized: bool
+    requester_refund_withdrawn: bool
+    eligible_stake_wei: int
+    protocol_fee_wei: int
+    distributable_bounty_wei: int
+    cumulative_bounty_withdrawn_wei: int
+
+
+@dataclass(frozen=True)
 class AuditRequestClaimResult:
     request_id: int
     claim_id: int
@@ -113,6 +127,8 @@ class AuditRequestClaimResolutionResult:
     chain_id: int
     resolution: str
     beneficiary_address: str
+    gross_payout_wei: int
+    resolution_fee_wei: int
     payout_wei: int
 
 
@@ -135,6 +151,58 @@ class OnchainAuditRequestClaim:
     resolution: str
     challenger_address: str | None
     evidence_hash: str | None
+
+
+@dataclass(frozen=True)
+class OnchainAuditRequestClaimSettlementPreview:
+    claim_id: int
+    eligible: bool
+    withdrawn: bool
+    bounty_share_wei: int
+    payout_wei: int
+
+
+@dataclass(frozen=True)
+class OnchainAuditRequestRefundPreview:
+    request_id: int
+    available: bool
+    refund_wei: int
+
+
+@dataclass(frozen=True)
+class AuditRequestSettlementResult:
+    request_id: int
+    tx_hash: str
+    chain_id: int
+
+
+@dataclass(frozen=True)
+class AuditRequestClaimSettlementWithdrawalResult:
+    request_id: int
+    claim_id: int
+    tx_hash: str
+    chain_id: int
+    beneficiary_address: str
+    returned_stake_wei: int
+    bounty_share_wei: int
+    payout_wei: int
+
+
+@dataclass(frozen=True)
+class AuditRequestRefundWithdrawalResult:
+    request_id: int
+    tx_hash: str
+    chain_id: int
+    beneficiary_address: str
+    refund_wei: int
+
+
+@dataclass(frozen=True)
+class MarketplaceFeeConfig:
+    treasury_address: str
+    protocol_fee_bps: int
+    resolution_fee_bps: int
+    fee_denominator: int
 
 
 def load_contract_artifact() -> dict[str, Any]:
@@ -487,6 +555,33 @@ class ProofOfAuditPublisher:
             },
         )
 
+    def get_audit_request_settlement(
+        self, request_id: int
+    ) -> OnchainAuditRequestSettlement:
+        record = self.contract.functions.getAuditRequestSettlement(request_id).call()
+        return OnchainAuditRequestSettlement(
+            request_id=request_id,
+            classified_claim_count=int(record[0]),
+            eligible_claim_count=int(record[1]),
+            claimant_withdrawn_count=int(record[2]),
+            finalized=bool(record[3]),
+            requester_refund_withdrawn=bool(record[4]),
+            eligible_stake_wei=int(record[5]),
+            protocol_fee_wei=int(record[6]),
+            distributable_bounty_wei=int(record[7]),
+            cumulative_bounty_withdrawn_wei=int(record[8]),
+        )
+
+    def get_marketplace_fee_config(self) -> MarketplaceFeeConfig:
+        return MarketplaceFeeConfig(
+            treasury_address=Web3.to_checksum_address(
+                self.contract.functions.treasury().call()
+            ),
+            protocol_fee_bps=int(self.contract.functions.protocolFeeBps().call()),
+            resolution_fee_bps=int(self.contract.functions.resolutionFeeBps().call()),
+            fee_denominator=int(self.contract.functions.FEE_DENOMINATOR().call()),
+        )
+
     def resolve_identity_owner(self, *, agent_registry: str, agent_id: int) -> str:
         registry = self.web3.eth.contract(
             address=Web3.to_checksum_address(agent_registry),
@@ -573,6 +668,137 @@ class ProofOfAuditPublisher:
                 if Web3.to_hex(record[15]) == "0x0000000000000000000000000000000000000000000000000000000000000000"
                 else Web3.to_hex(record[15])
             ),
+        )
+
+    def preview_audit_request_claim_settlement(
+        self, claim_id: int
+    ) -> OnchainAuditRequestClaimSettlementPreview:
+        record = self.contract.functions.previewAuditRequestClaimSettlement(claim_id).call()
+        return OnchainAuditRequestClaimSettlementPreview(
+            claim_id=claim_id,
+            eligible=bool(record[0]),
+            withdrawn=bool(record[1]),
+            bounty_share_wei=int(record[2]),
+            payout_wei=int(record[3]),
+        )
+
+    def preview_audit_request_refund(
+        self, request_id: int
+    ) -> OnchainAuditRequestRefundPreview:
+        record = self.contract.functions.previewAuditRequestRefund(request_id).call()
+        return OnchainAuditRequestRefundPreview(
+            request_id=request_id,
+            available=bool(record[0]),
+            refund_wei=int(record[1]),
+        )
+
+    def classify_audit_request_claims(
+        self, *, request_id: int, max_claims: int
+    ) -> AuditRequestSettlementResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        classify_call = self.contract.functions.classifyAuditRequestClaims(
+            request_id,
+            max_claims,
+        )
+        receipt = self._submit_transaction(
+            classify_call,
+            value_wei=0,
+            chain_id=runtime_chain_id,
+            action_label="classify audit request claims",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError("Audit request claim classification reverted on-chain.")
+        return AuditRequestSettlementResult(
+            request_id=request_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+        )
+
+    def finalize_audit_request_settlement(
+        self, *, request_id: int
+    ) -> AuditRequestSettlementResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        finalize_call = self.contract.functions.finalizeAuditRequestSettlement(request_id)
+        receipt = self._submit_transaction(
+            finalize_call,
+            value_wei=0,
+            chain_id=runtime_chain_id,
+            action_label="finalize audit request settlement",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError("Audit request settlement finalization reverted on-chain.")
+        return AuditRequestSettlementResult(
+            request_id=request_id,
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+        )
+
+    def withdraw_audit_request_claim_settlement(
+        self, *, claim_id: int
+    ) -> AuditRequestClaimSettlementWithdrawalResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        withdrawal_call = self.contract.functions.withdrawAuditRequestClaimSettlement(
+            claim_id
+        )
+        receipt = self._submit_transaction(
+            withdrawal_call,
+            value_wei=0,
+            chain_id=runtime_chain_id,
+            action_label="withdraw audit request claim settlement",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError(
+                "Audit request claim settlement withdrawal reverted on-chain."
+            )
+        events = self.contract.events.AuditRequestClaimSettlementWithdrawn().process_receipt(
+            receipt
+        )
+        if not events:
+            raise OnchainRequestError(
+                "Audit request claim settlement withdrawal succeeded but "
+                "AuditRequestClaimSettlementWithdrawn event was missing."
+            )
+        event = events[0]["args"]
+        return AuditRequestClaimSettlementWithdrawalResult(
+            request_id=int(event["requestId"]),
+            claim_id=int(event["claimId"]),
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+            beneficiary_address=Web3.to_checksum_address(event["auditor"]),
+            returned_stake_wei=int(event["returnedStakeAmount"]),
+            bounty_share_wei=int(event["bountyShareAmount"]),
+            payout_wei=int(event["payoutAmount"]),
+        )
+
+    def withdraw_audit_request_refund(
+        self, *, request_id: int
+    ) -> AuditRequestRefundWithdrawalResult:
+        runtime_chain_id = int(self.web3.eth.chain_id)
+        refund_call = self.contract.functions.withdrawAuditRequestRefund(request_id)
+        receipt = self._submit_transaction(
+            refund_call,
+            value_wei=0,
+            chain_id=runtime_chain_id,
+            action_label="withdraw audit request refund",
+            error_cls=OnchainRequestError,
+        )
+        if receipt["status"] != 1:
+            raise OnchainRequestError("Audit request refund withdrawal reverted on-chain.")
+        events = self.contract.events.AuditRequestRefunded().process_receipt(receipt)
+        if not events:
+            raise OnchainRequestError(
+                "Audit request refund withdrawal succeeded but AuditRequestRefunded event was missing."
+            )
+        event = events[0]["args"]
+        return AuditRequestRefundWithdrawalResult(
+            request_id=int(event["requestId"]),
+            tx_hash=Web3.to_hex(receipt["transactionHash"]),
+            chain_id=runtime_chain_id,
+            beneficiary_address=Web3.to_checksum_address(event["requester"]),
+            refund_wei=int(event["bountyAmount"]),
         )
 
     def challenge_audit_request_claim(
@@ -688,7 +914,9 @@ class ProofOfAuditPublisher:
                 "Audit request claim resolution emitted an unexpected resolution."
             )
         beneficiary_address = Web3.to_checksum_address(event["beneficiary"])
-        payout_wei = int(event["payout"])
+        gross_payout_wei = int(event["grossPayout"])
+        resolution_fee_wei = int(event["resolutionFeeAmount"])
+        payout_wei = int(event["payoutAmount"])
         onchain_claim = self.get_audit_request_claim(claim_id)
         self._verify_onchain_request_claim_resolution(
             claim_id=claim_id,
@@ -701,6 +929,8 @@ class ProofOfAuditPublisher:
             chain_id=runtime_chain_id,
             resolution=resolution,
             beneficiary_address=beneficiary_address,
+            gross_payout_wei=gross_payout_wei,
+            resolution_fee_wei=resolution_fee_wei,
             payout_wei=payout_wei,
         )
 

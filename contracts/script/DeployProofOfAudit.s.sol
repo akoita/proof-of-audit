@@ -7,9 +7,12 @@ import {ProofOfAudit} from "../src/ProofOfAudit.sol";
 contract DeployProofOfAudit is Script {
     struct DeploymentParams {
         address arbiter;
+        address treasury;
         uint256 requiredStake;
         uint256 requiredChallengeBond;
         uint256 challengeWindow;
+        uint256 protocolFeeBps;
+        uint256 resolutionFeeBps;
     }
 
     function run() external returns (ProofOfAudit deployed) {
@@ -18,9 +21,12 @@ contract DeployProofOfAudit is Script {
         vm.startBroadcast();
         deployed = new ProofOfAudit(
             params.arbiter,
+            params.treasury,
             params.requiredStake,
             params.requiredChallengeBond,
-            params.challengeWindow
+            params.challengeWindow,
+            params.protocolFeeBps,
+            params.resolutionFeeBps
         );
         vm.stopBroadcast();
     }
@@ -33,13 +39,16 @@ contract DeployProofOfAudit is Script {
         return
             DeploymentParams({
                 arbiter: vm.envAddress("PROOF_OF_AUDIT_ARBITER"),
+                treasury: vm.envAddress("PROOF_OF_AUDIT_TREASURY_ADDRESS"),
                 requiredStake: vm.envUint("PROOF_OF_AUDIT_REQUIRED_STAKE_WEI"),
                 requiredChallengeBond: vm.envUint(
                     "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI"
                 ),
                 challengeWindow: vm.envUint(
                     "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS"
-                )
+                ),
+                protocolFeeBps: vm.envUint("PROOF_OF_AUDIT_PROTOCOL_FEE_BPS"),
+                resolutionFeeBps: vm.envUint("PROOF_OF_AUDIT_RESOLUTION_FEE_BPS")
             });
     }
 }

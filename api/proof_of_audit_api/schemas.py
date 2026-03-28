@@ -252,6 +252,8 @@ class ChallengeModel(BaseModel):
     resolved_at: str | None = None
     resolved_by: str | None = None
     beneficiary_address: str | None = None
+    gross_payout_wei: int | None = None
+    resolution_fee_wei: int | None = None
     payout_wei: int | None = None
     challenge_hash: str | None = None
     challenge_bond_wei: int | None = None
@@ -555,6 +557,16 @@ class AuditRequestRecordModel(BaseModel):
     claim_count: int = 0
     request_tx_hash: str | None = None
     request_tx_url: str | None = None
+    settlement_finalized: bool = False
+    classified_claim_count: int = 0
+    eligible_claim_count: int = 0
+    claimant_withdrawn_count: int = 0
+    eligible_stake_wei: int = 0
+    distributable_bounty_wei: int = 0
+    cumulative_bounty_withdrawn_wei: int = 0
+    requester_refund_available: bool = False
+    requester_refund_withdrawn: bool = False
+    requester_refund_wei: int = 0
     filters: MarketplacePreviewFiltersModel = Field(
         default_factory=MarketplacePreviewFiltersModel
     )
@@ -593,6 +605,10 @@ class AuditRequestClaimModel(BaseModel):
     tx_url: str | None = None
     status: str
     target_contract: str
+    eligible_for_bounty: bool = False
+    settlement_withdrawn: bool = False
+    bounty_share_wei: int = 0
+    settlement_payout_wei: int = 0
     challenge_policy: ChallengePolicyModel | None = None
 
 
@@ -682,11 +698,15 @@ class PublicContractConfigResponse(BaseModel):
     contract_address: str | None = None
     explorer_base_url: str
     arbiter: str | None = None
+    treasury_address: str | None = None
     auditor: AuditorProfileModel
     auditor_service: AuditorServiceRecordModel
     required_stake_wei: int
     required_challenge_bond_wei: int
     challenge_window_seconds: int
+    fee_denominator: int
+    protocol_fee_bps: int
+    resolution_fee_bps: int
     deployment_ready: bool
 
 

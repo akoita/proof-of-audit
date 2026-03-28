@@ -37,9 +37,12 @@ fi
 
 DEPLOYER_PRIVATE_KEY="${DEPLOYER_PRIVATE_KEY:-}"
 ARBITER="${PROOF_OF_AUDIT_ARBITER:-}"
+TREASURY_ADDRESS="${PROOF_OF_AUDIT_TREASURY_ADDRESS:-${ARBITER}}"
 REQUIRED_STAKE_WEI="${PROOF_OF_AUDIT_REQUIRED_STAKE_WEI:-10000000000000000}"
 REQUIRED_CHALLENGE_BOND_WEI="${PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI:-5000000000000000}"
 CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
+PROTOCOL_FEE_BPS="${PROOF_OF_AUDIT_PROTOCOL_FEE_BPS:-0}"
+RESOLUTION_FEE_BPS="${PROOF_OF_AUDIT_RESOLUTION_FEE_BPS:-0}"
 
 : "${RPC_URL:?PROOF_OF_AUDIT_DEPLOY_RPC_URL or BASE_SEPOLIA_RPC_URL must be set}"
 : "${DEPLOYER_PRIVATE_KEY:?DEPLOYER_PRIVATE_KEY must be set}"
@@ -47,26 +50,35 @@ CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
 
 BROADCAST_FILE="${CONTRACTS_DIR}/broadcast/DeployProofOfAudit.s.sol/${CHAIN_ID}/run-latest.json"
 CONSTRUCTOR_ARGS_JSON="$(
-  printf '{"arbiter":"%s","required_stake_wei":"%s","required_challenge_bond_wei":"%s","challenge_window_seconds":%s}' \
+  printf '{"arbiter":"%s","treasury":"%s","required_stake_wei":"%s","required_challenge_bond_wei":"%s","challenge_window_seconds":%s,"protocol_fee_bps":%s,"resolution_fee_bps":%s}' \
     "${ARBITER}" \
+    "${TREASURY_ADDRESS}" \
     "${REQUIRED_STAKE_WEI}" \
     "${REQUIRED_CHALLENGE_BOND_WEI}" \
-    "${CHALLENGE_WINDOW_SECONDS}"
+    "${CHALLENGE_WINDOW_SECONDS}" \
+    "${PROTOCOL_FEE_BPS}" \
+    "${RESOLUTION_FEE_BPS}"
 )"
 CONSTRUCTOR_ARGS_HEX="$(
-  cast abi-encode "constructor(address,uint256,uint256,uint256)" \
+  cast abi-encode "constructor(address,address,uint256,uint256,uint256,uint256,uint256)" \
     "${ARBITER}" \
+    "${TREASURY_ADDRESS}" \
     "${REQUIRED_STAKE_WEI}" \
     "${REQUIRED_CHALLENGE_BOND_WEI}" \
-    "${CHALLENGE_WINDOW_SECONDS}"
+    "${CHALLENGE_WINDOW_SECONDS}" \
+    "${PROTOCOL_FEE_BPS}" \
+    "${RESOLUTION_FEE_BPS}"
 )"
 
 cd "${CONTRACTS_DIR}"
 
 PROOF_OF_AUDIT_ARBITER="${ARBITER}" \
+PROOF_OF_AUDIT_TREASURY_ADDRESS="${TREASURY_ADDRESS}" \
 PROOF_OF_AUDIT_REQUIRED_STAKE_WEI="${REQUIRED_STAKE_WEI}" \
 PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI="${REQUIRED_CHALLENGE_BOND_WEI}" \
 PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS="${CHALLENGE_WINDOW_SECONDS}" \
+PROOF_OF_AUDIT_PROTOCOL_FEE_BPS="${PROTOCOL_FEE_BPS}" \
+PROOF_OF_AUDIT_RESOLUTION_FEE_BPS="${RESOLUTION_FEE_BPS}" \
 forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit \
   --rpc-url "${RPC_URL}" \
   --private-key "${DEPLOYER_PRIVATE_KEY}" \
@@ -105,11 +117,14 @@ cd "${ROOT_DIR}"
   --address "${CONTRACT_ADDRESS}" \
   --status "deployed" \
   --arbiter "${ARBITER}" \
+  --treasury-address "${TREASURY_ADDRESS}" \
   --rpc-url "${RPC_URL}" \
   --explorer-base-url "${EXPLORER_BASE_URL}" \
   --required-stake-wei "${REQUIRED_STAKE_WEI}" \
   --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
   --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}" \
+  --protocol-fee-bps "${PROTOCOL_FEE_BPS}" \
+  --resolution-fee-bps "${RESOLUTION_FEE_BPS}" \
   --deployment-tx-hash "${DEPLOYMENT_TX_HASH}" \
   --deployment-block-number "${DEPLOYMENT_BLOCK_NUMBER}" \
   --deployer-address "${DEPLOYER_ADDRESS}" \

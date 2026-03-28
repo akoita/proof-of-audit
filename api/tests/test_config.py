@@ -26,6 +26,9 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.required_stake_wei, 10**16)
         self.assertEqual(config.required_challenge_bond_wei, 5 * 10**15)
         self.assertEqual(config.challenge_window_seconds, 86400)
+        self.assertIsNone(config.treasury_address)
+        self.assertEqual(config.protocol_fee_bps, 0)
+        self.assertEqual(config.resolution_fee_bps, 0)
         self.assertEqual(
             config.auditor.manifest_schema,
             "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
@@ -130,6 +133,9 @@ class ContractConfigTest(unittest.TestCase):
                 "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": "123",
                 "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": "45",
                 "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "67",
+                "PROOF_OF_AUDIT_TREASURY_ADDRESS": "0xtreasury",
+                "PROOF_OF_AUDIT_PROTOCOL_FEE_BPS": "125",
+                "PROOF_OF_AUDIT_RESOLUTION_FEE_BPS": "75",
                 "PROOF_OF_AUDIT_VALIDATION_REGISTRY_ADDRESS": "0xdef",
                 "PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE": "project-local-custom",
                 "PROOF_OF_AUDIT_REPUTATION_REGISTRY_ADDRESS": "0x987",
@@ -164,6 +170,9 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.required_stake_wei, 123)
         self.assertEqual(config.required_challenge_bond_wei, 45)
         self.assertEqual(config.challenge_window_seconds, 67)
+        self.assertEqual(config.treasury_address, "0xtreasury")
+        self.assertEqual(config.protocol_fee_bps, 125)
+        self.assertEqual(config.resolution_fee_bps, 75)
         self.assertEqual(config.validation_registry_address, "0xdef")
         self.assertEqual(config.validation_bridge_source, "project-local-custom")
         self.assertEqual(config.reputation_registry_address, "0x987")
