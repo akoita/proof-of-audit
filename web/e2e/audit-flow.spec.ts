@@ -166,6 +166,27 @@ test("web app resolves the API base URL from runtime config", async ({ page }) =
       return;
     }
 
+    if (url.pathname === "/diagnostics/runtime") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          worker_runtime_mode: "deterministic",
+          live_analysis_enabled: false,
+          live_analysis_backend: "disabled",
+          hosted_agent_forge_configured: false,
+          hosted_agent_forge_url: null,
+          explorer_api_url_configured: true,
+          explorer_api_key_configured: false,
+          source_bundle_storage_kind: "local",
+          hosted_source_storage_compatible: true,
+          allow_deployed_address_deterministic_fallback: true,
+          warnings: [],
+        }),
+      });
+      return;
+    }
+
     throw new Error(`unexpected runtime API request: ${route.request().url()}`);
   });
 
@@ -281,6 +302,27 @@ test("workbench shows loading copy instead of unavailable placeholders before hy
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ items: [auditorService] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/diagnostics/runtime") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          worker_runtime_mode: "deterministic",
+          live_analysis_enabled: false,
+          live_analysis_backend: "disabled",
+          hosted_agent_forge_configured: false,
+          hosted_agent_forge_url: null,
+          explorer_api_url_configured: true,
+          explorer_api_key_configured: false,
+          source_bundle_storage_kind: "local",
+          hosted_source_storage_compatible: true,
+          allow_deployed_address_deterministic_fallback: true,
+          warnings: [],
+        }),
       });
       return;
     }

@@ -524,12 +524,77 @@ class AuditService:
         ):
             return
 
+        detail = self._deployed_address_live_failure_detail(execution_result)
         raise ValueError(
             f"deployed_address submissions on {self.contract_config.network} use live hosted agent-forge analysis; local deterministic fallback is disabled for this target type"
+            + (f". {detail}" if detail else "")
         )
 
     def _is_local_network(self) -> bool:
         return _network_is_local(self.contract_config.network)
+
+    def runtime_diagnostics(self) -> dict[str, Any]:
+        runtime = self.worker.runtime
+        hosted_configured = runtime.agent_forge.hosted_service_enabled
+        storage_kind = runtime.agent_forge.service_source_storage_kind
+        hosted_storage_compatible = not hosted_configured or storage_kind != "local"
+        warnings: list[str] = []
+        if runtime.mode in {"hybrid", "agent_forge"} and not hosted_configured:
+            warnings.append(
+                "Hosted agent-forge service URL is not configured; this API instance will rely on local command execution for live analysis."
+            )
+        if not runtime.agent_forge.explorer_api_key:
+            warnings.append(
+                "Explorer API credentials are not configured; deployed-address verified-source lookup can only use Sourcify."
+            )
+        if not hosted_storage_compatible:
+            warnings.append(
+                "Hosted agent-forge service requires non-local source bundle storage; configure GCS or IPFS storage."
+            )
+        return {
+            "worker_runtime_mode": runtime.mode,
+            "live_analysis_enabled": runtime.agent_forge.live_enabled,
+            "live_analysis_backend": (
+                "hosted_service"
+                if hosted_configured
+                else "local_command"
+                if runtime.agent_forge.live_enabled
+                else "disabled"
+            ),
+            "hosted_agent_forge_configured": hosted_configured,
+            "hosted_agent_forge_url": runtime.agent_forge.service_base_url,
+            "explorer_api_url_configured": bool(runtime.agent_forge.explorer_api_url),
+            "explorer_api_key_configured": bool(runtime.agent_forge.explorer_api_key),
+            "source_bundle_storage_kind": storage_kind,
+            "hosted_source_storage_compatible": hosted_storage_compatible,
+            "allow_deployed_address_deterministic_fallback": runtime.allow_deployed_address_deterministic_fallback,
+            "warnings": warnings,
+        }
+
+    def _deployed_address_live_failure_detail(self, execution_result: Any) -> str | None:
+        execution = getattr(execution_result, "execution", None)
+        execution_error = getattr(execution, "error", None)
+        detail = (
+            execution_error.strip()
+            if isinstance(execution_error, str) and execution_error.strip()
+            else self.worker.agent_forge.last_error_message
+        )
+        diagnostics = self.runtime_diagnostics()
+        hints: list[str] = []
+        if not diagnostics["hosted_agent_forge_configured"]:
+            hints.append(
+                "No hosted agent-forge service URL is configured on this API instance."
+            )
+        if not diagnostics["explorer_api_key_configured"]:
+            hints.append(
+                "Explorer API credentials are not configured, so explorer-backed verified-source lookup is unavailable."
+            )
+        if not diagnostics["hosted_source_storage_compatible"]:
+            hints.append(
+                "Hosted agent-forge source staging is incompatible with local-only source bundle storage."
+            )
+        parts = [item for item in [detail, *hints] if item]
+        return " ".join(parts) if parts else None
 
     def _is_configured_fixture_address(self, contract_address: str) -> bool:
         return any(

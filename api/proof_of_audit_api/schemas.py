@@ -692,6 +692,20 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class RuntimeDiagnosticsResponse(BaseModel):
+    worker_runtime_mode: str
+    live_analysis_enabled: bool
+    live_analysis_backend: str
+    hosted_agent_forge_configured: bool
+    hosted_agent_forge_url: str | None = None
+    explorer_api_url_configured: bool
+    explorer_api_key_configured: bool
+    source_bundle_storage_kind: str
+    hosted_source_storage_compatible: bool
+    allow_deployed_address_deterministic_fallback: bool
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PublicContractConfigResponse(BaseModel):
     network: str
     chain_id: int

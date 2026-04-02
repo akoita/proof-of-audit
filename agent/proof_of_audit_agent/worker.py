@@ -92,8 +92,10 @@ class AuditWorker:
                 if live_result is not None:
                     return live_result
             if not self.runtime.allow_deployed_address_deterministic_fallback:
+                detail = self.agent_forge.last_error_message
                 raise AgentForgeExecutionError(
                     "deployed_address submissions use live hosted agent-forge analysis; local deterministic fallback is disabled for this target type"
+                    + (f". Live execution detail: {detail}" if detail else "")
                 )
             deterministic_result = self.deterministic_backend.run_submission(submission)
             assert deterministic_result is not None

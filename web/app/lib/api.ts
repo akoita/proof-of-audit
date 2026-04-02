@@ -1,4 +1,4 @@
-import type { SourceBundleUpload } from "./types";
+import type { RuntimeDiagnostics, SourceBundleUpload } from "./types";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8080";
 
@@ -93,4 +93,8 @@ export async function uploadSourceBundle(file: File): Promise<SourceBundleUpload
   }
 
   return payload;
+}
+
+export async function fetchRuntimeDiagnostics(): Promise<RuntimeDiagnostics> {
+  return apiFetch<RuntimeDiagnostics>("/diagnostics/runtime");
 }

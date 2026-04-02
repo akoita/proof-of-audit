@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
-import { apiFetch, uploadSourceBundle } from "./lib/api";
+import { apiFetch, fetchRuntimeDiagnostics, uploadSourceBundle } from "./lib/api";
 import {
   formatEth,
   parseEthInputToWei,
@@ -19,6 +19,7 @@ import type {
   InputKind,
   MarketplacePreviewResponse,
   PublicContractConfig,
+  RuntimeDiagnostics,
   TargetComparisonResponse,
 } from "./lib/types";
 import { Navbar } from "./components/navbar";
@@ -80,6 +81,43 @@ function formatMediatedOnchainError(
   }
   const networkLabel = network ?? "current";
   return `${action === "publish" ? "Publish" : "Challenge"} failed because this ${networkLabel} deployment uses an API signer and that backend wallet is underfunded. It must hold at least ${formatEth(amountWei)} plus gas. The connected browser wallet balance is not used for ${action} in api-mediated mode.`;
+}
+
+function formatSubmissionError(
+  error: unknown,
+  {
+    diagnostics,
+    submissionMode,
+  }: {
+    diagnostics: RuntimeDiagnostics | null;
+    submissionMode: InputKind;
+  },
+): string {
+  const fallback = error instanceof Error ? error.message : "Failed to create audit";
+  if (submissionMode !== "deployed_address") {
+    return fallback;
+  }
+  const normalized = fallback.toLowerCase();
+  const hints: string[] = [];
+  if (normalized.includes("no verified source was available")) {
+    hints.push("No verified source was found for this address. Upload a source bundle for deeper analysis.");
+  }
+  if (!diagnostics?.hosted_agent_forge_configured) {
+    hints.push("This API instance is missing a hosted agent-forge service URL.");
+  }
+  if (diagnostics?.explorer_api_url_configured && !diagnostics.explorer_api_key_configured) {
+    hints.push("Explorer credentials are not configured, so verified-source lookup can only use Sourcify.");
+  }
+  if (diagnostics?.hosted_agent_forge_configured && !diagnostics.hosted_source_storage_compatible) {
+    hints.push("Hosted agent-forge is configured with local-only source storage; switch the API to GCS or IPFS staging.");
+  }
+  if (normalized.includes("timed out waiting for hosted agent-forge run")) {
+    hints.push("The hosted agent-forge service did not finish in time. Check the service health and run logs.");
+  }
+  if (normalized.includes("hosted agent-forge run failed")) {
+    hints.push("The hosted agent-forge run failed after submission. Check the remote run status and logs.");
+  }
+  return hints.length > 0 ? `${fallback} ${hints.join(" ")}` : fallback;
 }
 
 const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
@@ -166,6 +204,7 @@ export function AuditWorkbench() {
   const [marketplaceComparison, setMarketplaceComparison] = useState<TargetComparisonResponse | null>(null);
   const [activeAudit, setActiveAudit] = useState<AuditRecord | null>(null);
   const [contractConfig, setContractConfig] = useState<PublicContractConfig | null>(null);
+  const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<RuntimeDiagnostics | null>(null);
   const [auditorService, setAuditorService] = useState<AuditorServiceRecord | null>(null);
   const [auditorServices, setAuditorServices] = useState<AuditorServiceRecord[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -306,17 +345,19 @@ export function AuditWorkbench() {
   async function loadWorkbench() {
     setLoadError(null);
     try {
-      const [auditPayload, fixturePayload, configPayload, auditorPayload, auditorsPayload] = await Promise.all([
+      const [auditPayload, fixturePayload, configPayload, auditorPayload, auditorsPayload, diagnosticsPayload] = await Promise.all([
         apiFetch<{ items: AuditRecord[] }>("/audits"),
         apiFetch<{ items: DemoFixture[] }>("/fixtures"),
         apiFetch<PublicContractConfig>("/config"),
         apiFetch<AuditorServiceRecord>("/auditor"),
         apiFetch<{ items: AuditorServiceRecord[] }>("/auditors"),
+        fetchRuntimeDiagnostics().catch(() => null),
       ]);
       const allowDemoFixtures = supportsDemoFixtures(configPayload);
       setRecentAudits(auditPayload.items);
       setDemoFixtures(fixturePayload.items);
       setContractConfig(configPayload);
+      setRuntimeDiagnostics(diagnosticsPayload);
       setAuditorService(auditorPayload);
       setAuditorServices(auditorsPayload.items);
       setSelectedServiceId((current) => {
@@ -469,7 +510,12 @@ export function AuditWorkbench() {
                   };
           syncAudit(await apiFetch<AuditRecord>("/audits", { method: "POST", body: JSON.stringify(payload) }));
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Failed to create audit");
+          setError(
+            formatSubmissionError(e, {
+              diagnostics: runtimeDiagnostics,
+              submissionMode,
+            }),
+          );
         } finally {
           setActiveAction(null);
         }
