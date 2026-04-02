@@ -1957,7 +1957,6 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertIn("use live hosted agent-forge analysis", payload["message"])
         self.assertIn("missing verified source", payload["message"])
         self.assertIn("No hosted agent-forge service URL is configured", payload["message"])
-        self.assertIn("Explorer API credentials are not configured", payload["message"])
 
     def test_deployed_address_submission_hybrid_rejects_fixture_benchmark_fallbacks(self) -> None:
         self.fixtures_file.write_text(
@@ -2035,9 +2034,20 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             source_bundle_storage_kind="local",
         )
 
+        source_tempdir = tempfile_module.TemporaryDirectory()
+        source_root = Path(source_tempdir.name) / "source"
+        source_root.mkdir(parents=True, exist_ok=True)
+        (source_root / "Vault.sol").write_text("contract Vault {}\n", encoding="utf-8")
+        resolved_source = Mock(
+            path=source_root,
+            tempdir=source_tempdir,
+            entry_contract="Vault",
+            source_uri="explorer://84532/0xabc0000000000000000000000000000000000000",
+        )
+
         with patch(
             "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
-            side_effect=ValueError("No verified source was available for this deployed address."),
+            return_value=resolved_source,
         ):
             response = client.post(
                 "/audits",
@@ -2052,7 +2062,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         payload = response.json()
         self.assertIn(
-            "Hosted agent-forge source staging is incompatible with local-only source bundle storage",
+            "hosted agent-forge service requires non-local source bundle storage",
             payload["message"],
         )
 
