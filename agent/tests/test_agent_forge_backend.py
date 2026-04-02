@@ -38,7 +38,13 @@ class FakeHostedHttpClient:
         url: str,
         json: dict[str, object] | None = None,
     ) -> httpx.Response:
-        self.requests.append({"method": method, "url": url, "json": json})
+        self.requests.append(
+            {
+                "method": method,
+                "url": url,
+                "json": json,
+            }
+        )
         payload = self._responses.pop(0)
         return httpx.Response(
             int(payload.get("status_code", 200)),
@@ -90,12 +96,14 @@ def _runtime(
     mode: str = "agent_forge",
     command: str,
     service_url: str | None = None,
+    service_api_token: str | None = "test-token",
 ) -> AgentForgeRuntimeConfig:
     return AgentForgeRuntimeConfig(
         mode=mode,
         command=command,
         runs_home=tmp_path / "home",
         service_base_url=service_url,
+        service_api_token=service_api_token,
         service_poll_interval_seconds=0.0,
     )
 
@@ -416,6 +424,7 @@ def test_run_submission_uses_hosted_service_when_configured(tmp_path: Path) -> N
     )
 
     uploaded_archives: list[tuple[str, Path]] = []
+    captured_client_kwargs: dict[str, object] = {}
 
     def fake_store_service_source_archive(
         _: AgentForgeBackend,
@@ -425,10 +434,15 @@ def test_run_submission_uses_hosted_service_when_configured(tmp_path: Path) -> N
         uploaded_archives.append((audit_id, archive_path))
         return "gs://proof-of-audit-source-bundles/audit-service-123.zip"
 
+    def fake_client_factory(*args: object, **kwargs: object) -> FakeHostedHttpClient:
+        del args
+        captured_client_kwargs.update(kwargs)
+        return fake_client
+
     with (
         patch(
             "proof_of_audit_agent.agent_forge_service_client.httpx.Client",
-            return_value=fake_client,
+            side_effect=fake_client_factory,
         ),
         patch.object(
             AgentForgeBackend,
@@ -468,6 +482,9 @@ def test_run_submission_uses_hosted_service_when_configured(tmp_path: Path) -> N
 
     create_run_request = captured_requests[0]
     assert create_run_request["method"] == "POST"
+    headers = captured_client_kwargs["headers"]
+    assert headers["authorization"] == "Bearer test-token"
+    assert headers["x-agent-forge-api-key"] == "test-token"
     request_payload = create_run_request["json"]
     assert isinstance(request_payload, dict)
     assert request_payload["profile"]["id"] == "proof-of-audit-solidity-v1"

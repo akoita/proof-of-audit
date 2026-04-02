@@ -46,6 +46,7 @@ class AgentForgeServiceClient:
         headers = {"accept": "application/json"}
         if self.api_token:
             headers["authorization"] = f"Bearer {self.api_token}"
+            headers["x-agent-forge-api-key"] = self.api_token
         with httpx.Client(timeout=self.request_timeout_seconds, headers=headers) as client:
             created = self._request(client, "POST", "/v1/runs", json=payload)
             run_id = str(created.get("run_id") or "").strip()
