@@ -191,6 +191,20 @@ export type PublicContractConfig = {
   deployment_ready: boolean;
 };
 
+export type RuntimeDiagnostics = {
+  worker_runtime_mode: string;
+  live_analysis_enabled: boolean;
+  live_analysis_backend: string;
+  hosted_agent_forge_configured: boolean;
+  hosted_agent_forge_url?: string | null;
+  explorer_api_url_configured: boolean;
+  explorer_api_key_configured: boolean;
+  source_bundle_storage_kind: string;
+  hosted_source_storage_compatible: boolean;
+  allow_deployed_address_deterministic_fallback: boolean;
+  warnings: string[];
+};
+
 export type SourceBundleUpload = {
   original_filename: string;
   source_bundle_uri: string;

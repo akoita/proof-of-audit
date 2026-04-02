@@ -97,6 +97,7 @@ class AgentForgeBackend:
     def __init__(self, runtime: AgentForgeRuntimeConfig, workspace_root: Path) -> None:
         self.runtime = runtime
         self.workspace_root = workspace_root
+        self._last_error_message: str | None = None
         self.deployed_address_source_resolver = DeployedAddressSourceResolver(
             sourcify_base_url=runtime.sourcify_base_url,
             explorer_api_url=runtime.explorer_api_url,
@@ -118,7 +119,12 @@ class AgentForgeBackend:
     def backend_name(self) -> str:
         return "agent_forge"
 
+    @property
+    def last_error_message(self) -> str | None:
+        return self._last_error_message
+
     def run_submission(self, submission: AuditSubmission) -> AuditExecutionResult | None:
+        self._last_error_message = None
         if not self.runtime.live_enabled:
             return None
         if submission.input_kind not in self.runtime.enabled_input_kinds:
@@ -261,8 +267,9 @@ class AgentForgeBackend:
             )
             return AuditExecutionResult(report=report, execution=execution)
         except Exception as exc:
+            self._last_error_message = self._describe_live_failure(exc, submission)
             if self.runtime.strict_live_mode:
-                raise AgentForgeExecutionError(str(exc)) from exc
+                raise AgentForgeExecutionError(self._last_error_message) from exc
             return None
         finally:
             if downloaded_source is not None:
@@ -437,6 +444,32 @@ class AgentForgeBackend:
         if parsed.scheme != "gs" or not bucket_name or not object_name:
             raise AgentForgeExecutionError("gs:// source bundle URIs must include bucket and object path")
         return bucket_name, object_name
+
+    def _describe_live_failure(
+        self,
+        exc: Exception,
+        submission: AuditSubmission,
+    ) -> str:
+        message = str(exc).strip() or "live agent-forge execution failed"
+        if (
+            submission.input_kind == "deployed_address"
+            and "No verified source was available for this deployed address." in message
+            and not self.runtime.explorer_api_key
+        ):
+            return (
+                f"{message} Explorer API credentials are not configured on this API instance, "
+                "so explorer-backed verified-source lookup is unavailable."
+            )
+        if (
+            submission.input_kind == "deployed_address"
+            and not self.runtime.hosted_service_enabled
+            and self.runtime.mode in {"hybrid", "agent_forge"}
+        ):
+            return (
+                f"{message} No hosted agent-forge service URL is configured on this API instance; "
+                "it can only rely on local command execution for live analysis."
+            )
+        return message
 
     def _prepare_workspace(self, audit_id: str, source_path: Path) -> Path:
         target_root = self.workspace_root / "agent-forge" / audit_id

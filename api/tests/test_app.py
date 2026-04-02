@@ -149,6 +149,20 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_runtime_diagnostics_defaults(self) -> None:
+        response = self.client.get("/diagnostics/runtime")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["worker_runtime_mode"], "deterministic")
+        self.assertFalse(payload["live_analysis_enabled"])
+        self.assertEqual(payload["live_analysis_backend"], "disabled")
+        self.assertFalse(payload["hosted_agent_forge_configured"])
+        self.assertTrue(payload["explorer_api_url_configured"])
+        self.assertFalse(payload["explorer_api_key_configured"])
+        self.assertEqual(payload["source_bundle_storage_kind"], "local")
+        self.assertTrue(payload["hosted_source_storage_compatible"])
+
     def test_source_bundle_upload_persists_sol_file_and_returns_local_path(self) -> None:
         response = self.client.post(
             "/source-bundles/upload",
@@ -1656,6 +1670,8 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         command: Path | None,
         runs_home: Path,
         service_url: str | None = None,
+        explorer_api_key: str | None = None,
+        source_bundle_storage_kind: str | None = None,
     ) -> TestClient:
         name = command.name if command is not None else "service"
         env_file = self.root / f".env.{mode}.{name}"
@@ -1672,6 +1688,12 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
                     f"PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL={service_url}",
                     "PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_POLL_INTERVAL_SECONDS=0",
                 ]
+            )
+        if explorer_api_key is not None:
+            lines.append(f"PROOF_OF_AUDIT_EXPLORER_API_KEY={explorer_api_key}")
+        if source_bundle_storage_kind is not None:
+            lines.append(
+                f"PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND={source_bundle_storage_kind}"
             )
         env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return TestClient(create_app(self.data_root, env_file=env_file))
@@ -1933,6 +1955,9 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["error"], "invalid_payload")
         self.assertIn("use live hosted agent-forge analysis", payload["message"])
+        self.assertIn("missing verified source", payload["message"])
+        self.assertIn("No hosted agent-forge service URL is configured", payload["message"])
+        self.assertIn("Explorer API credentials are not configured", payload["message"])
 
     def test_deployed_address_submission_hybrid_rejects_fixture_benchmark_fallbacks(self) -> None:
         self.fixtures_file.write_text(
@@ -1981,6 +2006,55 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["error"], "invalid_payload")
         self.assertIn("use live hosted agent-forge analysis", payload["message"])
+
+    def test_runtime_diagnostics_report_hosted_storage_incompatibility(self) -> None:
+        client = self._create_client(
+            mode="hybrid",
+            command=None,
+            runs_home=self.root / "home-diagnostics",
+            service_url="https://agent-forge.example",
+            source_bundle_storage_kind="local",
+        )
+
+        response = client.get("/diagnostics/runtime")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["hosted_agent_forge_configured"])
+        self.assertEqual(payload["live_analysis_backend"], "hosted_service")
+        self.assertFalse(payload["hosted_source_storage_compatible"])
+        self.assertIn("non-local source bundle storage", " ".join(payload["warnings"]))
+
+    def test_deployed_address_submission_hybrid_preserves_hosted_storage_error_detail(self) -> None:
+        client = self._create_client(
+            mode="hybrid",
+            command=None,
+            runs_home=self.root / "home-deployed-storage",
+            service_url="https://agent-forge.example",
+            explorer_api_key="test-key",
+            source_bundle_storage_kind="local",
+        )
+
+        with patch(
+            "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
+            side_effect=ValueError("No verified source was available for this deployed address."),
+        ):
+            response = client.post(
+                "/audits",
+                json={
+                    "input_kind": "deployed_address",
+                    "chain_id": 84532,
+                    "contract_address": "0xabc0000000000000000000000000000000000000",
+                    "submitted_by": "deployed-test",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertIn(
+            "Hosted agent-forge source staging is incompatible with local-only source bundle storage",
+            payload["message"],
+        )
 
     def test_deployed_address_submission_trims_fixture_address_whitespace_for_live_execution(self) -> None:
         self.fixtures_file.write_text(

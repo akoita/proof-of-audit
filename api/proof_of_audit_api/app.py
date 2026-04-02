@@ -43,6 +43,7 @@ from proof_of_audit_api.schemas import (
     PublicContractConfigResponse,
     PublishAuditRequest,
     ResolveAuditRequest,
+    RuntimeDiagnosticsResponse,
     SourceBundleUploadRequest,
     SourceBundleUploadResponse,
     SubmitAuditRequestClaimRequest,
@@ -142,6 +143,12 @@ def create_app(
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/diagnostics/runtime", response_model=RuntimeDiagnosticsResponse)
+    def runtime_diagnostics(request: Request) -> RuntimeDiagnosticsResponse:
+        return RuntimeDiagnosticsResponse.model_validate(
+            _service(request).runtime_diagnostics()
+        )
 
     @app.get("/config", response_model=PublicContractConfigResponse)
     def config(request: Request) -> PublicContractConfigResponse:
