@@ -642,6 +642,8 @@ class ContractConfig:
     challenge_claim_extractor_provider: str | None
     challenge_claim_extractor_model: str | None
     challenge_claim_extractor_min_confidence: str
+    worker_detectors: tuple[str, ...] | None
+    worker_audit_profile: str | None
 
     @classmethod
     def from_env(
@@ -1010,6 +1012,18 @@ class ContractConfig:
                     "medium",
                 )
                 or "medium"
+            ),
+            worker_detectors=(
+                tuple(
+                    d.strip()
+                    for d in source["PROOF_OF_AUDIT_WORKER_DETECTORS"].split(",")
+                    if d.strip()
+                )
+                if source.get("PROOF_OF_AUDIT_WORKER_DETECTORS")
+                else None
+            ),
+            worker_audit_profile=(
+                source.get("PROOF_OF_AUDIT_WORKER_AUDIT_PROFILE") or None
             ),
         )
 

@@ -38,6 +38,8 @@ class WorkerRuntimeConfig:
         explorer_api_url: str | None = "https://api.etherscan.io/v2/api",
         explorer_api_key: str | None = None,
         allow_deployed_address_deterministic_fallback: bool = True,
+        detectors: tuple[str, ...] | None = None,
+        audit_profile: str | None = None,
     ) -> "WorkerRuntimeConfig":
         normalized_mode = (
             mode if mode in {"deterministic", "hybrid", "agent_forge"} else "deterministic"
@@ -68,6 +70,8 @@ class WorkerRuntimeConfig:
                 sourcify_base_url=sourcify_base_url,
                 explorer_api_url=explorer_api_url,
                 explorer_api_key=explorer_api_key,
+                detectors=detectors,
+                audit_profile=audit_profile,
             ),
             allow_deployed_address_deterministic_fallback=(
                 allow_deployed_address_deterministic_fallback

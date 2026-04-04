@@ -73,19 +73,39 @@ class _FunctionBlock:
     lines: list[tuple[int, str]]
 
 
-def analyze_repository(repo_path: Path) -> dict[str, object]:
+ALL_DETECTORS = frozenset({"reentrancy", "access_control", "unchecked_external_call"})
+
+
+def analyze_repository(
+    repo_path: Path,
+    *,
+    detectors: frozenset[str] | None = None,
+) -> dict[str, object]:
+    """Run static analysis on all Solidity files in *repo_path*.
+
+    Args:
+        repo_path: Root of the Solidity project.
+        detectors: Detector families to run.  ``None`` or ``{"*"}`` means
+            run all families; otherwise only the listed families execute.
+    """
+    active_detectors = _resolve_detectors(detectors)
     findings: list[LiveFinding] = []
     for source_file in _solidity_files(repo_path):
-        findings.extend(_analyze_source_file(repo_path, source_file))
+        findings.extend(_analyze_source_file(repo_path, source_file, active_detectors))
 
+    scope_label = ", ".join(sorted(active_detectors)) if active_detectors != ALL_DETECTORS else "all"
     if findings:
         summary = (
             f"Live source analysis identified {len(findings)} potential issue"
-            f"{'' if len(findings) == 1 else 's'} across the supported checks."
+            f"{'' if len(findings) == 1 else 's'} across the supported checks"
+            f" (detectors: {scope_label})."
         )
         confidence = "medium"
     else:
-        summary = "Live source analysis did not confirm a supported issue in the submitted Solidity sources."
+        summary = (
+            "Live source analysis did not confirm a supported issue in the submitted"
+            f" Solidity sources (detectors: {scope_label})."
+        )
         confidence = "low"
 
     return {
@@ -93,7 +113,18 @@ def analyze_repository(repo_path: Path) -> dict[str, object]:
         "summary": summary,
         "confidence": confidence,
         "findings": [finding.to_dict() for finding in findings],
+        "supported_checks": sorted(active_detectors),
     }
+
+
+def _resolve_detectors(detectors: frozenset[str] | None) -> frozenset[str]:
+    """Normalise a user-supplied detector set to a concrete set of families."""
+    if detectors is None or detectors == frozenset({"*"}):
+        return ALL_DETECTORS
+    unknown = detectors - ALL_DETECTORS - {"*"}
+    if unknown:
+        raise ValueError(f"Unknown detector families: {', '.join(sorted(unknown))}")
+    return detectors & ALL_DETECTORS or ALL_DETECTORS
 
 
 def _solidity_files(repo_path: Path) -> list[Path]:
@@ -106,14 +137,21 @@ def _solidity_files(repo_path: Path) -> list[Path]:
     return files
 
 
-def _analyze_source_file(repo_path: Path, source_file: Path) -> list[LiveFinding]:
+def _analyze_source_file(
+    repo_path: Path,
+    source_file: Path,
+    active_detectors: frozenset[str],
+) -> list[LiveFinding]:
     lines = source_file.read_text(encoding="utf-8").splitlines()
     relative_path = str(source_file.relative_to(repo_path))
     findings: list[LiveFinding] = []
     for function in _extract_functions(lines):
-        findings.extend(_detect_reentrancy(relative_path, function))
-        findings.extend(_detect_access_control(relative_path, function))
-        findings.extend(_detect_unchecked_external_call(relative_path, function))
+        if "reentrancy" in active_detectors:
+            findings.extend(_detect_reentrancy(relative_path, function))
+        if "access_control" in active_detectors:
+            findings.extend(_detect_access_control(relative_path, function))
+        if "unchecked_external_call" in active_detectors:
+            findings.extend(_detect_unchecked_external_call(relative_path, function))
     return findings
 
 
