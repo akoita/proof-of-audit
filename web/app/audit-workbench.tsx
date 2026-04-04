@@ -120,6 +120,27 @@ function formatSubmissionError(
   return hints.length > 0 ? `${fallback} ${hints.join(" ")}` : fallback;
 }
 
+function deployedAddressSubmissionBlockedReason(
+  diagnostics: RuntimeDiagnostics | null,
+): string | null {
+  if (!diagnostics || diagnostics.allow_deployed_address_deterministic_fallback) {
+    return null;
+  }
+  if (!diagnostics.live_analysis_enabled) {
+    return "Deployed-address analysis is unavailable on this API instance because live analysis is disabled.";
+  }
+  if (!diagnostics.hosted_agent_forge_configured) {
+    return "Deployed-address analysis is unavailable on this API instance because the hosted agent-forge service URL is not configured.";
+  }
+  if (!diagnostics.hosted_source_storage_compatible) {
+    return "Deployed-address analysis is unavailable because hosted agent-forge source staging is still using local-only storage. Switch the API to GCS or IPFS staging.";
+  }
+  if (diagnostics.live_analysis_backend !== "hosted_service") {
+    return "Deployed-address analysis is unavailable because this API instance is not currently using the hosted agent-forge backend.";
+  }
+  return null;
+}
+
 const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string }> = {
   workbench:  { eyebrow: "Workspace",       title: "Audit Workbench",    desc: "Upload smart contract artifacts or point to a mainnet address to initialize the forensic verification engine." },
   marketplace:{ eyebrow: "Marketplace",     title: "Bounty Marketplace", desc: "Preview bounty request configuration, V1 eligibility filters, and side-by-side claim comparison without overstating what the protocol enforces today." },
@@ -251,6 +272,10 @@ export function AuditWorkbench() {
     auditorServices.find((service) => service.service_id === selectedServiceId) ??
     activeAudit?.auditor_service ??
     auditorService;
+  const deployedAddressBlockedReason =
+    submissionMode === "deployed_address"
+      ? deployedAddressSubmissionBlockedReason(runtimeDiagnostics)
+      : null;
 
   /* ── view-filtered audits ────────────────────────────── */
   const filteredAudits = auditsForView(activeView, recentAudits);
@@ -473,6 +498,10 @@ export function AuditWorkbench() {
   async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setError(null);
+    if (submissionMode === "deployed_address" && deployedAddressBlockedReason) {
+      setError(deployedAddressBlockedReason);
+      return;
+    }
     setActiveAction("Generating deterministic audit report");
     startTransition(() =>
       void (async () => {
@@ -680,6 +709,7 @@ export function AuditWorkbench() {
                   onSourceBundleLabelChange={setSourceBundleLabel}
                   onSourceBundleFileSelect={handleSourceBundleFileSelect}
                   isUploadingSourceBundle={isUploadingSourceBundle}
+                  deployedAddressBlockedReason={deployedAddressBlockedReason}
                   onSubmit={() => handleSubmit()}
                 />
                 {activeAction ? (

@@ -176,6 +176,7 @@ make install-git-hooks
 | [Challenger feed](./docs/CHALLENGER_FEED.md)      | Polling surface for challenger tooling |
 | [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) | Standards mapping                   |
 | [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
+| [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)  | Run with real Agent Forge locally   |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Asciinema demo](./docs/ASCIINEMA_DEMO.md)        | Terminal recording runbook          |
 | [Submission pack](./docs/SUBMISSION_PACK.md)      | Final copy and demo asset inventory |

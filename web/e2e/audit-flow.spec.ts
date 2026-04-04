@@ -344,6 +344,168 @@ test("workbench shows loading copy instead of unavailable placeholders before hy
   await expect(page.getByText("Loading auditor services...")).toHaveCount(0);
 });
 
+test("deployed-address submissions are blocked in the UI when hosted agent-forge is not configured", async ({ page }) => {
+  const runtimeApiBaseUrl = "http://127.0.0.1:65503";
+  let createAuditRequests = 0;
+
+  const auditorService = {
+    service_id: "auditor-local",
+    name: "Proof-of-Audit Auditor",
+    manifest_schema: "proof-of-audit/v1",
+    manifest_hash: "sha256:manifest",
+    registration_kind: "local",
+    registration_type: "service",
+    registration_endpoint: "https://auditor.example.com",
+    registration_uri: "ipfs://auditor-service",
+    capability: "deterministic-audit",
+    discovery_path: "/discover",
+    submit_path: "/audits",
+    execution_mode: "hybrid",
+    execution_endpoint: "https://auditor.example.com/run",
+    publish_path_template: "/audits/{id}/publish",
+    challenge_path_template: "/audits/{id}/challenge",
+    network: "base-sepolia",
+    active: true,
+    supported_trust: ["crypto-economic"],
+    settlement_mode: "native_proof_of_audit",
+    publication_mode: "api_mediated",
+    staking_adapter_kind: "native",
+    publication_scope: "public",
+    validation_request_path_template: "/validation/{id}/request",
+    validation_response_path_template: "/validation/{id}/response",
+    reputation_path_template: "/reputation/{id}",
+    submission_modes: ["deployed_address", "source_bundle"],
+    resolution_modes: ["manual"],
+    deterministic_resolution_supported: false,
+    manual_fallback_supported: true,
+  };
+
+  await page.route("**/api/runtime-config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ apiBaseUrl: runtimeApiBaseUrl }),
+    });
+  });
+
+  await page.route(`${runtimeApiBaseUrl}/**`, async (route) => {
+    const url = new URL(route.request().url());
+
+    if (url.pathname === "/audits" && route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/audits" && route.request().method() === "POST") {
+      createAuditRequests += 1;
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "should not be called" }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/fixtures") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/config") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          network: "base-sepolia",
+          chain_id: 84532,
+          contract_address: "0x0000000000000000000000000000000000000006",
+          explorer_base_url: "https://sepolia.basescan.org",
+          arbiter: "0x0000000000000000000000000000000000000007",
+          auditor: {
+            id: "proof-of-audit-auditor",
+            name: "Proof-of-Audit Auditor",
+            version: "0.1.0",
+            manifest_schema: "proof-of-audit/v1",
+            service_type: "hybrid-auditor",
+            description: "Hybrid smart contract auditor",
+            capabilities: ["audit_contract"],
+            operator: "Proof-of-Audit",
+            resolution_policy: "manual fallback",
+          },
+          auditor_service: auditorService,
+          required_stake_wei: 10_000_000_000_000_000,
+          required_challenge_bond_wei: 5_000_000_000_000_000,
+          challenge_window_seconds: 86_400,
+          deployment_ready: true,
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditor") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(auditorService),
+      });
+      return;
+    }
+
+    if (url.pathname === "/auditors") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [auditorService] }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/diagnostics/runtime") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          worker_runtime_mode: "hybrid",
+          live_analysis_enabled: true,
+          live_analysis_backend: "local_command",
+          hosted_agent_forge_configured: false,
+          hosted_agent_forge_url: null,
+          explorer_api_url_configured: true,
+          explorer_api_key_configured: true,
+          source_bundle_storage_kind: "gcs",
+          hosted_source_storage_compatible: true,
+          allow_deployed_address_deterministic_fallback: false,
+          warnings: ["Hosted agent-forge service URL is not configured; this API instance will rely on local command execution for live analysis."],
+        }),
+      });
+      return;
+    }
+
+    throw new Error(`unexpected runtime API request: ${route.request().url()}`);
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Audit Workbench" })).toBeVisible();
+  await page.getByTestId("submission-mode-deployed_address").click();
+  await page.getByPlaceholder("0x...").fill("0xEbB43aa379270bcBbffDf33656AC37eBD7C00001");
+
+  await expect(
+    page.getByText(
+      "Deployed-address analysis is unavailable on this API instance because the hosted agent-forge service URL is not configured.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("submit-audit")).toBeDisabled();
+  await expect.poll(() => createAuditRequests).toBe(0);
+});
+
 test("connect wallet uses an injected provider and renders the connected account", async ({ page }) => {
   await page.addInitScript(() => {
     const listeners = new Map<string, Set<(...args: unknown[]) => void>>();

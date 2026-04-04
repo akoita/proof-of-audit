@@ -1,7 +1,7 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Proof-of-Audit Auditor",
-  "description": "Smart contract review agent that publishes stake-backed code judgments and faces transparent on-chain challenges.",
+  "description": "Deterministic smart contract review agent that publishes stake-backed code judgments and faces transparent on-chain challenges.",
   "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%230f1f4b'/><path d='M24 24h48v48H24z' fill='none' stroke='%23f28d52' stroke-width='6'/><circle cx='48' cy='48' r='14' fill='%23f6f1e8'/></svg>",
   "services": [
     {
@@ -11,14 +11,19 @@
     {
       "name": "registration",
       "endpoint": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json"
+    },
+    {
+      "name": "api",
+      "endpoint": "http://127.0.0.1:8080/auditor",
+      "version": "v0.1.0"
     }
   ],
   "x402Support": false,
   "active": true,
   "registrations": [
     {
-      "agentId": 1862,
-      "agentRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+      "agentId": 1,
+      "agentRegistry": "0x0165878a594ca255338adfa4d48449f69242eb8f"
     }
   ],
   "supportedTrust": [
@@ -34,7 +39,7 @@
       "review_challenge_evidence"
     ],
     "operator": "Proof-of-Audit",
-    "resolutionPolicy": "manual-review-with-executable-advisory-verifier",
+    "resolutionPolicy": "deterministic-first-with-human-fallback",
     "registrationUri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
     "discoveryPath": "/auditor",
     "submitPath": "/audits",
@@ -53,8 +58,8 @@
       "advisory_verifier",
       "manual_fallback"
     ],
-    "network": "base-sepolia",
-    "chainId": 84532,
-    "settlementContractAddress": "0xf2da3947d028b85e597fe1df4633a87ef4a85f24"
+    "network": "anvil-local",
+    "chainId": 31337,
+    "settlementContractAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
   }
 }
