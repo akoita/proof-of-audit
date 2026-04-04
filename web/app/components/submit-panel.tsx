@@ -26,6 +26,7 @@ type SubmitPanelProps = {
   isPending: boolean;
   activeAction: string | null;
   config: PublicContractConfig | null;
+  deployedAddressBlockedReason: string | null;
   onModeChange: (mode: InputKind) => void;
   onSelectedServiceIdChange: (serviceId: string) => void;
   onContractAddressChange: (v: string) => void;
@@ -73,6 +74,7 @@ export function SubmitPanel({
   isPending,
   activeAction,
   config,
+  deployedAddressBlockedReason,
   onModeChange,
   onSelectedServiceIdChange,
   onContractAddressChange,
@@ -106,6 +108,7 @@ export function SubmitPanel({
       : "No auditor services are currently available.";
   const canSubmit =
     !isPending &&
+    !deployedAddressBlockedReason &&
     selectedServiceSupportsMode &&
     (
       (submissionMode === "demo_fixture" && selectedFixtureId.trim().length > 0) ||
@@ -322,6 +325,11 @@ export function SubmitPanel({
             {submissionMode === "demo_fixture" && selectedFixture ? (
               <p className="muted" style={{ fontSize: "0.78rem" }}>
                 {selectedFixture.label} selected for a reproducible demo.
+              </p>
+            ) : null}
+            {submissionMode === "deployed_address" && deployedAddressBlockedReason ? (
+              <p className="notice-banner" style={{ marginTop: 8 }}>
+                {deployedAddressBlockedReason}
               </p>
             ) : null}
           </>

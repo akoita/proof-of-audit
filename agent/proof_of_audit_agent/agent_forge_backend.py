@@ -604,21 +604,33 @@ class AgentForgeBackend:
             )
         payload = json.loads(report_path.read_text(encoding="utf-8"))
         findings: list[Finding] = []
+        seen_ids: set[str] = set()
         for index, raw_finding in enumerate(payload.get("findings", []), start=1):
             title = str(raw_finding.get("title") or f"Finding {index}")
             detector = str(raw_finding.get("detector") or "agent_forge.llm")
             category = str(raw_finding.get("category") or "other")
+            raw_id = raw_finding.get("finding_id")
+            if raw_id:
+                finding_id = str(raw_id)
+                # Deduplicate even explicit IDs
+                candidate = finding_id
+                counter = 2
+                while candidate in seen_ids:
+                    candidate = f"{finding_id}-{counter}"
+                    counter += 1
+                finding_id = candidate
+                seen_ids.add(finding_id)
+            else:
+                finding_id = self._finding_id(
+                    category=category,
+                    detector=detector,
+                    title=title,
+                    index=index,
+                    seen=seen_ids,
+                )
             findings.append(
                 Finding(
-                    finding_id=str(
-                        raw_finding.get("finding_id")
-                        or self._finding_id(
-                            category=category,
-                            detector=detector,
-                            title=title,
-                            index=index,
-                        )
-                    ),
+                    finding_id=finding_id,
                     title=title,
                     severity=str(raw_finding.get("severity") or "medium"),
                     category=category,
@@ -729,10 +741,27 @@ class AgentForgeBackend:
             "If no finding is confirmed, write an empty findings array and explain the result in summary."
         )
 
-    def _finding_id(self, *, category: str, detector: str, title: str, index: int) -> str:
+    def _finding_id(
+        self,
+        *,
+        category: str,
+        detector: str,
+        title: str,
+        index: int,
+        seen: set[str] | None = None,
+    ) -> str:
         normalized_title = "-".join(title.lower().split()) or f"finding-{index}"
         normalized_detector = detector.replace(".", "-").replace("_", "-")
-        return f"agent-forge-live.{category}.{normalized_detector}.{normalized_title}"
+        base_id = f"agent-forge-live.{category}.{normalized_detector}.{normalized_title}"
+        if seen is None:
+            return base_id
+        candidate = base_id
+        counter = 2
+        while candidate in seen:
+            candidate = f"{base_id}-{counter}"
+            counter += 1
+        seen.add(candidate)
+        return candidate
 
     def _synthetic_contract_address(self, source_identifier: str, entry_contract: str | None) -> str:
         digest = sha256(f"{source_identifier}:{entry_contract or ''}".encode("utf-8")).hexdigest()
