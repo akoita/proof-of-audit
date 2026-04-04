@@ -26,6 +26,10 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--provider")
     run_parser.add_argument("--model")
     run_parser.add_argument("--max-iterations", type=int)
+    run_parser.add_argument(
+        "--detectors",
+        help="Comma-separated detector families to run (e.g. reentrancy,access_control). Default: all.",
+    )
     return parser
 
 
@@ -60,7 +64,14 @@ def run() -> int:
         if not repo_path.is_dir():
             raise ValueError(f"repository path is not a directory: {repo_path}")
 
-        report = analyze_repository(repo_path)
+        detectors_raw = getattr(args, "detectors", None)
+        detectors = (
+            frozenset(d.strip() for d in detectors_raw.split(",") if d.strip())
+            if detectors_raw
+            else None
+        )
+
+        report = analyze_repository(repo_path, detectors=detectors)
         report_path = repo_path / REPORT_FILE
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

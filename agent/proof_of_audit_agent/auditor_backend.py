@@ -40,6 +40,7 @@ class AuditExecution:
     profile_id: str | None = None
     provider: str | None = None
     model: str | None = None
+    detectors: list[str] | None = None
     error: str | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -64,6 +65,7 @@ class AuditExecution:
             "profile_id": self.profile_id,
             "provider": self.provider,
             "model": self.model,
+            "detectors": self.detectors,
             "error": self.error,
         }
         for key, value in optional_values.items():

@@ -58,6 +58,8 @@ class AgentForgeRuntimeConfig:
     explorer_api_url: str | None = DEFAULT_EXPLORER_API_URL
     explorer_api_key: str | None = None
     enabled_input_kinds: tuple[str, ...] = DEFAULT_SUPPORTED_INPUT_KINDS
+    detectors: tuple[str, ...] | None = None
+    audit_profile: str | None = None
 
     @property
     def runs_dir(self) -> Path | None:
@@ -264,6 +266,8 @@ class AgentForgeBackend:
                 run_dir=str(run_dir) if run_dir is not None else None,
                 provider=self.runtime.provider,
                 model=self.runtime.model,
+                profile_id=self.runtime.audit_profile,
+                detectors=list(self.runtime.detectors) if self.runtime.detectors else None,
             )
             return AuditExecutionResult(report=report, execution=execution)
         except Exception as exc:
@@ -577,6 +581,8 @@ class AgentForgeBackend:
             invocation.extend(["--model", self.runtime.model])
         if self.runtime.max_iterations is not None:
             invocation.extend(["--max-iterations", str(self.runtime.max_iterations)])
+        if self.runtime.detectors:
+            invocation.extend(["--detectors", ",".join(self.runtime.detectors)])
         completed = subprocess.run(
             invocation,
             cwd=workspace_dir,
@@ -731,8 +737,20 @@ class AgentForgeBackend:
         entry_clause = (
             f"Focus first on the contract named {entry_contract}. " if entry_contract else ""
         )
+        detectors = self.runtime.detectors
+        if detectors and tuple(detectors) != ("*",):
+            families = ", ".join(d.replace("_", " ") for d in detectors)
+            scope_clause = f"Focus ONLY on these vulnerability families: {families}. Ignore any other issue classes. "
+        else:
+            scope_clause = "Check for three issue classes: reentrancy, access control, and unchecked external calls. "
+        profile_clause = (
+            f"You are running as audit profile '{self.runtime.audit_profile}'. "
+            if self.runtime.audit_profile
+            else ""
+        )
         return (
-            "Audit this smart contract repository for three issue classes: reentrancy, access control, and unchecked external calls. "
+            f"{profile_clause}"
+            f"Audit this smart contract repository. {scope_clause}"
             f"{entry_clause}"
             f"Do not modify the source code except for writing a JSON report to {REPORT_FILE}. "
             "Write valid JSON with the fields summary, confidence, optional benchmark_id, and findings. "

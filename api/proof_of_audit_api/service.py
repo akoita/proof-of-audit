@@ -157,6 +157,8 @@ class AuditService:
                 allow_deployed_address_deterministic_fallback=_network_is_local(
                     self.contract_config.network
                 ),
+                detectors=self.contract_config.worker_detectors,
+                audit_profile=self.contract_config.worker_audit_profile,
             ),
             workspace_root=data_root,
         )
