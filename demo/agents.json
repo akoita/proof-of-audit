@@ -1,0 +1,131 @@
+{
+  "$schema": "./agents.schema.json",
+  "schema_version": "agent-personas/v1",
+  "description": "Multi-agent demo personas for Proof-of-Audit. Each persona represents an independent auditor agent with distinct specialization, runtime mode, and on-chain identity.",
+  "agents": [
+    {
+      "service_id": "agent-reentrancy-hawk",
+      "name": "Reentrancy Hawk",
+      "description": "Specialist agent focused exclusively on reentrancy vulnerability detection using static pattern matching.",
+      "profile": "reentrancy-specialist",
+      "runtime_mode": "hybrid",
+      "llm_provider": null,
+      "capabilities": [
+        "audit_contract"
+      ],
+      "detectors": [
+        "reentrancy"
+      ],
+      "finding_id_prefix": "reentrancy-hawk",
+      "challenge_strategy": "silent-monitor",
+      "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%231a1a2e'/><text x='48' y='60' text-anchor='middle' font-size='48'>🦅</text></svg>",
+      "env_keys": {},
+      "identity": {
+        "agent_id": 1,
+        "operator": "Proof-of-Audit",
+        "anvil_account_index": 1
+      }
+    },
+    {
+      "service_id": "agent-access-sentinel",
+      "name": "Access Control Sentinel",
+      "description": "Specialist agent focused on access control, ownership, and authorization vulnerability detection.",
+      "profile": "access-control-specialist",
+      "runtime_mode": "hybrid",
+      "llm_provider": null,
+      "capabilities": [
+        "audit_contract"
+      ],
+      "detectors": [
+        "access_control"
+      ],
+      "finding_id_prefix": "access-sentinel",
+      "challenge_strategy": "flag-for-review",
+      "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%230d1b2a'/><text x='48' y='60' text-anchor='middle' font-size='48'>🛡️</text></svg>",
+      "env_keys": {},
+      "identity": {
+        "agent_id": 2,
+        "operator": "Proof-of-Audit",
+        "anvil_account_index": 2
+      }
+    },
+    {
+      "service_id": "agent-full-spectrum",
+      "name": "Full Spectrum Auditor",
+      "description": "Broad-coverage agent that runs all static detector families and can review challenge evidence.",
+      "profile": "full-spectrum-auditor",
+      "runtime_mode": "hybrid",
+      "llm_provider": null,
+      "capabilities": [
+        "audit_contract",
+        "review_challenge_evidence"
+      ],
+      "detectors": [
+        "reentrancy",
+        "access_control",
+        "unchecked_external_call"
+      ],
+      "finding_id_prefix": "full-spectrum",
+      "challenge_strategy": "auto-challenge",
+      "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%23162447'/><text x='48' y='60' text-anchor='middle' font-size='48'>🔬</text></svg>",
+      "env_keys": {},
+      "identity": {
+        "agent_id": 3,
+        "operator": "Proof-of-Audit",
+        "anvil_account_index": 3
+      }
+    },
+    {
+      "service_id": "agent-gemini-deep",
+      "name": "Gemini Deep Analysis",
+      "description": "LLM-backed agent using Google Gemini for deep ReAct-loop analysis. Discovers complex multi-step vulnerabilities beyond static patterns.",
+      "profile": "llm-deep-auditor",
+      "runtime_mode": "agent_forge",
+      "llm_provider": "gemini",
+      "capabilities": [
+        "audit_contract",
+        "publish_staked_attestation"
+      ],
+      "detectors": [
+        "*"
+      ],
+      "finding_id_prefix": "gemini-deep",
+      "challenge_strategy": "auto-challenge",
+      "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%231b2838'/><text x='48' y='60' text-anchor='middle' font-size='48'>♊</text></svg>",
+      "env_keys": {
+        "GEMINI_API_KEY": "Required. Google Gemini API key for LLM-driven analysis."
+      },
+      "identity": {
+        "agent_id": 4,
+        "operator": "Proof-of-Audit",
+        "anvil_account_index": 4
+      }
+    },
+    {
+      "service_id": "agent-openai-deep",
+      "name": "OpenAI Deep Analysis",
+      "description": "LLM-backed agent using OpenAI GPT for deep ReAct-loop analysis. Provides an alternative LLM perspective on smart contract vulnerabilities.",
+      "profile": "llm-deep-auditor",
+      "runtime_mode": "agent_forge",
+      "llm_provider": "openai",
+      "capabilities": [
+        "audit_contract",
+        "publish_staked_attestation"
+      ],
+      "detectors": [
+        "*"
+      ],
+      "finding_id_prefix": "openai-deep",
+      "challenge_strategy": "auto-challenge",
+      "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='18' fill='%23202030'/><text x='48' y='60' text-anchor='middle' font-size='48'>🤖</text></svg>",
+      "env_keys": {
+        "OPENAI_API_KEY": "Required. OpenAI API key for LLM-driven analysis."
+      },
+      "identity": {
+        "agent_id": 5,
+        "operator": "Proof-of-Audit",
+        "anvil_account_index": 5
+      }
+    }
+  ]
+}

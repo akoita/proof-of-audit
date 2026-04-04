@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/akoita/proof-of-audit/demo/agents.schema.json",
+  "title": "Agent Personas Manifest",
+  "description": "Schema for the multi-agent demo personas file (demo/agents.json).",
+  "type": "object",
+  "required": ["schema_version", "agents"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "agent-personas/v1"
+    },
+    "description": {
+      "type": "string"
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/AgentPersona"
+      }
+    }
+  },
+  "$defs": {
+    "AgentPersona": {
+      "type": "object",
+      "required": [
+        "service_id",
+        "name",
+        "description",
+        "profile",
+        "runtime_mode",
+        "capabilities",
+        "detectors",
+        "finding_id_prefix",
+        "challenge_strategy",
+        "image",
+        "env_keys",
+        "identity"
+      ],
+      "properties": {
+        "service_id": {
+          "type": "string",
+          "pattern": "^agent-[a-z0-9-]+$",
+          "description": "Unique kebab-case identifier for this agent service."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable display name for the agent."
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the agent's specialization."
+        },
+        "profile": {
+          "type": "string",
+          "enum": [
+            "reentrancy-specialist",
+            "access-control-specialist",
+            "full-spectrum-auditor",
+            "llm-deep-auditor"
+          ],
+          "description": "Audit profile that scopes which detectors this agent runs."
+        },
+        "runtime_mode": {
+          "type": "string",
+          "enum": ["deterministic", "hybrid", "agent_forge"],
+          "description": "Worker runtime mode: deterministic (benchmarks), hybrid (live+fallback), agent_forge (LLM-only)."
+        },
+        "llm_provider": {
+          "type": ["string", "null"],
+          "enum": ["gemini", "openai", null],
+          "description": "LLM provider for agent_forge mode. Null for static-only agents."
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "audit_contract",
+              "publish_staked_attestation",
+              "review_challenge_evidence"
+            ]
+          },
+          "description": "ERC-8004 capability declarations."
+        },
+        "detectors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Detector families this agent runs. Use [\"*\"] for all detectors."
+        },
+        "finding_id_prefix": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique prefix for finding IDs to prevent collisions across agents."
+        },
+        "challenge_strategy": {
+          "type": "string",
+          "enum": ["auto-challenge", "flag-for-review", "silent-monitor"],
+          "description": "How this agent reacts to other agents' published claims."
+        },
+        "image": {
+          "type": "string",
+          "description": "SVG data URI for the agent's avatar."
+        },
+        "env_keys": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Required environment variables (key: description). Empty for static-only agents."
+        },
+        "identity": {
+          "$ref": "#/$defs/AgentIdentity"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AgentIdentity": {
+      "type": "object",
+      "required": ["agent_id", "operator", "anvil_account_index"],
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "On-chain agent identity ID in the AgentIdentityRegistry."
+        },
+        "operator": {
+          "type": "string",
+          "description": "Operator label for this agent."
+        },
+        "anvil_account_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9,
+          "description": "Index into Anvil's prefunded accounts (0-9). Account 0 is typically the deployer."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
