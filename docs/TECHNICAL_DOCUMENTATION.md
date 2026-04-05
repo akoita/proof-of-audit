@@ -48,14 +48,17 @@ flowchart LR
     User["User / auditor / challenger"] --> Web["Next.js workbench"]
     User --> API["FastAPI API"]
     Web --> API
-    API --> Worker["Auditor worker"]
+    API --> Worker["Auditor worker (multi-agent)"]
     API --> Verifier["Challenge verifier"]
     API --> Store["Audit store"]
     API --> Contract["ProofOfAudit contract"]
     API --> Validation["Validation bridge"]
     API --> Reputation["Reputation bridge"]
     API --> Feed["Challenger feed"]
+    Feed --> Watcher["Cross-agent claim watcher"]
+    Watcher --> API
     Worker --> Evidence["Execution backends"]
+    Catalog["agents.json → auditor-catalog.json"] --> Worker
     Contract --> Chain["Anvil or Base Sepolia"]
     Validation --> Chain
     Reputation --> Chain
@@ -298,12 +301,39 @@ The auditor worker is intentionally opinionated:
 - deterministic fixtures are first-class
 - live repository/source-bundle execution can run through Agent Forge when enabled
 - safe deterministic fallback remains available
+- **multi-agent runtime overrides**: when a submission targets a specific `service_id`, the worker scopes its detectors and profile based on the agent's persona from `auditor-catalog.json`
 
 The runtime modes are:
 
 - `deterministic`
 - `hybrid`
 - `agent_forge`
+
+### Multi-Agent Personas
+
+The platform supports 5 agent personas defined in `demo/agents.json`, each with distinct specialization and challenge strategy:
+
+| Persona | Profile | Detectors | LLM | Strategy |
+|---|---|---|---|---|
+| Reentrancy Hawk | reentrancy-specialist | `reentrancy` | — | silent-monitor |
+| Access Control Sentinel | access-control-specialist | `access_control` | — | flag-for-review |
+| Full Spectrum Auditor | full-spectrum-auditor | all families | — | auto-challenge |
+| Gemini Deep Analysis | llm-deep-auditor | `*` | Gemini | auto-challenge |
+| OpenAI Deep Analysis | llm-deep-auditor | `*` | OpenAI | auto-challenge |
+
+See [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md) for full details.
+
+### Cross-Agent Claim Watcher
+
+The claim watcher (`agent/proof_of_audit_agent/claim_watcher.py`) enables autonomous cross-agent dispute resolution:
+
+1. Polls `GET /challenger-feed` for `audit_published` events
+2. Filters events by `service_id` (ignores own claims)
+3. Re-analyzes the same contract using the watcher agent's detector profile
+4. Compares findings and detects divergences (missed vulnerabilities)
+5. Reacts based on `challenge_strategy`: auto-challenge, flag-for-review, or silent-monitor
+
+See [docs/CHALLENGER_FEED.md](CHALLENGER_FEED.md) for feed details and watcher CLI usage.
 
 ### Pluggable Auditors
 
@@ -589,7 +619,8 @@ The topics from the previously scattered docs are covered here as follows:
 | `DEMO_NARRATIVE.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
 | `ASCIINEMA_DEMO.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
 | `RELEASE_NOTES_DRAFT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `CHALLENGER_FEED.md` | [Challenge Feed](#challenge-feed) |
+| `CHALLENGER_FEED.md` | [Challenge Feed](#challenge-feed), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
+| `MULTI_AGENT_DEMO.md` | [Multi-Agent Personas](#multi-agent-personas), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
 
 ### Focused References
 
@@ -598,6 +629,7 @@ you need implementation detail or presentation material:
 
 - [Architecture](./ARCHITECTURE.md)
 - [Agent API](./AGENT_API.md)
+- [Multi-agent demo](./MULTI_AGENT_DEMO.md)
 - [Marketplace settlement accounting](./MARKETPLACE_SETTLEMENT_ACCOUNTING.md)
 - [Deployment](./DEPLOYMENT.md)
 - [Executable evidence bundle](./EXECUTABLE_EVIDENCE_BUNDLE.md)

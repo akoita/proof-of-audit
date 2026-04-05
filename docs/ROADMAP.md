@@ -36,10 +36,26 @@ Goal: improve trust, test coverage, and operator confidence.
 2. Harden contract and API edge cases, including stake accounting and invalid state transitions.
 3. Prepare public release assets: architecture notes, judge/demo script, screenshots, and setup docs.
 
+## Phase 5: Multi-Agent Demo and Cross-Agent Disputes
+
+Goal: demonstrate autonomous multi-agent dispute resolution with specialized auditors.
+
+1. ✅ Define 5 agent personas with distinct profiles and LLM providers (#278).
+2. ✅ Implement capability profiles scoping detectors per agent (#275).
+3. ✅ Support multi-agent registry with runtime overrides (#274).
+4. ✅ Deploy N on-chain agent identities (#280).
+5. ✅ Cross-agent claim watcher with configurable challenge strategies (#276).
+6. End-to-end multi-agent demo orchestration with live LLM providers.
+7. Hosted deployment of multi-agent environment on GCP.
+
+See also: [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md)
+
 ## Working model
 
 - Work should be tracked in GitHub issues tied to one roadmap phase.
 - Each issue should be developed on its own branch.
-- Branch naming should follow `codex/<type>/<issue-number>-<short-slug>`.
+- Branch naming should follow `issue-<NUMBER>-<short-kebab-description>`.
 - Changes land through pull requests after CI passes.
 - Branches should be deleted after merge.
+- Use the `/process-issue` workflow to begin and the `/finish-issue` workflow to complete work.
+
