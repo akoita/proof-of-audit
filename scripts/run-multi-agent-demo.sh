@@ -261,6 +261,7 @@ fi
 
 # ────── Step 6: Start the API ──────
 step "6/9  Starting API server..."
+CATALOG_FILE="${ROOT_DIR}/deployments/auditor-catalog.json"
 (
   set -a
   [[ -f "${API_ENV_FILE}" ]] && source "${API_ENV_FILE}"
@@ -268,6 +269,7 @@ step "6/9  Starting API server..."
   PROOF_OF_AUDIT_HOST="${API_HOST}" \
   PROOF_OF_AUDIT_PORT="${API_PORT}" \
   PROOF_OF_AUDIT_DATA_ROOT="${DATA_ROOT}" \
+  PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE="${CATALOG_FILE}" \
   PYTHONPATH=agent:api \
   "${PYTHON_BIN}" -m proof_of_audit_api.app
 ) >"${LOG_DIR}/api.log" 2>&1 &

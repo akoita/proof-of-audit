@@ -109,12 +109,43 @@ class AuditWorker:
         from proof_of_audit_agent.agent_forge_backend import AgentForgeRuntimeConfig as _Cfg
         return _Cfg(**update)
 
+    def _apply_detector_scope(
+        self, result: AuditExecutionResult
+    ) -> AuditExecutionResult:
+        """Filter findings by the active detector scope.
+
+        When runtime overrides scoped the agent to a subset of detectors
+        (e.g. ``["reentrancy"]`` for reentrancy-hawk), strip findings
+        whose category doesn't match — producing realistic divergence
+        in multi-agent comparisons.
+        """
+        detectors = self.agent_forge.runtime.detectors
+        if not detectors or "*" in detectors:
+            return result
+        allowed = set(detectors)
+        report = result.report
+        scoped_findings = [
+            f for f in report.findings if f.category in allowed
+        ]
+        if len(scoped_findings) == len(report.findings):
+            return result
+        from proof_of_audit_agent.models import AuditReport
+        scoped_report = AuditReport(
+            benchmark_id=report.benchmark_id,
+            contract_address=report.contract_address,
+            summary=report.summary,
+            findings=scoped_findings,
+            supported_checks=report.supported_checks,
+            confidence=report.confidence,
+        )
+        return AuditExecutionResult(report=scoped_report)
+
     def _execute_submission(self, submission: AuditSubmission) -> AuditExecutionResult:
 
         if submission.input_kind == "demo_fixture":
             result = self.deterministic_backend.run_submission(submission)
             assert result is not None
-            return result
+            return self._apply_detector_scope(result)
 
         if submission.input_kind == "deployed_address":
             live_attempted = submission.audit_id is not None and self.runtime.mode in {

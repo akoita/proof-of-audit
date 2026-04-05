@@ -234,11 +234,12 @@ def print_summary(state: DemoState) -> None:
                 status = f"{C.RED}ERROR{C.NC}"
                 row = f"{r.name:<30} {r.profile:<25} {r.fixture_id:<20} {'—':>8} {'—':<12} {status:<10}"
             else:
-                sev_color = SEVERITY_COLORS.get(r.max_severity.lower(), C.NC)
+                sev_str = str(r.max_severity) if r.max_severity else "none"
+                sev_color = SEVERITY_COLORS.get(sev_str.lower(), C.NC)
                 pub_icon = f"{C.GREEN}✓{C.NC}" if r.published else f"{C.DIM}—{C.NC}"
                 row = (
                     f"{r.name:<30} {r.profile:<25} {r.fixture_id:<20} "
-                    f"{r.finding_count:>8} {sev_color}{r.max_severity:<12}{C.NC} {pub_icon:<10}"
+                    f"{r.finding_count:>8} {sev_color}{sev_str:<12}{C.NC} {pub_icon:<10}"
                 )
             print(row)
 
@@ -301,7 +302,7 @@ def run_summary_only(api_base: str, agents: list[dict]) -> int:
             audit_id=audit.get("id", ""),
             status=audit.get("state", ""),
             finding_count=report.get("finding_count", 0),
-            max_severity=report.get("max_severity", "none"),
+            max_severity=str(report.get("max_severity", "none")),
             summary=report.get("summary", ""),
             published=bool(onchain.get("publish_tx_hash")),
             publish_tx=onchain.get("publish_tx_hash", ""),
@@ -339,37 +340,39 @@ def run_lifecycle(
     # ── Phase 1: Submit audits ──
     banner("Phase 1: Submit Audits")
 
-    # Assign a primary fixture to each agent, cycling through available fixtures.
-    for i, agent in enumerate(agents):
+    # Submit every agent against every fixture — produces cross-agent divergence
+    # when specialized detectors (reentrancy-only, access-control-only) scope
+    # findings differently on the same contract.
+    for agent in agents:
         service_id = agent["service_id"]
         name = agent["name"]
         profile = agent.get("profile", "unknown")
-        fixture_id = fixtures[i % len(fixtures)]
 
-        step(f"Submitting audit: {name} → {fixture_id}")
+        for fixture_id in fixtures:
+            step(f"Submitting audit: {name} → {fixture_id}")
 
-        result = AgentResult(
-            service_id=service_id,
-            name=name,
-            profile=profile,
-            fixture_id=fixture_id,
-        )
+            result = AgentResult(
+                service_id=service_id,
+                name=name,
+                profile=profile,
+                fixture_id=fixture_id,
+            )
 
-        resp = submit_audit(api_base, service_id=service_id, fixture_id=fixture_id)
-        if resp and resp.get("id"):
-            result.audit_id = resp["id"]
-            report = resp.get("report", {})
-            result.status = resp.get("state", "draft")
-            result.finding_count = report.get("finding_count", 0)
-            result.max_severity = report.get("max_severity", "none")
-            result.summary = report.get("summary", "")
-            ok(f"Audit {result.audit_id[:12]}… → {result.finding_count} findings, {result.max_severity}")
-        else:
-            result.error = "submission failed"
-            fail(f"Submission failed for {name}")
+            resp = submit_audit(api_base, service_id=service_id, fixture_id=fixture_id)
+            if resp and resp.get("id"):
+                result.audit_id = resp["id"]
+                report = resp.get("report", {})
+                result.status = resp.get("state", "draft")
+                result.finding_count = report.get("finding_count", 0)
+                result.max_severity = str(report.get("max_severity", "none"))
+                result.summary = report.get("summary", "")
+                ok(f"Audit {result.audit_id[:12]}… → {result.finding_count} findings, {result.max_severity}")
+            else:
+                result.error = "submission failed"
+                fail(f"Submission failed for {name}")
 
-        state.results.append(result)
-        time.sleep(0.3)
+            state.results.append(result)
+            time.sleep(0.1)
 
     # ── Phase 2: Publish claims ──
     banner("Phase 2: Publish Claims")
