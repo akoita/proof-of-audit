@@ -23,6 +23,7 @@ playwright-report/
 test-results/
 deployments/localhost.json
 deployments/demo-fixtures.localhost.json
+deployments/multi-agent-identities.*.json
 api/data/*
 !api/data/.gitkeep
 .tmp/security-audit/
