@@ -63,6 +63,7 @@ class AuditWorker:
         source_bundle_uri: str | None = None,
         source_bundle_label: str | None = None,
         repository_url: str | None = None,
+        runtime_overrides: dict[str, object] | None = None,
     ) -> AuditExecutionResult:
         submission = AuditSubmission(
             audit_id=audit_id,
@@ -76,6 +77,39 @@ class AuditWorker:
             source_bundle_label=source_bundle_label,
             repository_url=repository_url,
         )
+
+        # Apply per-agent runtime overrides (detectors, profile) if provided.
+        original_runtime = self.agent_forge.runtime
+        if runtime_overrides:
+            self.agent_forge = AgentForgeBackend(
+                self._apply_runtime_overrides(original_runtime, runtime_overrides),
+                self.workspace_root,
+            )
+        try:
+            return self._execute_submission(submission)
+        finally:
+            if runtime_overrides:
+                self.agent_forge = AgentForgeBackend(original_runtime, self.workspace_root)
+
+    def _apply_runtime_overrides(
+        self,
+        base_config: "AgentForgeRuntimeConfig",
+        overrides: dict[str, object],
+    ) -> "AgentForgeRuntimeConfig":
+        """Create a new AgentForgeRuntimeConfig with per-agent overrides applied."""
+        from dataclasses import fields as dc_fields
+        update: dict[str, object] = {}
+        for field in dc_fields(base_config):
+            update[field.name] = getattr(base_config, field.name)
+        if "detectors" in overrides and overrides["detectors"] is not None:
+            raw = overrides["detectors"]
+            update["detectors"] = tuple(str(d) for d in raw) if isinstance(raw, (list, tuple)) else base_config.detectors
+        if "audit_profile" in overrides and overrides["audit_profile"] is not None:
+            update["audit_profile"] = str(overrides["audit_profile"])
+        from proof_of_audit_agent.agent_forge_backend import AgentForgeRuntimeConfig as _Cfg
+        return _Cfg(**update)
+
+    def _execute_submission(self, submission: AuditSubmission) -> AuditExecutionResult:
 
         if submission.input_kind == "demo_fixture":
             result = self.deterministic_backend.run_submission(submission)

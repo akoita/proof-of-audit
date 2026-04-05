@@ -225,9 +225,13 @@ class AuditService:
         auditor_profile = self._auditor_profile_payload_for_service(
             auditor_service.service_id
         )
+        runtime_overrides = self._resolve_service_runtime_overrides(
+            auditor_service.service_id
+        )
         audit_id = str(uuid4())
         execution_result = self.worker.run_submission(
             audit_id=audit_id,
+            runtime_overrides=runtime_overrides,
             **self._worker_submission_payload(normalized_submission),
         )
         self._validate_live_deployed_address_execution(
@@ -3609,6 +3613,40 @@ class AuditService:
                 f"auditor service {selected_service_id} uses unsupported execution mode {service.execution_mode}"
             )
         return service
+
+    def _resolve_service_runtime_overrides(
+        self, service_id: str
+    ) -> dict[str, object] | None:
+        """Resolve per-agent runtime overrides (detectors, profile) from the catalog.
+
+        When the selected ``service_id`` matches a catalog entry that carries
+        ``detectors`` or ``profile_id`` metadata, those values are returned as
+        worker runtime overrides so the shared worker instance can scope its
+        analysis to the agent's specialization.
+
+        Returns ``None`` if no overrides are needed (primary service or no
+        catalog metadata).
+        """
+        if service_id == self.contract_config.auditor_service.service_id:
+            return None
+
+        for entry in self.contract_config.auditor_directory_entries:
+            if entry.service.service_id != service_id:
+                continue
+            registration = entry.registration_document
+            if not isinstance(registration, dict):
+                return None
+            detectors = registration.get("detectors")
+            profile_id = registration.get("profile")
+            if not detectors and not profile_id:
+                return None
+            overrides: dict[str, object] = {}
+            if isinstance(detectors, list) and detectors:
+                overrides["detectors"] = [str(d) for d in detectors]
+            if isinstance(profile_id, str) and profile_id.strip():
+                overrides["audit_profile"] = profile_id.strip()
+            return overrides if overrides else None
+        return None
 
     def _auditor_profile_payload_for_service(self, service_id: str) -> dict[str, object]:
         profile = self.contract_config.auditor_profile_by_service_id(service_id)
