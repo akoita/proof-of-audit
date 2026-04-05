@@ -215,12 +215,32 @@ class TestCatalogGeneration:
 
 
 class TestWorkerRuntimeOverrides:
-    def test_run_submission_without_overrides(self):
-        """Single-agent backward compat: no overrides = same behavior."""
+    @staticmethod
+    def _worker_with_fixture():
+        """Create an AuditWorker with a minimal test fixture injected."""
         from proof_of_audit_agent.worker import AuditWorker
+        from proof_of_audit_agent.fixtures import DemoFixture
 
         worker = AuditWorker()
-        # run_submission should accept runtime_overrides=None gracefully
+        # Inject a test fixture so the deterministic backend can resolve it
+        # even without deployments/demo-fixtures.localhost.json present.
+        test_fixture = DemoFixture(
+            fixture_id="vulnerable-bank",
+            label="Vulnerable Bank",
+            contract_name="VulnerableBank",
+            entry_contract="VulnerableBank",
+            benchmark_id="reentrancy-bank",
+            address="0x0000000000000000000000000000000000001111",
+            challenge_proof_uri="ipfs://test",
+            note="test fixture",
+            source_path="demo/contracts/VulnerableBank.sol",
+        )
+        worker.deterministic_backend._fixtures_by_id["vulnerable-bank"] = test_fixture
+        return worker
+
+    def test_run_submission_without_overrides(self):
+        """Single-agent backward compat: no overrides = same behavior."""
+        worker = self._worker_with_fixture()
         result = worker.run_submission(
             input_kind="demo_fixture",
             fixture_id="vulnerable-bank",
@@ -231,9 +251,7 @@ class TestWorkerRuntimeOverrides:
 
     def test_run_submission_with_detector_overrides(self):
         """Per-agent overrides should be applied and restored."""
-        from proof_of_audit_agent.worker import AuditWorker
-
-        worker = AuditWorker()
+        worker = self._worker_with_fixture()
         original_detectors = worker.agent_forge.runtime.detectors
 
         overrides = {"detectors": ["reentrancy"], "audit_profile": "hawk-profile"}
