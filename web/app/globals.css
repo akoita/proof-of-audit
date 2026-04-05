@@ -2002,6 +2002,473 @@ body::after {
 }
 .docs-footer a:hover { text-decoration: underline; }
 
+/* ═══════════════════════════════════════════════════════════
+   Multi-Agent Dashboard
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Contract selector strip ── */
+.ma-contract-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.ma-contract-strip-label {
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.ma-contract-strip-items {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ma-contract-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ma-contract-chip:hover {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+.ma-contract-chip[data-active="true"] {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-color: var(--primary);
+}
+.ma-contract-chip-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ── Controls bar ── */
+.ma-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.ma-agent-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ma-filter-label {
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+.ma-filter-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ma-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ma-filter-chip:hover {
+  background: var(--surface-container-high);
+}
+.ma-filter-chip[data-active="true"] {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  border-color: var(--primary);
+}
+.ma-filter-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ma-filter-reset {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ── Agreement summary badges ── */
+.ma-agreement-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ma-agreement-badge {
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.ma-badge-agreed {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--secondary);
+}
+.ma-badge-divergent,
+.ma-badge-partial {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--tertiary);
+}
+.ma-badge-unique {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--error);
+}
+.ma-badge-total {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+/* ── Lane grid ── */
+.ma-lane-grid {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.ma-lane {
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.ma-lane:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.08);
+}
+
+/* ── Lane header ── */
+.ma-lane-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ma-lane-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary-container), var(--secondary-container));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: white;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+}
+.ma-lane-identity {
+  min-width: 0;
+}
+.ma-lane-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ma-lane-service {
+  font-size: 0.6rem;
+  color: var(--on-surface-variant);
+  font-family: "Roboto Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Lane reputation mini ring ── */
+.ma-lane-reputation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ma-mini-ring {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+.ma-mini-ring svg { width: 100%; height: 100%; }
+.ma-mini-ring .ring-bg {
+  fill: none;
+  stroke: var(--surface-container-high);
+  stroke-width: 4;
+}
+.ma-mini-ring .ring-fill {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
+}
+.ma-mini-ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+.ma-reputation-band {
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+/* ── Lane stats ── */
+.ma-lane-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+.ma-stat {
+  background: var(--surface-container-low);
+  border-radius: 10px;
+  padding: 8px 6px;
+}
+.ma-stat-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: block;
+}
+.ma-stat-label {
+  font-size: 0.5rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+/* ── Lane findings ── */
+.ma-lane-findings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ma-finding-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container-low);
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--on-surface);
+}
+.ma-finding-row:hover {
+  background: var(--surface-container-high);
+  border-color: var(--primary);
+}
+.ma-finding-row[data-agreement="agreed"] {
+  border-left: 3px solid var(--secondary);
+}
+.ma-finding-row[data-agreement="unique"] {
+  border-left: 3px solid var(--error);
+}
+.ma-finding-row[data-agreement="partial"] {
+  border-left: 3px solid var(--tertiary);
+}
+
+.ma-finding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.ma-finding-severity {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ma-finding-agree-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.55rem;
+  font-weight: 600;
+}
+.ma-finding-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ma-finding-func {
+  font-size: 0.6rem;
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+}
+.ma-finding-empty {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+}
+
+/* ── Lane challenge indicator ── */
+.ma-lane-challenge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--error);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.ma-challenge-icon {
+  font-size: 1rem;
+}
+
+/* ── Lane on-chain info ── */
+.ma-lane-onchain {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-container-low);
+}
+.ma-onchain-label {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+.ma-onchain-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: "Roboto Mono", monospace;
+  color: var(--secondary);
+}
+
+/* ── Lane action button ── */
+.ma-lane-action {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.ma-lane-action:hover {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-color: var(--primary);
+}
+
+/* ── Agreement breakdown table ── */
+.ma-agreement-breakdown {
+  margin-top: 8px;
+}
+.ma-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ma-agreement-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--outline-variant);
+}
+.ma-agreement-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ma-agreement-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high);
+  border-bottom: 1px solid var(--outline-variant);
+  white-space: nowrap;
+}
+.ma-agreement-table td {
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--outline-variant);
+}
+.ma-agreement-table tr:last-child td { border-bottom: none; }
+.ma-agreement-table tr[data-agreement="agreed"] {
+  background: rgba(52, 211, 153, 0.04);
+}
+.ma-agreement-table tr[data-agreement="divergent"] {
+  background: rgba(251, 191, 36, 0.04);
+}
+.ma-table-finding {
+  font-weight: 600;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ma-table-check {
+  text-align: center;
+}
+.ma-check-yes {
+  color: var(--secondary);
+  font-weight: 700;
+}
+.ma-check-no {
+  color: var(--on-surface-variant);
+  opacity: 0.4;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1200px) {
+  .ma-lane-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+@media (max-width: 768px) {
+  .ma-lane-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .ma-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 /* ── Responsive ─── */
 @media (max-width: 768px) {
   .navbar-search { display: none; }

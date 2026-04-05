@@ -47,6 +47,7 @@ Goal: demonstrate autonomous multi-agent dispute resolution with specialized aud
 5. ✅ Cross-agent claim watcher with configurable challenge strategies (#276).
 6. ✅ End-to-end multi-agent demo orchestration script (#277).
 7. Hosted deployment of multi-agent environment on GCP.
+8. ✅ Multi-agent web dashboard with side-by-side claim comparison (#279).
 
 See also: [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md)
 

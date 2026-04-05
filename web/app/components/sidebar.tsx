@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: "marketplace", label: "Marketplace", icon: "🏪" },
   { id: "published",  label: "Published",  icon: "✓" },
   { id: "disputed",   label: "Disputed",   icon: "⚖" },
+  { id: "agents",     label: "Agents",     icon: "🤖" },
   { id: "reputation", label: "Reputation", icon: "🛡" },
   { id: "archive",    label: "Archive",    icon: "📦" },
 ] as const;
