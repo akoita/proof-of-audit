@@ -42,6 +42,7 @@ import { DisputedView } from "./components/views/disputed-view";
 import { ArchiveView } from "./components/views/archive-view";
 import { DocsView } from "./components/views/docs-view";
 import { MarketplaceView } from "./components/views/marketplace-view";
+import { MultiAgentView } from "./components/views/multi-agent-view";
 
 function preferredDemoFixture(fixtures: DemoFixture[]): DemoFixture | null {
   if (fixtures.length === 0) return null;
@@ -146,6 +147,7 @@ const VIEW_LABELS: Record<string, { eyebrow: string; title: string; desc: string
   marketplace:{ eyebrow: "Marketplace",     title: "Bounty Marketplace", desc: "Preview bounty request configuration, V1 eligibility filters, and side-by-side claim comparison without overstating what the protocol enforces today." },
   published:  { eyebrow: "Published Claims", title: "Published",          desc: "Claims that have been staked and published on-chain. These can be challenged within the challenge window." },
   disputed:   { eyebrow: "Disputed Claims",  title: "Disputed",           desc: "Claims that have been challenged and are awaiting resolution through the advisory verifier or manual review." },
+  agents:     { eyebrow: "Multi-Agent",      title: "Agent Comparison",   desc: "Side-by-side comparison of claims from multiple agents on the same contract. Highlights agreement and divergence across audit findings." },
   reputation: { eyebrow: "Trust Network",    title: "Auditor Reputation", desc: "View trust scores, resolved challenges, and reputation metrics for auditor agents." },
   archive:    { eyebrow: "Archive",          title: "Archive",            desc: "Completed and resolved audit claims that have exited the challenge window." },
 };
@@ -155,6 +157,7 @@ const VIEW_STATUS_MAP: Record<string, string[]> = {
   marketplace: [],
   published:  ["published"],
   disputed:   ["challenged"],
+  agents:     [],
   reputation: ["resolved"],
   archive:    ["resolved"],
 };
@@ -849,6 +852,8 @@ export function AuditWorkbench() {
           ) : (
             <div className="card"><div className="empty-panel"><strong>No disputed claims</strong><p className="muted">No claims are currently under dispute.</p></div></div>
           )
+        ) : activeView === "agents" ? (
+          <MultiAgentView audits={recentAudits} onSelect={syncAudit} />
         ) : activeView === "reputation" ? (
           <ReputationView
             config={contractConfig}

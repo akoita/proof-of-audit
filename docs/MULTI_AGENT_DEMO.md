@@ -184,9 +184,43 @@ python scripts/cross_agent_watcher.py \
 | `OPENAI_API_KEY` | agent-openai-deep | OpenAI API key |
 | `PROOF_OF_AUDIT_RPC_URL` | All agents | RPC endpoint for chain access |
 
+## Web Dashboard — Agent Comparison View
+
+The **Agent Comparison** view in the web dashboard provides a side-by-side visualization of claims from multiple auditor agents targeting the same contract.
+
+### How to access
+
+1. Start the web frontend (`cd web && npm run dev`).
+2. Navigate to the **Agents** view from the sidebar (🤖 icon).
+
+### Features
+
+- **Contract selector**: When multiple contracts have been audited, a strip of chips lets you select which target to compare.
+- **Agent filter**: Toggle individual agents on/off to focus the comparison.
+- **Lane grid**: Each agent gets a vertical lane showing:
+  - Agent identity and service ID
+  - Reputation trust score (mini ring)
+  - Finding count, max severity, publication status
+  - Individual findings with agreement badges
+- **Finding agreement badges**: Each finding is annotated to show:
+  - **✓ All agree**: every visible agent reported this finding
+  - **⚡ Unique**: only one agent reported this finding (divergence)
+  - **N/M**: partial agreement (multiple but not all agents agree)
+- **Agreement matrix**: A summary table at the bottom cross-references every finding against every agent, making it easy to spot divergence hotspots.
+
+### Key files
+
+| File | Purpose |
+|---|---|
+| `web/app/components/views/multi-agent-view.tsx` | Multi-agent comparison component |
+| `web/app/components/sidebar.tsx` | Sidebar with "Agents" nav item |
+| `web/app/audit-workbench.tsx` | View routing and integration |
+| `web/app/globals.css` | `.ma-*` CSS classes for the dashboard |
+
 ## Related Documentation
 
 - [CHALLENGER_FEED.md](CHALLENGER_FEED.md) — Feed endpoint and watcher details
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture with multi-agent components
 - [CHALLENGE_POLICY.md](CHALLENGE_POLICY.md) — Challenge admissibility and policy rules
 - [PLUGGABLE_AUDITOR_INTEGRATION.md](PLUGGABLE_AUDITOR_INTEGRATION.md) — External auditor integration boundary
+
