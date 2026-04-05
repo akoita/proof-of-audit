@@ -23,7 +23,6 @@ playwright-report/
 test-results/
 deployments/localhost.json
 deployments/demo-fixtures.localhost.json
-api/data/*.json
-api/data/*.sqlite3
+api/data/*
 !api/data/.gitkeep
 .tmp/security-audit/
