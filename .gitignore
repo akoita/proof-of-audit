@@ -24,6 +24,7 @@ test-results/
 deployments/localhost.json
 deployments/demo-fixtures.localhost.json
 deployments/multi-agent-identities.*.json
+deployments/auditor-catalog*.json
 api/data/*
 !api/data/.gitkeep
 .tmp/security-audit/
