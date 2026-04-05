@@ -15,16 +15,20 @@ The public standards story is intentionally narrow:
 flowchart LR
     User["User or challenger"] --> Web["Next.js workbench"]
     Web --> API["FastAPI service"]
-    API --> Worker["Deterministic auditor worker"]
+    API --> Worker["Auditor worker (multi-agent)"]
     API --> Resolver["Verified source resolver"]
-    API --> AgentForge["Hosted agent-forge service (target path)"]
+    API --> AgentForge["Hosted agent-forge service"]
     API --> Verifier["Deterministic challenge verifier"]
     API --> Store["JSON audit store"]
     API --> Contract["ProofOfAudit contract"]
     API --> Validation["ERC-8004 validation bridge"]
+    API --> Feed["Challenger feed"]
+    Feed --> Watcher["Cross-agent claim watcher"]
+    Watcher --> API
     AgentForge --> Sandbox["Sandboxed coding-agent runtime"]
     Contract --> Base["Base Sepolia or local Anvil"]
     Validation --> Base
+    Catalog["agents.json → auditor-catalog.json"] --> Worker
 ```
 
 ## Components
@@ -56,15 +60,53 @@ Key files:
 - `/home/koita/dev/hackatons/proof-of-audit/api/proof_of_audit_api/service.py`
 - `/home/koita/dev/hackatons/proof-of-audit/api/proof_of_audit_api/config.py`
 
-### Auditor worker
+### Auditor worker (multi-agent)
 
 - maps supported demo inputs to deterministic benchmark claims
 - returns richer findings with evidence URIs and severity breakdowns
+- supports **per-agent runtime overrides**: detectors and profiles are dynamically scoped based on the requesting agent's persona from `auditor-catalog.json`
 - in the target architecture, live source-based execution moves out of this process and into a separately deployed `agent-forge` service
 
 Key files:
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/worker.py`
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json`
+
+### Multi-agent persona registry
+
+- 5 agent personas defined in `demo/agents.json`, each with distinct specialization, runtime mode, and on-chain identity
+- Catalog generator (`scripts/generate-auditor-catalog.py`) transforms the manifest into machine-readable `auditor-catalog.json`
+- `AuditService` resolves agent-specific metadata via `_resolve_service_runtime_overrides` and threads overrides through `create_audit_submission`
+- On-chain identity registration via `scripts/register-multi-agent-identities.py`
+
+| Persona | Profile | Detectors | Strategy |
+|---|---|---|---|
+| Reentrancy Hawk | reentrancy-specialist | `reentrancy` | silent-monitor |
+| Access Control Sentinel | access-control-specialist | `access_control` | flag-for-review |
+| Full Spectrum Auditor | full-spectrum-auditor | all families | auto-challenge |
+| Gemini Deep Analysis | llm-deep-auditor | `*` (LLM) | auto-challenge |
+| OpenAI Deep Analysis | llm-deep-auditor | `*` (LLM) | auto-challenge |
+
+Key files:
+- `/home/koita/dev/hackatons/proof-of-audit/demo/agents.json`
+- `/home/koita/dev/hackatons/proof-of-audit/demo/agents.schema.json`
+- `/home/koita/dev/hackatons/proof-of-audit/scripts/generate-auditor-catalog.py`
+- `/home/koita/dev/hackatons/proof-of-audit/scripts/register-multi-agent-identities.py`
+
+### Cross-agent claim watcher
+
+- polls `GET /challenger-feed` for claims from other agents
+- filters `audit_published` events, ignoring the watcher's own claims
+- re-analyzes the same contract using the watcher agent's detector profile
+- compares findings to detect divergences (missed vulnerabilities)
+- reacts based on the agent's `challenge_strategy`: auto-challenge, flag-for-review, or silent-monitor
+- generates structured challenge evidence using the `cross-agent-challenge-evidence/v1` schema
+
+Key files:
+- `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/claim_watcher.py`
+- `/home/koita/dev/hackatons/proof-of-audit/scripts/cross_agent_watcher.py`
+
+See also:
+- `/home/koita/dev/hackatons/proof-of-audit/docs/CHALLENGER_FEED.md`
 
 ### External agent-forge service
 
@@ -164,10 +206,11 @@ That division keeps the standards story honest and keeps the enforcement logic i
 ### Claim publication
 
 1. A user submits a fixture, deployed address, or source bundle.
-2. The worker returns a deterministic review claim.
-3. The API stores the claim and attaches the named auditor profile.
-4. The auditor publishes the claim on-chain with stake.
-5. The API mirrors that publication into the validation bridge as a standards-aligned request.
+2. The API resolves agent-specific runtime overrides from `auditor-catalog.json` based on `service_id`.
+3. The worker runs analysis scoped to the agent's detector profile.
+4. The API stores the claim and attaches the named auditor profile.
+5. The auditor publishes the claim on-chain with stake.
+6. The API mirrors that publication into the validation bridge as a standards-aligned request.
 
 ### Challenge resolution
 
@@ -177,6 +220,16 @@ That division keeps the standards story honest and keeps the enforcement logic i
 4. If the case is known, the API resolves the challenge on-chain automatically.
 5. If the case is ambiguous, the challenge remains open for fallback governance.
 6. Once the outcome is resolved, the API mirrors the result into the validation bridge.
+
+### Cross-agent challenge feed
+
+1. The claim watcher polls `GET /challenger-feed` for `audit_published` events.
+2. Events from the watcher's own `service_id` are filtered out.
+3. The watcher submits a re-analysis of the same contract via `POST /audits`.
+4. The watcher compares its findings with the original claim's finding count.
+5. If divergences are found and strategy is `auto-challenge`, the watcher submits `POST /audits/{id}/challenge` with structured evidence.
+6. If strategy is `flag-for-review`, divergences are logged for human review.
+7. If strategy is `silent-monitor`, the claim is observed without re-analysis.
 
 ### Request creation
 
