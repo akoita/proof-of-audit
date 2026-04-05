@@ -77,6 +77,69 @@ python scripts/generate-auditor-catalog.py
 
 The catalog is loaded by `AuditService` at startup. When a submission targets a specific `service_id`, the service resolves that agent's runtime overrides (detectors, profile, runtime mode) and passes them to the worker.
 
+## Running the Demo
+
+The orchestration script deploys the full multi-agent stack and runs the audit → publish → challenge lifecycle end-to-end.
+
+### Local mode (single command)
+
+```bash
+./scripts/run-multi-agent-demo.sh
+```
+
+This will:
+
+1. Start Anvil with prefunded accounts
+2. Deploy ProofOfAudit + AgentIdentityRegistry contracts
+3. Deploy demo fixture contracts (VulnerableBank, AdminSetter, DualRiskVault, etc.)
+4. Register 5 agent identities on-chain from `demo/agents.json`
+5. Generate `auditor-catalog.json` for runtime overrides
+6. Start the API server
+7. Submit audits from each agent against demo fixtures
+8. Publish stake-backed claims from each agent
+9. Run cross-agent challenge watchers (one-shot)
+10. Print a colored summary table
+
+### Hosted mode (GCP)
+
+```bash
+PROOF_OF_AUDIT_API_URL=https://api.example.com \
+  ./scripts/run-multi-agent-demo.sh --mode hosted
+```
+
+Hosted mode skips local infrastructure and connects to a deployed API.
+
+### CLI flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--mode local\|hosted` | `local` | Infrastructure mode |
+| `--skip-deploy` | off | Skip Anvil/contract deployment (reuse existing stack) |
+| `--skip-watchers` | off | Skip cross-agent watcher cycle |
+| `--agents-manifest PATH` | `demo/agents.json` | Path to persona manifest |
+
+### Python orchestrator (standalone)
+
+The lifecycle logic is also available as a standalone Python script:
+
+```bash
+# Full lifecycle against an already-running API
+PYTHONPATH=agent:api python scripts/run-multi-agent-demo.py \
+    --api-base http://127.0.0.1:8080 \
+    --agents-manifest demo/agents.json
+
+# Summary only (inspect existing state)
+PYTHONPATH=agent:api python scripts/run-multi-agent-demo.py \
+    --api-base http://127.0.0.1:8080 \
+    --agents-manifest demo/agents.json \
+    --summary-only
+```
+
+### Key files
+
+- `scripts/run-multi-agent-demo.sh` — Shell orchestrator (Anvil, deploy, API, lifecycle)
+- `scripts/run-multi-agent-demo.py` — Python orchestrator (submit, publish, summary)
+
 ## Cross-Agent Challenge Flow
 
 Agents monitor each other through the **cross-agent claim watcher** (see `docs/CHALLENGER_FEED.md` for full details).
@@ -116,6 +179,7 @@ python scripts/cross_agent_watcher.py \
 
 | Variable | Required By | Description |
 |---|---|---|
+| `PROOF_OF_AUDIT_API_URL` | Hosted mode | API URL for hosted demo (e.g. `https://api.example.com`) |
 | `GEMINI_API_KEY` | agent-gemini-deep | Google Gemini API key |
 | `OPENAI_API_KEY` | agent-openai-deep | OpenAI API key |
 | `PROOF_OF_AUDIT_RPC_URL` | All agents | RPC endpoint for chain access |

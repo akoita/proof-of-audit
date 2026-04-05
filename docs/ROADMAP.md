@@ -45,7 +45,7 @@ Goal: demonstrate autonomous multi-agent dispute resolution with specialized aud
 3. ✅ Support multi-agent registry with runtime overrides (#274).
 4. ✅ Deploy N on-chain agent identities (#280).
 5. ✅ Cross-agent claim watcher with configurable challenge strategies (#276).
-6. End-to-end multi-agent demo orchestration with live LLM providers.
+6. ✅ End-to-end multi-agent demo orchestration script (#277).
 7. Hosted deployment of multi-agent environment on GCP.
 
 See also: [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md)
