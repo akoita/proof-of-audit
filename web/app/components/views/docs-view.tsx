@@ -13,6 +13,7 @@ const TOC = [
   { id: "findings", label: "Findings & Severity" },
   { id: "publishing", label: "Publishing On-Chain" },
   { id: "challenges", label: "Challenges & Disputes" },
+  { id: "multi-agent", label: "Multi-Agent Comparison" },
   { id: "views", label: "Navigation Views" },
   { id: "cli", label: "CLI Agent Workflow" },
   { id: "contracts", label: "Smart Contracts" },
@@ -403,11 +404,117 @@ NEXT_PUBLIC_REPUTATION_ADDRESS=0x...`}</CodeBlock>
           </ul>
         </section>
 
+        {/* ─── Multi-Agent Comparison ─── */}
+        <section id="multi-agent" className="docs-section">
+          <h2>Multi-Agent Comparison</h2>
+          <p>
+            The <strong>Agent Comparison</strong> view enables side-by-side analysis of audit claims
+            from multiple AI agents on the same smart contract. Each agent may specialize in different
+            vulnerability categories — producing intentional <strong>divergence</strong> that highlights
+            gaps in coverage and surfaces findings that only certain auditors detect.
+          </p>
+          <Screenshot src="/docs/agent-comparison.png" caption="Agent Comparison — side-by-side audit lanes with divergence highlighting and agreement matrix" />
+
+          <h3>Key Features</h3>
+          <div className="docs-feature-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="docs-feature-card">
+              <span className="docs-feature-icon">🎯</span>
+              <h4>Contract Selector</h4>
+              <p>
+                Switch between audited contracts using the target contract chips at the top.
+                Each chip shows the number of agents that audited that contract.
+              </p>
+            </div>
+            <div className="docs-feature-card">
+              <span className="docs-feature-icon">🔍</span>
+              <h4>Agent Lanes</h4>
+              <p>
+                Each agent is displayed in its own lane showing the reputation ring, finding count,
+                max severity, and individual finding cards with severity badges.
+              </p>
+            </div>
+            <div className="docs-feature-card">
+              <span className="docs-feature-icon">⚡</span>
+              <h4>Divergence Badges</h4>
+              <p>
+                Findings are tagged with agreement ratios (e.g. <strong>4/5</strong> or <strong>3/5</strong>).
+                A finding reported by all agents shows <em>All Agree</em>; one reported by only a
+                single agent shows <em>Unique</em>.
+              </p>
+            </div>
+            <div className="docs-feature-card">
+              <span className="docs-feature-icon">📊</span>
+              <h4>Agreement Matrix</h4>
+              <p>
+                The matrix table at the bottom cross-references every finding against every agent,
+                showing checkmarks for agents that reported it and dashes for those that did not.
+              </p>
+            </div>
+          </div>
+
+          <h3>Agent Specializations</h3>
+          <p>
+            Divergence arises because each agent persona is scoped to a specific set of
+            vulnerability detectors:
+          </p>
+          <div className="docs-table-wrapper">
+            <table className="docs-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Detector Scope</th>
+                  <th>Example Behavior</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Reentrancy Hawk</strong></td>
+                  <td><code>reentrancy</code></td>
+                  <td>Finds reentrancy in VulnerableBank but misses access control issues</td>
+                </tr>
+                <tr>
+                  <td><strong>Access Control Sentinel</strong></td>
+                  <td><code>access_control</code></td>
+                  <td>Finds missing role checks in AdminSetter but ignores unchecked calls</td>
+                </tr>
+                <tr>
+                  <td><strong>Full Spectrum Auditor</strong></td>
+                  <td>All detectors</td>
+                  <td>Reports every finding across all categories</td>
+                </tr>
+                <tr>
+                  <td><strong>Gemini / OpenAI Deep Analysis</strong></td>
+                  <td>All detectors (LLM)</td>
+                  <td>Full coverage — mirrors the full spectrum profile</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Running the Multi-Agent Demo</h3>
+          <Callout type="tip">
+            The multi-agent demo script starts Anvil, deploys contracts, and submits audits from all
+            agent personas against all demo fixtures — producing real divergence in one command.
+          </Callout>
+          <CodeBlock>{`# Run the full multi-agent demo
+./scripts/run-multi-agent-demo.sh --skip-watchers
+
+# View results in the web dashboard
+cd web && npm run dev
+# Navigate to the "Agents" tab in the sidebar`}</CodeBlock>
+
+          <Callout type="info">
+            On <strong>Dual Risk Vault</strong>, you will see the Full Spectrum Auditor report 2 findings,
+            Access Control Sentinel report 1, and Reentrancy Hawk report 0 — clearly illustrating how
+            detector scope produces divergence across agents.
+          </Callout>
+        </section>
+
         {/* ─── Views ─── */}
         <section id="views" className="docs-section">
           <h2>Navigation Views</h2>
           <p>
-            The sidebar provides 5 views to navigate the audit lifecycle:
+            The sidebar provides 6 views to navigate the audit lifecycle:
           </p>
           <div className="docs-feature-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <div className="docs-feature-card">
@@ -423,8 +530,16 @@ NEXT_PUBLIC_REPUTATION_ADDRESS=0x...`}</CodeBlock>
               <p>Active challenges, resolution paths, and dispute outcomes.</p>
             </div>
             <div className="docs-feature-card">
+              <h4>🤖 Agents</h4>
+              <p>Multi-agent comparison view with side-by-side audit lanes and divergence analysis.</p>
+            </div>
+            <div className="docs-feature-card">
               <h4>🛡 Reputation</h4>
               <p>Auditor trust scores, activity timelines, and reputation metrics.</p>
+            </div>
+            <div className="docs-feature-card">
+              <h4>📦 Archive</h4>
+              <p>Historical audit records and past claim data.</p>
             </div>
           </div>
           <Screenshot src="/docs/published.png" caption="Published view — on-chain claims with executive summaries" />
