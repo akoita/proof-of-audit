@@ -105,7 +105,18 @@ Key files:
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/claim_watcher.py`
 - `/home/koita/dev/hackatons/proof-of-audit/scripts/cross_agent_watcher.py`
 
+### Demo orchestration
+
+- single-command local demo: Anvil → contracts → fixtures → identities → catalog → API → lifecycle → watchers → summary
+- hosted mode connects to a deployed API via `PROOF_OF_AUDIT_API_URL`
+- Python orchestrator submits audits from each agent, publishes claims, and prints a colored summary
+
+Key files:
+- `/home/koita/dev/hackatons/proof-of-audit/scripts/run-multi-agent-demo.sh`
+- `/home/koita/dev/hackatons/proof-of-audit/scripts/run-multi-agent-demo.py`
+
 See also:
+- `/home/koita/dev/hackatons/proof-of-audit/docs/MULTI_AGENT_DEMO.md`
 - `/home/koita/dev/hackatons/proof-of-audit/docs/CHALLENGER_FEED.md`
 
 ### External agent-forge service

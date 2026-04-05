@@ -414,6 +414,25 @@ Example executable challenge:
 }
 ```
 
+### Demo Orchestration
+
+The multi-agent demo is run end-to-end with a single command:
+
+```bash
+./scripts/run-multi-agent-demo.sh
+```
+
+The shell orchestrator (`run-multi-agent-demo.sh`) handles infrastructure: Anvil, contract deployment, fixture deployment, on-chain identity registration, catalog generation, and API startup.
+
+The Python orchestrator (`run-multi-agent-demo.py`) handles the audit lifecycle: submitting audits from each agent, publishing claims, then printing a colored summary table with findings, severities, and publish status.
+
+Modes:
+
+- `local` (default): full local stack on Anvil
+- `hosted`: connects to a GCP-deployed API via `PROOF_OF_AUDIT_API_URL`
+
+See [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md) for full usage.
+
 ## Web Frontend
 
 ### Purpose
