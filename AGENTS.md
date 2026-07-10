@@ -106,7 +106,7 @@ Document any new env var in `.env.example` and the relevant IaC config in `agent
 
 7. **Use the `finish-issue` skill** when completing work on an issue or any branch. Run the steps in `.agents/skills/finish-issue/SKILL.md` to verify, test, commit, push, create PR, merge, and clean up. This ensures security scans are executed and no steps are skipped.
 
-8. **Always use `--no-verify`** on `git commit` — the pre-commit security-audit hook uses a different Python version and cannot resolve project modules. Tests must be run manually with the correct pyenv environment.
+8. **Let the pre-commit hook run** — it resolves the project pyenv virtualenv (`proof-of-audit-3.12`) and runs the changed-files security audit automatically. Do NOT use `--no-verify`; if the hook fails, fix the cause (or your environment) instead of bypassing it.
 
 ---
 
@@ -196,7 +196,7 @@ PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m pytest agent/te
 #### Rules
 1. **Never skip tests.** All tests must pass before committing. The current baseline is **145+ tests**.
 
-2. **Use `--no-verify` on commit.** The pre-commit hook runs tests with the wrong Python. Always run tests manually:
+2. **Run the full suite before committing** (the hook only runs the security-sensitive subset for staged paths):
    ```bash
    PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m pytest agent/tests/ -x -q
    ```

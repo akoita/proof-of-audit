@@ -79,7 +79,7 @@ Check the changed files (`git diff --name-only main`):
   - Database dumps, logs, local config overrides, `api/data/`
 - Check `.gitignore` covers suspicious files: `git status --ignored`
 - If any sensitive files are tracked, add them to `.gitignore` first
-- Make atomic, well-scoped commits with `--no-verify`:
+- Make atomic, well-scoped commits (let the pre-commit hook run):
   - **With issue:** `feat(#N): description` or `fix(#N): description`
   - **Without issue:** `feat: description` or `fix: description`
   - One logical change per commit — split if needed
@@ -122,6 +122,6 @@ git checkout main && git pull origin main
 - **NEVER commit or push before user approval** — always ask first
 - **NEVER force-push to `main`**
 - **NEVER delete `main`** — only delete feature and fix branches
-- **Always use `--no-verify`** on commit — the pre-commit hook uses the wrong Python version
+- **Never use `--no-verify`** — the pre-commit security hook must run; fix failures instead of bypassing them
 - If in doubt about sensitive files, ask the user before committing
 - If the merge creates conflicts, resolve them on the feature branch before merging
