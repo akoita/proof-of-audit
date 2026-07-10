@@ -341,6 +341,20 @@ def main() -> int:
 
     # ── Live deployment info (opt-in) ────────────────────────────────
     if args.show_deployment:
+        manifest_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "deployments",
+            "base-sepolia.json",
+        )
+        try:
+            with open(manifest_path, encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        except (OSError, ValueError):
+            manifest = {}
+        contract_address = str(manifest.get("address") or "unavailable")
+        explorer_base = str(
+            manifest.get("explorer_base_url") or "https://sepolia.basescan.org"
+        ).rstrip("/")
         _blank()
         _hr()
         _type_print(f"  🌐  {c('LIVE DEPLOYMENT — Base Sepolia', C.BOLD, C.CYAN)}")
@@ -351,11 +365,11 @@ def main() -> int:
         )
         _field(
             "ProofOfAudit",
-            "0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24",
+            contract_address,
         )
         _field(
             "Basescan",
-            "https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24",
+            f"{explorer_base}/address/{contract_address}",
         )
         _field(
             "IdentityRegistry",
