@@ -166,6 +166,11 @@ make install-git-hooks
 
 | Doc                                               | What it covers                      |
 | ------------------------------------------------- | ----------------------------------- |
+| [Vision v2](./docs/strategy/VISION.md)            | Post-hackathon product vision and trust-model north star |
+| [Product strategy](./docs/strategy/PRODUCT_STRATEGY.md) | Market analysis, wedges, business model |
+| [Roadmap v2](./docs/strategy/ROADMAP.md)          | Phased path from prototype to real product |
+| [State of the project](./docs/strategy/STATE_OF_THE_PROJECT.md) | Honest inventory: what's real vs demo-ware |
+| [Backlog triage](./docs/strategy/BACKLOG_TRIAGE.md) | Rulings on past threads + proposed new backlog |
 | [Technical documentation](./docs/TECHNICAL_DOCUMENTATION.md) | Canonical end-to-end technical reference |
 | [Challenge Verifier V2](./docs/CHALLENGE_VERIFIER_V2.md) | Design for the next-generation challenge adjudication pipeline |
 | [TEE evidence RFC](./docs/TEE_EVIDENCE_RFC.md)    | Research note on TEE-backed evidence execution |
