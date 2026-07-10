@@ -1,4 +1,4 @@
-.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-python test-system-e2e test-testnet-smoke test-ui-e2e test-e2e benchmark-challenge-verifier
+.PHONY: anvil deploy-local deploy-demo-fixtures deploy-base-sepolia deploy-base-sepolia-identity verify-base-sepolia install-api-deps install-git-hooks security-audit-staged test-contracts test-formal test-python test-system-e2e test-testnet-smoke test-ui-e2e test-e2e benchmark-challenge-verifier
 
 PYTHON ?= python3
 
@@ -32,6 +32,9 @@ security-audit-staged:
 
 test-contracts:
 	forge test --root contracts
+
+test-formal:
+	PYENV_VERSION=proof-of-audit-3.12 pyenv exec halmos --root contracts --contract ProofOfAuditFormalTest
 
 test-python:
 	PYTHONPATH=agent:api $(PYTHON) -m pytest -m "not system_e2e"

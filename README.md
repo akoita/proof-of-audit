@@ -194,6 +194,7 @@ make install-git-hooks
 | [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)  | Run with real Agent Forge locally   |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Hackathon archive](./docs/archive/hackathon-2026/) | Judge briefs, pitch scripts, submission material (historical, unmaintained) |
+| [Formal testing (Halmos)](./docs/FORMAL_TESTING.md) | Symbolic property tests for the escrow's value-conservation invariants |
 | [Base Sepolia smoke evidence](./docs/proofs/base-sepolia-smoke-2026-03-22.md) | Latest dated live-smoke evidence record |
 
 ## What's next

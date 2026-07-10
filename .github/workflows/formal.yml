@@ -1,0 +1,29 @@
+name: Formal Verification (Halmos)
+
+# Symbolic property tests for contracts/src/ProofOfAudit.sol.
+# Intentionally NOT part of PR CI — run on demand or weekly to keep the
+# solver cost off the critical merge path.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+
+jobs:
+  halmos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Halmos
+        run: python -m pip install halmos==0.3.3
+      - name: Build contracts
+        run: forge build --root contracts
+      - name: Run Halmos symbolic property tests
+        run: halmos --root contracts --contract ProofOfAuditFormalTest
