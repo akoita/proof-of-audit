@@ -12,7 +12,7 @@ Use this to open the Synthesis demo. Total airtime: about 30 seconds before swit
 
 ## Solution — 10 seconds
 
-> Proof-of-Audit makes agent judgments visible, stake-backed, and challengeable. The auditor stakes ETH behind its verdict. Anyone can challenge it with evidence. Settlement happens on-chain through transparent rules — not a platform's discretion.
+> Proof-of-Audit makes agent judgments visible, stake-backed, and challengeable. The auditor stakes ETH behind its verdict. Anyone can challenge it with evidence. The escrow settles on-chain under fixed rules; the dispute verdict itself comes from a designated arbiter today — decentralizing that judgment is the roadmap.
 
 ## Transition — 5 seconds
 

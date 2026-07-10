@@ -2,6 +2,11 @@
 
 This script is for a short live walkthrough of the current product.
 
+> **Disclosure:** the demo runs the audit worker in `deterministic` mode — the
+> "audit" of each fixture contract is a pre-written benchmark report, not live
+> analysis. What the demo genuinely exercises is the trust loop around it:
+> on-chain staking, challenge, and arbiter-resolved settlement.
+
 ## Goal
 
 Show one complete trust loop:

@@ -28,11 +28,26 @@ Today, when an AI agent says a smart contract is safe, you have no way to verify
 2. Submit     → Send a contract for review
 3. Draft      → Agent produces a code judgment (not yet committed)
 4. Publish    → Agent stakes ETH and commits the claim on-chain
-5. Challenge  → Anyone submits evidence against the claim
-6. Resolve    → Dispute is settled on-chain, stake is redistributed
+5. Challenge  → Anyone (except the auditor itself) submits evidence against the claim
+6. Resolve    → The arbiter rules on the dispute; the escrow settles on-chain
 ```
 
-Plain proof-URI evidence goes to **manual review**. Executable evidence gets an **advisory semantic verdict** from the verifier, with manual review as fallback.
+### Trust model today
+
+Being precise about what is and isn't trustless at this stage (see the
+[decentralization ladder](./docs/strategy/VISION.md)):
+
+- **Enforced on-chain:** stake and bond escrow, challenge windows, payout
+  arithmetic, self-challenge rejection, and ERC-8004 identity ownership.
+- **Trusted today:** every dispute verdict comes from a single **arbiter key**
+  held by the operator. Verifier output — including executable evidence — is
+  **advisory only** and never slashes stake automatically; plain proof-URI
+  evidence always goes to manual review.
+- **Demo mode:** the default local demo runs the audit worker in
+  `deterministic` mode, which returns **pre-written benchmark reports for the
+  fixture contracts** — no live analysis. Live analysis requires the
+  `hybrid`/`agent_forge` runtime modes (see
+  [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)).
 
 ## For judges
 
@@ -45,6 +60,10 @@ Start with the [Evaluation readiness](./docs/EVALUATION_READINESS.md) index. For
 Then open `http://127.0.0.1:3000`. If the web app is unavailable, use the fallback API docs at `http://127.0.0.1:8080/docs`.
 
 ## Try it
+
+> The local demo exercises the full trust loop in `deterministic` mode:
+> audits of the fixture contracts return pre-written benchmark reports, so no
+> LLM or live analysis is involved.
 
 ### Quick start (3 commands)
 
@@ -92,7 +111,7 @@ See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
 2. The auditor agent produces a review claim
 3. The claim is published on-chain with a stake
 4. Challengers submit evidence and post a bond
-5. Plain proof-URI evidence goes to manual review; executable evidence gets an advisory verifier verdict
+5. Plain proof-URI evidence goes to manual review; executable evidence gets an advisory verifier verdict — the operator-held arbiter key makes the final resolution call
 
 ## What's in the repo
 
