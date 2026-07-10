@@ -1,0 +1,150 @@
+name: Contract Deployment (Base Sepolia)
+
+# Manual, repeatable deployment of the hardened ProofOfAudit contract.
+# Secrets live in the `base-sepolia` GitHub environment:
+#   DEPLOYER_PRIVATE_KEY, BASE_SEPOLIA_RPC_URL, BASESCAN_API_KEY,
+#   PROOF_OF_AUDIT_ARBITER, PROOF_OF_AUDIT_TREASURY_ADDRESS
+# Runbook: issue #303. Adapted from akoita/resonate contracts-deploy.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: What to run.
+        required: true
+        default: preflight
+        type: choice
+        options:
+          - preflight
+          - deploy
+          - verify
+
+concurrency:
+  group: ${{ github.workflow }}-base-sepolia
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.operation }} base-sepolia
+    runs-on: ubuntu-latest
+    environment: base-sepolia
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+      BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+      BASESCAN_API_KEY: ${{ secrets.BASESCAN_API_KEY }}
+      PROOF_OF_AUDIT_ARBITER: ${{ secrets.PROOF_OF_AUDIT_ARBITER }}
+      PROOF_OF_AUDIT_TREASURY_ADDRESS: ${{ secrets.PROOF_OF_AUDIT_TREASURY_ADDRESS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Guard against placeholder secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in DEPLOYER_PRIVATE_KEY BASE_SEPOLIA_RPC_URL PROOF_OF_AUDIT_ARBITER; do
+            value="${!name:-}"
+            if [[ -z "${value}" || "${value}" == "CHANGE_ME" ]]; then
+              echo "::error::Secret ${name} is unset or still the CHANGE_ME placeholder — set it in the base-sepolia environment."
+              exit 1
+            fi
+          done
+          if [[ "${{ inputs.operation }}" != "preflight" && ( -z "${BASESCAN_API_KEY:-}" || "${BASESCAN_API_KEY}" == "CHANGE_ME" ) ]]; then
+            echo "::error::Secret BASESCAN_API_KEY is unset or still the CHANGE_ME placeholder."
+            exit 1
+          fi
+
+      - name: Build and run the contract suite (safety gate)
+        run: |
+          forge build --root contracts
+          forge test --root contracts
+
+      - name: Preflight deployer, network, and key separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rpc="${BASE_SEPOLIA_RPC_URL}"
+          chain_id="$(cast chain-id --rpc-url "${rpc}")"
+          if [[ "${chain_id}" != "84532" ]]; then
+            echo "::error::RPC resolved chain ${chain_id}; expected Base Sepolia (84532)."
+            exit 1
+          fi
+          deployer="$(cast wallet address "${DEPLOYER_PRIVATE_KEY}")"
+          if [[ "${deployer,,}" == "${PROOF_OF_AUDIT_ARBITER,,}" ]]; then
+            echo "::error::Deployer/publisher and arbiter resolve to the same address (${deployer}). Key-role separation (#298) requires distinct keys."
+            exit 1
+          fi
+          balance_wei="$(cast balance "${deployer}" --rpc-url "${rpc}")"
+          balance_eth="$(cast from-wei "${balance_wei}")"
+          if (( $(echo "${balance_eth} < 0.03" | bc -l) )); then
+            echo "::error::Deployer ${deployer} has ${balance_eth} ETH; need at least 0.03 ETH for deploy + verification headroom."
+            exit 1
+          fi
+          {
+            echo "### Deployment preflight"
+            echo ""
+            echo "- chain id: \`${chain_id}\`"
+            echo "- deployer: \`${deployer}\` (\`${balance_eth}\` ETH)"
+            echo "- arbiter: \`${PROOF_OF_AUDIT_ARBITER}\` (distinct from deployer ✓)"
+            echo "- operation: \`${{ inputs.operation }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Deploy ProofOfAudit via release pipeline
+        if: inputs.operation == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PROOF_OF_AUDIT_DEPLOY_RPC_URL="${BASE_SEPOLIA_RPC_URL}"
+          ./scripts/deploy-release.sh
+          {
+            echo "### Deployment outputs"
+            echo ""
+            address="$(python3 -c "import json; print(json.load(open('deployments/base-sepolia.json'))['address'])")"
+            echo "- ProofOfAudit: [\`${address}\`](https://sepolia.basescan.org/address/${address})"
+            echo "- manifest: \`deployments/base-sepolia.json\` (PR opened automatically)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Verify on BaseScan
+        if: inputs.operation == 'deploy' || inputs.operation == 'verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/verify-release.sh
+
+      - name: Upload deployment records
+        if: inputs.operation == 'deploy'
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-of-audit-deployment-base-sepolia-${{ github.run_id }}
+          path: |
+            deployments/base-sepolia.json
+            contracts/broadcast/**/*.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Open PR with the deployment manifest
+        if: inputs.operation == 'deploy'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="deploy/base-sepolia-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add deployments/base-sepolia.json
+          git commit -m "chore: record Base Sepolia deployment manifest (run ${{ github.run_id }})"
+          git push origin "${branch}"
+          gh pr create \
+            --base main \
+            --head "${branch}" \
+            --title "chore: Base Sepolia deployment manifest (run ${{ github.run_id }})" \
+            --body "Automated deployment record from the Contract Deployment workflow (run ${{ github.run_id }}). Review the manifest, then merge and complete the #303 post-deploy checklist (README address table, DEPLOYMENT.md, testnet smoke)."
