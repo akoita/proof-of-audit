@@ -234,6 +234,12 @@ B
 
 No other ETH sink or source is allowed inside the request settlement path.
 
+The invariant test suite models request creation, claim submission, claim
+challenges, challenge resolution, batched classification, finalization,
+claimant withdrawals, requester refunds, and fee withdrawals. It tracks all ETH
+deposited into the contract and asserts that the live contract balance plus
+observed payouts and accrued/withdrawn fees always equals total deposited ETH.
+
 ## Pull-withdrawal model
 
 The settlement path should be implemented with three withdrawal families:
