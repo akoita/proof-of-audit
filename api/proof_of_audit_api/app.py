@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,6 +52,7 @@ from proof_of_audit_api.schemas import (
     TargetAuditClaimsResponse,
     VerificationDossierModel,
 )
+from proof_of_audit_api.security import build_mutating_guard
 from proof_of_audit_api.service import AuditService
 from proof_of_audit_api.source_bundle_storage import (
     SourceBundleStorageError,
@@ -99,6 +100,39 @@ def _enforce_key_separation(contract_config: ContractConfig) -> None:
     )
 
 
+def _enforce_api_security(contract_config: ContractConfig) -> None:
+    """Refuse to start with an unauthenticated / wide-open API on a real network.
+
+    Mutating endpoints must be gated behind an API key and CORS must name
+    explicit origins on any non-local network. On local development networks an
+    open API is tolerated (with a loud warning); everywhere else it is a fatal
+    misconfiguration.
+    """
+    if contract_config.is_local_network():
+        if not contract_config.api_keys:
+            logger.warning(
+                "Proof-of-Audit API is running WITHOUT API-key authentication on "
+                "local network %r: all mutating endpoints are OPEN. This is "
+                "acceptable ONLY for local development; set "
+                "PROOF_OF_AUDIT_API_KEYS before deploying to a real network.",
+                contract_config.network,
+            )
+        return
+    if not contract_config.api_keys:
+        raise RuntimeError(
+            "API-key authentication is required on network "
+            f"{contract_config.network!r} but PROOF_OF_AUDIT_API_KEYS is empty. "
+            "Set PROOF_OF_AUDIT_API_KEYS to a comma-separated list of secret "
+            "keys so mutating endpoints reject unauthenticated callers."
+        )
+    if "*" in contract_config.cors_allow_origins:
+        raise RuntimeError(
+            "Wildcard CORS origin '*' is not allowed on network "
+            f"{contract_config.network!r}. Set PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS "
+            "to an explicit comma-separated list of allowed origins."
+        )
+
+
 def create_app(
     data_root: Path | None = None,
     env_file: Path | None = DEFAULT_API_ENV_FILE,
@@ -136,7 +170,7 @@ def create_app(
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=list(contract_config.cors_allow_origins),
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
@@ -152,6 +186,8 @@ def create_app(
     app.state.contract_config = contract_config
 
     _enforce_key_separation(contract_config)
+    _enforce_api_security(contract_config)
+    mutating_guard = build_mutating_guard(contract_config)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(
@@ -159,10 +195,15 @@ def create_app(
     ) -> JSONResponse:
         del request
         if isinstance(exc.detail, dict):
-            return JSONResponse(status_code=exc.status_code, content=exc.detail)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=exc.detail,
+                headers=exc.headers,
+            )
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": "http_error", "message": str(exc.detail)},
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
@@ -396,6 +437,7 @@ def create_app(
         "/requests",
         response_model=AuditRequestRecordModel,
         status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(mutating_guard)],
         responses={
             status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
             status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
@@ -467,6 +509,7 @@ def create_app(
     @app.post(
         "/requests/{request_id}/claims",
         response_model=AuditRecordModel,
+        dependencies=[Depends(mutating_guard)],
         responses={
             status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
             status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
@@ -531,6 +574,7 @@ def create_app(
     @app.post(
         "/marketplace/preview",
         response_model=MarketplacePreviewResponse,
+        dependencies=[Depends(mutating_guard)],
         responses={status.HTTP_200_OK: {"model": MarketplacePreviewResponse}},
     )
     def marketplace_preview(
@@ -567,6 +611,7 @@ def create_app(
         "/source-bundles/upload",
         response_model=SourceBundleUploadResponse,
         status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(mutating_guard)],
         responses={status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse}},
     )
     async def upload_source_bundle(
@@ -701,6 +746,7 @@ def create_app(
         "/audits",
         response_model=AuditRecordModel,
         status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(mutating_guard)],
     )
     def create_audit(
         payload: CreateAuditRequest, request: Request
@@ -721,6 +767,7 @@ def create_app(
     @app.post(
         "/audits/{audit_id}/publish",
         response_model=AuditRecordModel,
+        dependencies=[Depends(mutating_guard)],
         responses={
             status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
             status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
@@ -762,6 +809,7 @@ def create_app(
     @app.post(
         "/audits/{audit_id}/challenge",
         response_model=AuditRecordModel,
+        dependencies=[Depends(mutating_guard)],
         responses={
             status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
             status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
@@ -809,6 +857,7 @@ def create_app(
     @app.post(
         "/audits/{audit_id}/resolve",
         response_model=AuditRecordModel,
+        dependencies=[Depends(mutating_guard)],
         responses={
             status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
             status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},

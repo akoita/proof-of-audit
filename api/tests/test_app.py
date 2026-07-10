@@ -10,7 +10,11 @@ import tempfile as tempfile_module
 import httpx
 from fastapi.testclient import TestClient
 
-from proof_of_audit_api.app import _enforce_key_separation, create_app
+from proof_of_audit_api.app import (
+    _enforce_api_security,
+    _enforce_key_separation,
+    create_app,
+)
 from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.service import AuditService
 from proof_of_audit_agent.challenge_verifier import ChallengeVerificationResult, EvidenceContext
@@ -193,6 +197,8 @@ class AuditApiAppTest(unittest.TestCase):
         env_file.write_text(
             "\n".join(
                 [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
                     f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
                     "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND=gcs",
                     "PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_BUCKET=proof-of-audit-bundles",
@@ -277,6 +283,8 @@ class AuditApiAppTest(unittest.TestCase):
         env_file.write_text(
             "\n".join(
                 [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
                     f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
                     "PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND=ipfs",
                     "PROOF_OF_AUDIT_SOURCE_BUNDLE_IPFS_API_URL=http://127.0.0.1:5001",
@@ -347,6 +355,8 @@ class AuditApiAppTest(unittest.TestCase):
         env_file.write_text(
             "\n".join(
                 [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
                     f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={fixtures_file}",
                     "PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres",
                     "PROOF_OF_AUDIT_STORE_INSTANCE_CONNECTION_NAME=project:region:instance",
@@ -594,6 +604,8 @@ class AuditApiAppTest(unittest.TestCase):
         catalog_env_file.write_text(
             "\n".join(
                 [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
                     f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={Path(self.tempdir.name) / 'demo-fixtures.localhost.json'}",
                     f"PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE={catalog_file}",
                 ]
@@ -742,6 +754,8 @@ class AuditApiAppTest(unittest.TestCase):
         catalog_env_file.write_text(
             "\n".join(
                 [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
                     f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={Path(self.tempdir.name) / 'demo-fixtures.localhost.json'}",
                     f"PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE={catalog_file}",
                 ]
@@ -1664,6 +1678,8 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
+    _NONLOCAL_TEST_API_KEY = "agent-forge-test-key"
+
     def _create_client(
         self,
         *,
@@ -1673,10 +1689,24 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
         service_url: str | None = None,
         explorer_api_key: str | None = None,
         source_bundle_storage_kind: str | None = None,
+        network: str = "anvil-local",
     ) -> TestClient:
         name = command.name if command is not None else "service"
         env_file = self.root / f".env.{mode}.{name}"
-        lines = [
+        lines = [f"PROOF_OF_AUDIT_NETWORK={network}"]
+        if network == "anvil-local":
+            lines.append("PROOF_OF_AUDIT_CHAIN_ID=31337")
+        else:
+            # Non-local networks must satisfy the API security baseline:
+            # keyed mutating endpoints and explicit CORS origins.
+            lines.extend(
+                [
+                    "PROOF_OF_AUDIT_CHAIN_ID=84532",
+                    f"PROOF_OF_AUDIT_API_KEYS={self._NONLOCAL_TEST_API_KEY}",
+                    "PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS=http://testserver",
+                ]
+            )
+        lines += [
             f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={self.fixtures_file}",
             f"PROOF_OF_AUDIT_WORKER_RUNTIME_MODE={mode}",
             f"PROOF_OF_AUDIT_AGENT_FORGE_RUNS_HOME={runs_home}",
@@ -1697,7 +1727,10 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
                 f"PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND={source_bundle_storage_kind}"
             )
         env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return TestClient(create_app(self.data_root, env_file=env_file))
+        client = TestClient(create_app(self.data_root, env_file=env_file))
+        if network != "anvil-local":
+            client.headers["X-API-Key"] = self._NONLOCAL_TEST_API_KEY
+        return client
 
     def test_repository_submission_hybrid_persists_live_execution_metadata(self) -> None:
         repo_dir = self.root / "repo"
@@ -1936,7 +1969,12 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             self.root / "agent-forge-deployed-fallback",
             report_payload=None,
         )
-        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+        client = self._create_client(
+            mode="hybrid",
+            command=script,
+            runs_home=runs_home,
+            network="base-sepolia",
+        )
 
         with patch(
             "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
@@ -1986,7 +2024,12 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             self.root / "agent-forge-deployed-fixture",
             report_payload=None,
         )
-        client = self._create_client(mode="hybrid", command=script, runs_home=runs_home)
+        client = self._create_client(
+            mode="hybrid",
+            command=script,
+            runs_home=runs_home,
+            network="base-sepolia",
+        )
 
         with patch(
             "proof_of_audit_agent.agent_forge_backend.DeployedAddressSourceResolver.resolve",
@@ -2033,6 +2076,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             service_url="https://agent-forge.example",
             explorer_api_key="test-key",
             source_bundle_storage_kind="local",
+            network="base-sepolia",
         )
 
         source_tempdir = tempfile_module.TemporaryDirectory()
@@ -2159,6 +2203,7 @@ class AuditApiAgentForgeIntegrationTest(unittest.TestCase):
             command=None,
             runs_home=runs_home,
             service_url="http://agent-forge.test",
+            network="base-sepolia",
         )
         source_tempdir = tempfile_module.TemporaryDirectory(prefix="proof-of-audit-test-service-")
         source_root = Path(source_tempdir.name) / "source"
@@ -3040,3 +3085,115 @@ class StartupKeySeparationTest(unittest.TestCase):
         self.assertTrue(
             any("local development" in line for line in captured.output)
         )
+
+
+class StartupApiSecurityTest(unittest.TestCase):
+    def _config(self, network: str, env: dict[str, str]) -> ContractConfig:
+        base = {
+            "PROOF_OF_AUDIT_NETWORK": network,
+            "PROOF_OF_AUDIT_CHAIN_ID": "84532" if network == "base-sepolia" else "31337",
+        }
+        base.update(env)
+        return ContractConfig.from_env(base)
+
+    def test_non_local_without_api_keys_refuses_to_start(self) -> None:
+        # Explicit origins so the CORS check is not what trips first.
+        config = self._config(
+            "base-sepolia",
+            {"PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS": "https://app.example"},
+        )
+        self.assertEqual(config.api_keys, frozenset())
+        with self.assertRaises(RuntimeError) as ctx:
+            _enforce_api_security(config)
+        self.assertIn("PROOF_OF_AUDIT_API_KEYS", str(ctx.exception))
+
+    def test_non_local_with_wildcard_cors_refuses_to_start(self) -> None:
+        config = self._config(
+            "base-sepolia",
+            {
+                "PROOF_OF_AUDIT_API_KEYS": "secret-key",
+                "PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS": "*",
+            },
+        )
+        with self.assertRaises(RuntimeError) as ctx:
+            _enforce_api_security(config)
+        self.assertIn("PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS", str(ctx.exception))
+
+    def test_non_local_with_keys_and_explicit_cors_starts_cleanly(self) -> None:
+        config = self._config(
+            "base-sepolia",
+            {
+                "PROOF_OF_AUDIT_API_KEYS": "secret-key",
+                "PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS": "https://app.example",
+            },
+        )
+        # Must not raise.
+        _enforce_api_security(config)
+
+    def test_non_local_cors_defaults_to_empty_when_unset(self) -> None:
+        config = self._config("base-sepolia", {})
+        self.assertEqual(config.cors_allow_origins, ())
+
+    def test_local_cors_defaults_to_wildcard_when_unset(self) -> None:
+        config = self._config("anvil-local", {})
+        self.assertEqual(config.cors_allow_origins, ("*",))
+
+    def test_local_without_keys_warns_only(self) -> None:
+        config = self._config("anvil-local", {})
+        self.assertEqual(config.api_keys, frozenset())
+        with self.assertLogs("proof_of_audit_api.app", level="WARNING") as captured:
+            _enforce_api_security(config)  # must not raise
+        self.assertTrue(
+            any("WITHOUT API-key authentication" in line for line in captured.output)
+        )
+
+
+class KeyedApiIntegrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        data_root = Path(self.tempdir.name) / "data"
+        data_root.mkdir()
+        env_file = Path(self.tempdir.name) / ".env.local"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                    "PROOF_OF_AUDIT_CHAIN_ID=31337",
+                    "PROOF_OF_AUDIT_API_KEYS=itest-key-a, itest-key-b",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.client = TestClient(create_app(data_root, env_file=env_file))
+        self.addCleanup(self.client.close)
+
+    def test_post_without_key_is_rejected(self) -> None:
+        response = self.client.post("/audits", json={"submitted_by": "missing-address"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"], "missing_api_key")
+
+    def test_post_with_wrong_key_is_forbidden(self) -> None:
+        response = self.client.post(
+            "/audits",
+            json={"submitted_by": "missing-address"},
+            headers={"X-API-Key": "nope"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"], "invalid_api_key")
+
+    def test_post_with_correct_key_passes_the_guard(self) -> None:
+        # A correct key clears the guard; the empty-ish body then fails the
+        # endpoint's own validation (422), proving auth let the request through.
+        response = self.client.post(
+            "/audits",
+            json={"submitted_by": "missing-address"},
+            headers={"X-API-Key": "itest-key-b"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"], "validation_error")
+
+    def test_get_endpoints_stay_open(self) -> None:
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)

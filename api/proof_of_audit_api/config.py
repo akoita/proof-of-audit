@@ -57,6 +57,24 @@ def _is_local_url(value: str | None) -> bool:
     )
 
 
+def _network_is_local(network: str | None) -> bool:
+    """Return True for local development networks (anvil, eth-tester, etc.).
+
+    Shared by :meth:`ContractConfig.is_local_network` and the CORS default
+    computation in :meth:`ContractConfig.from_env` so the classification stays
+    in one place.
+    """
+    normalized = str(network or "").strip().lower()
+    return (
+        "anvil" in normalized
+        or "localhost" in normalized
+        or "eth-tester" in normalized
+        or normalized == "eth_tester"
+        or normalized == "tester"
+        or normalized == "local"
+    )
+
+
 def load_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     if not path.exists():
@@ -645,6 +663,9 @@ class ContractConfig:
     challenge_claim_extractor_min_confidence: str
     worker_detectors: tuple[str, ...] | None
     worker_audit_profile: str | None
+    api_keys: frozenset[str]
+    cors_allow_origins: tuple[str, ...]
+    mutating_rate_limit_per_minute: int
 
     @classmethod
     def from_env(
@@ -659,6 +680,30 @@ class ContractConfig:
             source = dict(env)
         network = source.get("PROOF_OF_AUDIT_NETWORK", "base-sepolia")
         chain_id_value = int(source.get("PROOF_OF_AUDIT_CHAIN_ID", "84532"))
+        api_keys = frozenset(
+            entry
+            for entry in (
+                candidate.strip()
+                for candidate in source.get("PROOF_OF_AUDIT_API_KEYS", "").split(",")
+            )
+            if entry
+        )
+        cors_env = source.get("PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS")
+        if cors_env is None:
+            cors_allow_origins: tuple[str, ...] = (
+                ("*",) if _network_is_local(network) else ()
+            )
+        else:
+            cors_allow_origins = tuple(
+                entry
+                for entry in (
+                    candidate.strip() for candidate in cors_env.split(",")
+                )
+                if entry
+            )
+        mutating_rate_limit_per_minute = int(
+            source.get("PROOF_OF_AUDIT_RATE_LIMIT_PER_MINUTE", "30")
+        )
         official_identity_registry = OFFICIAL_ERC8004_IDENTITY_REGISTRIES.get(
             (network, chain_id_value)
         )
@@ -1030,6 +1075,9 @@ class ContractConfig:
             worker_audit_profile=(
                 source.get("PROOF_OF_AUDIT_WORKER_AUDIT_PROFILE") or None
             ),
+            api_keys=api_keys,
+            cors_allow_origins=cors_allow_origins,
+            mutating_rate_limit_per_minute=mutating_rate_limit_per_minute,
         )
 
     @property
@@ -1044,15 +1092,7 @@ class ContractConfig:
         ``anvil-system-e2e`` classifies as local. ``service.py`` delegates its
         local-network checks here so the semantics stay in one place.
         """
-        normalized = str(self.network or "").strip().lower()
-        return (
-            "anvil" in normalized
-            or "localhost" in normalized
-            or "eth-tester" in normalized
-            or normalized == "eth_tester"
-            or normalized == "tester"
-            or normalized == "local"
-        )
+        return _network_is_local(self.network)
 
     def key_separation_violations(self) -> list[str]:
         """Report pairs of trust roles that share a signing address.
