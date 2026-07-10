@@ -135,6 +135,10 @@ contract ProofOfAudit {
     error InvalidBatchSize();
     error InvalidFeeRate();
     error InvalidTreasury();
+    error InvalidArbiter();
+    error InvalidRequiredStake();
+    error InvalidRequiredChallengeBond();
+    error InvalidChallengeWindow();
     error RequestSettlementPending();
     error RequestSettlementNotFinalized();
     error RequestSettlementAlreadyFinalized();
@@ -281,6 +285,12 @@ contract ProofOfAudit {
     mapping(uint256 => mapping(address => bool)) private requestClaimAllowlistedAuditors;
     mapping(uint256 => address[]) private requestClaimAllowlistEntries;
 
+    /// @notice Deploys the audit escrow with fixed economic parameters.
+    /// @dev Every parameter is immutable after deployment; there is no upgrade
+    ///      or pause path. The arbiter is the sole dispute resolver: if the
+    ///      arbiter key is lost or unusable, the escrow (stake + bond) of any
+    ///      challenged audit is permanently locked with no recovery. Operators
+    ///      must protect the arbiter key accordingly.
     constructor(
         address _arbiter,
         address _treasury,
@@ -290,7 +300,11 @@ contract ProofOfAudit {
         uint256 _protocolFeeBps,
         uint256 _resolutionFeeBps
     ) {
+        if (_arbiter == address(0)) revert InvalidArbiter();
         if (_treasury == address(0)) revert InvalidTreasury();
+        if (_requiredStake == 0) revert InvalidRequiredStake();
+        if (_requiredChallengeBond == 0) revert InvalidRequiredChallengeBond();
+        if (_challengeWindow == 0) revert InvalidChallengeWindow();
         if (_protocolFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
         if (_resolutionFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
         arbiter = _arbiter;
