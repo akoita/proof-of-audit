@@ -334,6 +334,50 @@ development.
 **not** part of the separation requirement; they may share an address with any
 trust role.
 
+### API security baseline
+
+Mutating (`POST`) endpoints — `/requests`, `/requests/{id}/claims`,
+`/marketplace/preview`, `/source-bundles/upload`, `/audits`,
+`/audits/{id}/publish`, `/audits/{id}/challenge`, `/audits/{id}/resolve` — are
+gated behind an API-key check and an in-process rate limiter. Read-only `GET`
+endpoints stay open. Three env vars control the baseline:
+
+| Env var | Purpose | Default |
+| --- | --- | --- |
+| `PROOF_OF_AUDIT_API_KEYS` | Comma-separated secret keys accepted in the `X-API-Key` header. Empty means the API is open (no auth). | empty |
+| `PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS` | Comma-separated allowed CORS origins. | `*` on local networks, empty (`[]`) on non-local |
+| `PROOF_OF_AUDIT_RATE_LIMIT_PER_MINUTE` | Max mutating requests per identity per 60s. `0` disables rate limiting. | `30` |
+
+**Fail-loud behavior (mirrors key-role separation).** On any **non-local**
+network the API **refuses to start** when:
+
+- `PROOF_OF_AUDIT_API_KEYS` is empty (unauthenticated mutating endpoints), or
+- `PROOF_OF_AUDIT_CORS_ALLOW_ORIGINS` contains the wildcard `*` (explicit
+  origins are required).
+
+On **local** development networks an open API (no keys) is tolerated: the API
+logs one prominent warning and continues. Single-key / open mode is acceptable
+only for local development.
+
+Rate limiting is enforced per identity: the presented API key when one is
+sent, otherwise the caller's IP (`request.client.host`). On breach the API
+returns `429 Too Many Requests` with a `Retry-After` header.
+
+**Per-process limiter caveat.** The rate limiter keeps its counters in memory,
+**per process**. A multi-instance deployment (for example Cloud Run with
+several containers) enforces the limit per instance, not globally. Treat it as
+a coarse abuse brake; add a shared external limiter (Redis, an API gateway,
+etc.) to enforce a global quota when scaling beyond one instance.
+
+Example authenticated request:
+
+```bash
+curl -sS -X POST "$PROOF_OF_AUDIT_API_URL/audits" \
+  -H "X-API-Key: $PROOF_OF_AUDIT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"submission_mode": "demo_fixture", "demo_fixture_id": "vulnerable-bank"}'
+```
+
 ## API container image
 
 The repository now includes a deployable API image definition at `api/Dockerfile`.

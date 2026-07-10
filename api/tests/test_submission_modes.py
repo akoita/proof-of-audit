@@ -51,7 +51,14 @@ def demo_fixtures_file(tmp_path: Path) -> Path:
 def client(tmp_path: Path, demo_fixtures_file: Path) -> TestClient:
     env_file = tmp_path / ".env.local"
     env_file.write_text(
-        f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={demo_fixtures_file}\n",
+        "\n".join(
+            [
+                "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                "PROOF_OF_AUDIT_CHAIN_ID=31337",
+                f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={demo_fixtures_file}",
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
     data_root = tmp_path / "data"
@@ -149,6 +156,8 @@ def catalog_client(tmp_path: Path, demo_fixtures_file: Path) -> TestClient:
     env_file.write_text(
         "\n".join(
             [
+                "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                "PROOF_OF_AUDIT_CHAIN_ID=31337",
                 f"PROOF_OF_AUDIT_DEMO_FIXTURES_FILE={demo_fixtures_file}",
                 f"PROOF_OF_AUDIT_AUDITOR_CATALOG_FILE={catalog_file}",
             ]

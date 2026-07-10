@@ -144,6 +144,8 @@ def test_auditor_registration_endpoint_returns_standards_oriented_document(
     env_file.write_text(
         "\n".join(
             [
+                "PROOF_OF_AUDIT_NETWORK=anvil-local",
+                "PROOF_OF_AUDIT_CHAIN_ID=31337",
                 f"PROOF_OF_AUDIT_AGENT_MANIFEST_FILE={manifest_file}",
                 "PROOF_OF_AUDIT_AUDITOR_REGISTRATION_URI=https://registry.example.invalid/auditors/proof-of-audit-auditor.json",
                 "PROOF_OF_AUDIT_AUDITOR_PUBLIC_WEB_URL=https://proof-of-audit.example.invalid",
