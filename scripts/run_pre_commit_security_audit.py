@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -118,6 +119,7 @@ def build_commands(files: Sequence[str], python_bin: str) -> tuple[list[str], li
             {
                 "label": "backend-security-regression",
                 "reason": "Security-sensitive backend paths changed",
+                "env": {"PYTHONPATH": "agent:api"},
                 "command": [
                     python_bin,
                     "-m",
@@ -194,8 +196,12 @@ def run_commands(commands: Sequence[dict[str, str | list[str]]]) -> int:
     for entry in commands:
         command = entry["command"]
         assert isinstance(command, list)
+        env = os.environ.copy()
+        entry_env = entry.get("env")
+        if isinstance(entry_env, dict):
+            env.update(entry_env)
         print(f"[security-audit] running {entry['label']}: {' '.join(command)}")
-        result = subprocess.run(command, cwd=REPO_ROOT)
+        result = subprocess.run(command, cwd=REPO_ROOT, env=env)
         if result.returncode != 0:
             return result.returncode
     return 0

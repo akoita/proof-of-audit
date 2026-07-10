@@ -31,7 +31,7 @@ git checkout -b issue-<NUMBER>-<slug>
 // turbo
 ```bash
 git add <files>
-git commit --no-verify -m "<concise title>
+git commit -m "<concise title>
 
 <bullet-point summary of changes>"
 ```
@@ -66,6 +66,6 @@ git worktree remove /tmp/proof-of-audit-* 2>/dev/null; git checkout main && git 
 ```
 
 ## Notes
-- Always use `--no-verify` on commit (the pre-commit hook uses the wrong Python version)
+- Let the pre-commit security hook run; do not use `--no-verify` (fix failures instead of bypassing)
 - The correct Python environment is `pyenv activate proof-of-audit-3.12`
 - Run tests with: `PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m pytest agent/tests/ -x -q`
