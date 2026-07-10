@@ -126,6 +126,7 @@ contract ProofOfAudit {
     error RequestClaimAgentIdMismatch();
     error InvalidAuditRequestClaim();
     error RequestClaimSelfChallengeNotAllowed();
+    error SelfChallengeNotAllowed();
     error ChallengeWindowClosed();
     error ChallengeWindowOpen();
     error ResponseWindowOpen();
@@ -402,6 +403,7 @@ contract ProofOfAudit {
         AuditRecord storage audit = audits[auditId];
         if (audit.state != AuditState.Published) revert InvalidState();
         if (audit.publishedAt == 0) revert InvalidAudit();
+        if (audit.auditor == msg.sender) revert SelfChallengeNotAllowed();
         if (block.timestamp > audit.publishedAt + challengeWindow) {
             revert ChallengeWindowClosed();
         }

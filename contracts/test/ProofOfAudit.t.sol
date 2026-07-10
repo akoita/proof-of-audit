@@ -127,6 +127,14 @@ contract ProofOfAuditTest is Test {
         registry.challengeAudit{value: BOND}(auditId, keccak256("late-poc"));
     }
 
+    function testChallengeAuditRejectsSelfChallenge() public {
+        uint256 auditId = _publishDefaultAudit();
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.SelfChallengeNotAllowed.selector);
+        registry.challengeAudit{value: BOND}(auditId, keccak256("poc"));
+    }
+
     function testCreateAuditRequestStoresEscrowedRequest() public {
         ProofOfAudit.EligibilityConfig memory eligibility = _defaultEligibility();
 
