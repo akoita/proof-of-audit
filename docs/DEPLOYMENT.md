@@ -1,5 +1,18 @@
 # Deployment
 
+## Public Base Sepolia status
+
+The checked-in public deployment
+[`deployments/base-sepolia.json`](../deployments/base-sepolia.json) is a **legacy**
+`ProofOfAudit` instance (4 constructor arguments). Current source uses 8
+constructor arguments and includes marketplace / fee parameters that are **not**
+live on that address. Full detail:
+[DEPLOYED_VERSION.md](./DEPLOYED_VERSION.md) (issue
+[#303](https://github.com/akoita/proof-of-audit/issues/303)).
+
+Local Anvil deploys always use the **current** source via
+`scripts/deploy-local.sh` / the release pipeline.
+
 ## Localhost with Anvil
 
 The fastest local development loop is:

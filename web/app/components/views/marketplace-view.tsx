@@ -95,6 +95,10 @@ export function MarketplaceView({
               This tab previews marketplace request configuration and claim comparison. It does not create a chain-enforced request yet.
             </p>
 
+            <p className="notice-banner notice-banner-warning" data-testid="marketplace-undeployed-banner">
+              Public Base Sepolia still runs a legacy settlement deployment without the marketplace / AuditRequest surface. Treat this UI as source-local preview only until a full redeploy is published (see docs/DEPLOYED_VERSION.md, issue #303).
+            </p>
+
             <div>
               <label className="section-label">Target Contract</label>
               <input

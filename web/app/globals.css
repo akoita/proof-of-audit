@@ -1322,6 +1322,12 @@ body::after {
   color: var(--primary);
 }
 
+.notice-banner-warning {
+  background: rgba(255, 193, 7, 0.12);
+  color: #b8860b;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
 /* ── Misc utilities ───────────────────────────────────────── */
 .muted { color: var(--on-surface-variant); }
 .mono { font-family: "Roboto Mono", monospace; }

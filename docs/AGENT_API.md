@@ -182,6 +182,13 @@ The comparison endpoint adds a compact summary layer so callers can inspect how 
 
 ### Create a marketplace request
 
+> **Public network caveat:** marketplace request creation against the published
+> Base Sepolia settlement address is **not supported**. That deployment predates
+> the marketplace constructor and request primitives (see
+> [DEPLOYED_VERSION.md](./DEPLOYED_VERSION.md) and issue
+> [#303](https://github.com/akoita/proof-of-audit/issues/303)). Use local Anvil
+> deploys of the current source for end-to-end marketplace exercises.
+
 `POST /requests`
 
 Example:
