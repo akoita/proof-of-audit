@@ -110,13 +110,14 @@ def build_onchain_test_context(
         10**16,
         5 * 10**15,
         86400,
+        172800,
         protocol_fee_bps,
         resolution_fee_bps,
     ).build_transaction(
         {
             "from": deployer_address,
             "nonce": web3.eth.get_transaction_count(deployer_address),
-            "gas": 3_000_000,
+            "gas": 4_000_000,
             "maxFeePerGas": web3.to_wei(2, "gwei"),
             "maxPriorityFeePerGas": web3.to_wei(1, "gwei"),
             "chainId": web3.eth.chain_id,
@@ -268,6 +269,7 @@ def build_onchain_test_context(
             "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": str(10**16),
             "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": str(5 * 10**15),
             "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": "86400",
+            "PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS": "172800",
             "PROOF_OF_AUDIT_TREASURY_ADDRESS": treasury_address,
             "PROOF_OF_AUDIT_PROTOCOL_FEE_BPS": str(protocol_fee_bps),
             "PROOF_OF_AUDIT_RESOLUTION_FEE_BPS": str(resolution_fee_bps),

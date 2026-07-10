@@ -139,6 +139,9 @@ contract ProofOfAudit {
     error InvalidRequiredStake();
     error InvalidRequiredChallengeBond();
     error InvalidChallengeWindow();
+    error InvalidChallengeResolutionWindow();
+    error ChallengeResolutionWindowOpen();
+    error NoExpiredChallengeBond();
     error RequestSettlementPending();
     error RequestSettlementNotFinalized();
     error RequestSettlementAlreadyFinalized();
@@ -237,6 +240,13 @@ contract ProofOfAudit {
         uint256 payoutAmount
     );
 
+    event AuditRequestClaimChallengeExpired(
+        uint256 indexed requestId,
+        uint256 indexed claimId,
+        address indexed challenger,
+        uint256 bond
+    );
+
     event AuditRequestSettlementFinalized(
         uint256 indexed requestId,
         uint256 eligibleClaimCount,
@@ -264,6 +274,7 @@ contract ProofOfAudit {
     uint256 public immutable requiredStake;
     uint256 public immutable requiredChallengeBond;
     uint256 public immutable challengeWindow;
+    uint256 public immutable challengeResolutionWindow;
     address public immutable arbiter;
     address public immutable treasury;
     uint256 public immutable protocolFeeBps;
@@ -284,6 +295,7 @@ contract ProofOfAudit {
     mapping(uint256 => mapping(bytes32 => bool)) private requestClaimIdentityUsed;
     mapping(uint256 => mapping(address => bool)) private requestClaimAllowlistedAuditors;
     mapping(uint256 => address[]) private requestClaimAllowlistEntries;
+    mapping(address => uint256) public expiredChallengeBondRefunds;
 
     /// @notice Deploys the audit escrow with fixed economic parameters.
     /// @dev Every parameter is immutable after deployment; there is no upgrade
@@ -297,6 +309,7 @@ contract ProofOfAudit {
         uint256 _requiredStake,
         uint256 _requiredChallengeBond,
         uint256 _challengeWindow,
+        uint256 _challengeResolutionWindow,
         uint256 _protocolFeeBps,
         uint256 _resolutionFeeBps
     ) {
@@ -305,6 +318,7 @@ contract ProofOfAudit {
         if (_requiredStake == 0) revert InvalidRequiredStake();
         if (_requiredChallengeBond == 0) revert InvalidRequiredChallengeBond();
         if (_challengeWindow == 0) revert InvalidChallengeWindow();
+        if (_challengeResolutionWindow == 0) revert InvalidChallengeResolutionWindow();
         if (_protocolFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
         if (_resolutionFeeBps > FEE_DENOMINATOR) revert InvalidFeeRate();
         arbiter = _arbiter;
@@ -312,6 +326,7 @@ contract ProofOfAudit {
         requiredStake = _requiredStake;
         requiredChallengeBond = _requiredChallengeBond;
         challengeWindow = _challengeWindow;
+        challengeResolutionWindow = _challengeResolutionWindow;
         protocolFeeBps = _protocolFeeBps;
         resolutionFeeBps = _resolutionFeeBps;
     }
@@ -623,6 +638,47 @@ contract ProofOfAudit {
             resolutionFeeAmount,
             payoutAmount
         );
+    }
+
+    /// @notice Neutrally unwinds a request-claim challenge the arbiter never
+    ///         resolved, unfreezing the claim (and its parent request's
+    ///         settlement) once the resolution window has elapsed.
+    /// @dev Permissionless. The challenge bond is credited to a pull-refund
+    ///      balance for the challenger rather than push-sent, so a reverting
+    ///      challenger receiver cannot block expiry.
+    function expireAuditRequestClaimChallenge(uint256 claimId) external {
+        AuditRequestClaim storage claim = auditRequestClaims[claimId];
+        if (claim.requestId == 0) revert InvalidAuditRequestClaim();
+        if (claim.state != AuditRequestClaimState.Challenged) revert InvalidState();
+        if (block.timestamp <= claim.challengedAt + challengeResolutionWindow) {
+            revert ChallengeResolutionWindowOpen();
+        }
+
+        address challenger = claim.challenger;
+        uint96 bond = claim.challengeBond;
+
+        claim.state = AuditRequestClaimState.Submitted;
+        claim.challengedAt = 0;
+        claim.challengeBond = 0;
+        claim.challenger = address(0);
+        claim.evidenceHash = bytes32(0);
+
+        expiredChallengeBondRefunds[challenger] += bond;
+
+        emit AuditRequestClaimChallengeExpired(
+            claim.requestId,
+            claimId,
+            challenger,
+            bond
+        );
+    }
+
+    function withdrawExpiredChallengeBond() external {
+        uint256 amount = expiredChallengeBondRefunds[msg.sender];
+        if (amount == 0) revert NoExpiredChallengeBond();
+
+        expiredChallengeBondRefunds[msg.sender] = 0;
+        _sendValue(msg.sender, amount);
     }
 
     function releaseStake(uint256 auditId) external {

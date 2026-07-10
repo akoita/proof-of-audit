@@ -149,14 +149,19 @@ Proof-of-Audit is configured to deploy to Base Sepolia with the following defaul
 - required stake: `0.01 ETH`
 - required challenge bond: `0.005 ETH`
 - challenge window: `86400` seconds
+- challenge resolution window: `172800` seconds
 
 The deployment manifest lives in `deployments/base-sepolia.json`.
 
 ### Immutable deployment parameters
 
 The `ProofOfAudit` constructor validates its parameters at deploy time and reverts on
-invalid input: the arbiter, required stake, required challenge bond, and challenge window
-must all be non-zero, the treasury must be non-zero, and both fee rates must be `<= 100%`.
+invalid input: the arbiter, required stake, required challenge bond, challenge window, and
+challenge resolution window must all be non-zero, the treasury must be non-zero, and both
+fee rates must be `<= 100%`. The challenge resolution window bounds how long a challenged
+request claim may wait for arbiter resolution before anyone can neutrally expire the
+challenge and unfreeze settlement (`PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS`,
+default `172800`).
 All constructor parameters are immutable — there is no upgrade, pause, or recovery path.
 In particular, the arbiter is the sole dispute resolver: if the arbiter key is lost or
 unusable, the escrow (stake + bond) of any challenged audit is permanently locked. Protect

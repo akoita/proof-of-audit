@@ -228,9 +228,19 @@ B
 = requesterRefund
 + sum(claimant withdrawals)
 + sum(beneficiaryNet challenge payouts)
++ sum(expired challenge bond refunds)
 + protocolFee
 + sum(resolution fees)
 ```
+
+The `expired challenge bond refunds` term covers the neutral expiry path: when
+the arbiter never resolves a challenge, anyone may expire it after the challenge
+resolution window elapses. The challenge is unwound with no fee — the challenged
+claim reverts to `Submitted` (and thereafter settles through the normal eligible
+path) and the full bond is credited to the challenger as a pull-based refund
+(`withdrawExpiredChallengeBond`). An expired bond therefore leaves escrow only
+through that withdrawal, never through a resolution payout, so no resolution fee
+is charged on it.
 
 No other ETH sink or source is allowed inside the request settlement path.
 
