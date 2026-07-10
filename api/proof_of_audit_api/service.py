@@ -52,18 +52,6 @@ from proof_of_audit_api.store import AuditStore, CloudSqlPostgresConfig, create_
 from web3 import HTTPProvider, Web3
 
 
-def _network_is_local(network: str | None) -> bool:
-    normalized = str(network or "").strip().lower()
-    return (
-        "anvil" in normalized
-        or "localhost" in normalized
-        or "eth-tester" in normalized
-        or normalized == "eth_tester"
-        or normalized == "tester"
-        or normalized == "local"
-    )
-
-
 _CHALLENGER_EVENT_PRIORITY = {
     "challenge_resolved": 3,
     "challenge_opened": 2,
@@ -154,9 +142,7 @@ class AuditService:
                 sourcify_base_url=self.contract_config.sourcify_base_url,
                 explorer_api_url=self.contract_config.explorer_api_url,
                 explorer_api_key=self.contract_config.explorer_api_key,
-                allow_deployed_address_deterministic_fallback=_network_is_local(
-                    self.contract_config.network
-                ),
+                allow_deployed_address_deterministic_fallback=self.contract_config.is_local_network(),
                 detectors=self.contract_config.worker_detectors,
                 audit_profile=self.contract_config.worker_audit_profile,
             ),
@@ -537,7 +523,7 @@ class AuditService:
         )
 
     def _is_local_network(self) -> bool:
-        return _network_is_local(self.contract_config.network)
+        return self.contract_config.is_local_network()
 
     def runtime_diagnostics(self) -> dict[str, Any]:
         runtime = self.worker.runtime
