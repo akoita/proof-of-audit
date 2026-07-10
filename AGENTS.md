@@ -28,6 +28,12 @@ Binding rules for AI assistants and human contributors:
 5. **Never overstate the trust model.** Public claims (README, pitches, docs, UI copy) must
    match the current rung of the decentralization ladder in `docs/strategy/VISION.md`.
    Today that means: disclose single-arbiter adjudication and advisory-only verification.
+6. **Technology adoption follows the radar.** New frameworks/protocols (agentic or
+   otherwise) enter only per [AGENTIC_STACK.md](./docs/strategy/AGENTIC_STACK.md): update the
+   radar ring with a rationale in the same PR. The containment boundary is non-negotiable —
+   **no agent frameworks in the trust & settlement layer** (contracts, escrow, evidence
+   verification, on-chain publishing). Upskilling/branding is a valid, citable adoption
+   reason in the intelligence and interop layers — disguising it as a product reason is not.
 
 ---
 
