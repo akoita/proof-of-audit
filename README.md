@@ -49,16 +49,6 @@ Being precise about what is and isn't trustless at this stage (see the
   `hybrid`/`agent_forge` runtime modes (see
   [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)).
 
-## For judges
-
-Start with the [Evaluation readiness](./docs/EVALUATION_READINESS.md) index. For the full product walkthrough, use the default local evaluation path in [Judge evaluation path](./docs/JUDGE_EVALUATION.md):
-
-```bash
-./scripts/run-judge-stack.sh
-```
-
-Then open `http://127.0.0.1:3000`. If the web app is unavailable, use the fallback API docs at `http://127.0.0.1:8080/docs`.
-
 ## Try it
 
 > The local demo exercises the full trust loop in `deterministic` mode:
@@ -89,7 +79,7 @@ No browser needed — run the full trust loop from the terminal:
 python ./scripts/run_agent_demo.py --api-url http://127.0.0.1:8080
 ```
 
-See [Asciinema demo](./docs/ASCIINEMA_DEMO.md) for recording instructions.
+One-command full stack (chain + API + web): `./scripts/run-judge-stack.sh`, then open `http://127.0.0.1:3000`.
 
 ## Demo snapshots
 
@@ -203,9 +193,7 @@ make install-git-hooks
 | [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
 | [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)  | Run with real Agent Forge locally   |
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
-| [Asciinema demo](./docs/ASCIINEMA_DEMO.md)        | Terminal recording runbook          |
-| [Submission pack](./docs/SUBMISSION_PACK.md)      | Final copy and demo asset inventory |
-| [Evaluation readiness](./docs/EVALUATION_READINESS.md) | Final judge-facing evaluation index |
+| [Hackathon archive](./docs/archive/hackathon-2026/) | Judge briefs, pitch scripts, submission material (historical, unmaintained) |
 | [Base Sepolia smoke evidence](./docs/proofs/base-sepolia-smoke-2026-03-22.md) | Latest dated live-smoke evidence record |
 
 ## What's next

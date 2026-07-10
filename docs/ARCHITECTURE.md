@@ -18,7 +18,7 @@ flowchart LR
     API --> Worker["Auditor worker (multi-agent)"]
     API --> Resolver["Verified source resolver"]
     API --> AgentForge["Hosted agent-forge service"]
-    API --> Verifier["Deterministic challenge verifier"]
+    API --> Verifier["Advisory challenge verifier"]
     API --> Store["JSON audit store"]
     API --> Contract["ProofOfAudit contract"]
     API --> Validation["ERC-8004 validation bridge"]
@@ -134,9 +134,10 @@ Design docs:
 
 ### Challenge verifier
 
-- evaluates curated proof URIs against benchmark expectations
-- can only auto-resolve when a non-advisory verifier produces a concrete upheld or rejected outcome
-- otherwise leaves the dispute on the manual fallback path
+- records plain proof-URI evidence for manual review (the curated benchmark lookup is retired)
+- replays executable evidence bundles in a sandboxed fork run and produces an advisory verdict
+- can only auto-resolve when a non-advisory verifier produces a concrete upheld or rejected outcome; every currently registered verifier is advisory, so this path never fires today
+- otherwise leaves the dispute on the manual (arbiter) fallback path
 
 Key file:
 - `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/challenge_verifier.py`
@@ -225,11 +226,11 @@ That division keeps the standards story honest and keeps the enforcement logic i
 
 ### Challenge resolution
 
-1. A challenger submits a proof URI.
+1. A challenger submits evidence: a plain proof URI, or an executable evidence bundle.
 2. The contract opens the challenge and escrows the bond.
-3. The verifier evaluates the proof against known benchmark cases.
-4. If the case is known, the API resolves the challenge on-chain automatically.
-5. If the case is ambiguous, the challenge remains open for fallback governance.
+3. Plain proof-URI evidence is recorded for manual review — nothing evaluates it automatically (the curated benchmark lookup is retired).
+4. Executable evidence is hash-verified against the on-chain commitment and replayed in a sandboxed Foundry fork run; the result is an **advisory** verdict only.
+5. The operator-held arbiter key resolves the challenge on-chain; verifier output informs that call but never moves stake on its own. Request-flow challenges the arbiter never resolves can be neutrally expired after the resolution window, unfreezing settlement.
 6. Once the outcome is resolved, the API mirrors the result into the validation bridge.
 
 ### Cross-agent challenge feed
@@ -257,4 +258,4 @@ When reviewing the repo, the fastest path is:
 1. `/home/koita/dev/hackatons/proof-of-audit/README.md`
 2. `/home/koita/dev/hackatons/proof-of-audit/docs/DEMO_SCRIPT.md`
 3. `/home/koita/dev/hackatons/proof-of-audit/docs/DEPLOYMENT.md`
-4. `/home/koita/dev/hackatons/proof-of-audit/docs/DEMO_NARRATIVE.md`
+4. `/home/koita/dev/hackatons/proof-of-audit/docs/archive/hackathon-2026/DEMO_NARRATIVE.md`

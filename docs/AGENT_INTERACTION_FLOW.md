@@ -21,17 +21,12 @@ sequenceDiagram
     API-->>Caller: published audit record
     Caller->>API: POST /audits/{id}/challenge
     API->>Chain: open challenge
-    alt deterministic evidence
-        API->>Chain: resolve challenge
-        API->>Bridge: submit validation response
-        API-->>Caller: resolved audit record
-    else ambiguous evidence
-        API-->>Caller: challenged audit record
-        Caller->>API: POST /audits/{id}/resolve
-        API->>Chain: resolve challenge
-        API->>Bridge: submit validation response
-        API-->>Caller: resolved audit record
-    end
+    API-->>Caller: challenged audit record (verifier verdict advisory)
+    Caller->>API: POST /audits/{id}/resolve
+    Note over API: privileged call backed by the arbiter key
+    API->>Chain: resolve challenge
+    API->>Bridge: submit validation response
+    API-->>Caller: resolved audit record
 ```
 
 ## Flow 1: Discover and trust-check the service
@@ -152,20 +147,19 @@ The bridge is useful for:
 
 It is not the settlement source of truth.
 
-## Deterministic versus fallback behavior
+## Verifier and resolution behavior
 
-Deterministic path:
+Verifier behavior (advisory in every case):
 
-- preferred
-- quick
-- reproducible
-- meant for known benchmark evidence
+- plain proof-URI evidence is recorded for manual review; nothing auto-resolves (the curated benchmark lookup is retired)
+- executable evidence is hash-verified against the on-chain commitment and replayed in a sandbox, producing an advisory verdict
+- advisory verdicts inform the resolver; they never move stake on their own
 
-Fallback path:
+Resolution path:
 
-- used only when the verifier cannot confidently classify the evidence
-- requires a privileged resolver call
-- still ends with on-chain settlement and a validation response
+- requires a privileged resolver call backed by the operator-held arbiter key
+- ends with on-chain settlement and a validation response
+- request-flow challenges the arbiter never resolves can be neutrally expired after the resolution window, returning the claim to settlement
 
 ## Minimal caller strategy
 
