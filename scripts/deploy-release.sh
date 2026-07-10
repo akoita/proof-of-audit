@@ -41,6 +41,7 @@ TREASURY_ADDRESS="${PROOF_OF_AUDIT_TREASURY_ADDRESS:-${ARBITER}}"
 REQUIRED_STAKE_WEI="${PROOF_OF_AUDIT_REQUIRED_STAKE_WEI:-10000000000000000}"
 REQUIRED_CHALLENGE_BOND_WEI="${PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI:-5000000000000000}"
 CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
+CHALLENGE_RESOLUTION_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS:-172800}"
 PROTOCOL_FEE_BPS="${PROOF_OF_AUDIT_PROTOCOL_FEE_BPS:-0}"
 RESOLUTION_FEE_BPS="${PROOF_OF_AUDIT_RESOLUTION_FEE_BPS:-0}"
 
@@ -50,22 +51,24 @@ RESOLUTION_FEE_BPS="${PROOF_OF_AUDIT_RESOLUTION_FEE_BPS:-0}"
 
 BROADCAST_FILE="${CONTRACTS_DIR}/broadcast/DeployProofOfAudit.s.sol/${CHAIN_ID}/run-latest.json"
 CONSTRUCTOR_ARGS_JSON="$(
-  printf '{"arbiter":"%s","treasury":"%s","required_stake_wei":"%s","required_challenge_bond_wei":"%s","challenge_window_seconds":%s,"protocol_fee_bps":%s,"resolution_fee_bps":%s}' \
+  printf '{"arbiter":"%s","treasury":"%s","required_stake_wei":"%s","required_challenge_bond_wei":"%s","challenge_window_seconds":%s,"challenge_resolution_window_seconds":%s,"protocol_fee_bps":%s,"resolution_fee_bps":%s}' \
     "${ARBITER}" \
     "${TREASURY_ADDRESS}" \
     "${REQUIRED_STAKE_WEI}" \
     "${REQUIRED_CHALLENGE_BOND_WEI}" \
     "${CHALLENGE_WINDOW_SECONDS}" \
+    "${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
     "${PROTOCOL_FEE_BPS}" \
     "${RESOLUTION_FEE_BPS}"
 )"
 CONSTRUCTOR_ARGS_HEX="$(
-  cast abi-encode "constructor(address,address,uint256,uint256,uint256,uint256,uint256)" \
+  cast abi-encode "constructor(address,address,uint256,uint256,uint256,uint256,uint256,uint256)" \
     "${ARBITER}" \
     "${TREASURY_ADDRESS}" \
     "${REQUIRED_STAKE_WEI}" \
     "${REQUIRED_CHALLENGE_BOND_WEI}" \
     "${CHALLENGE_WINDOW_SECONDS}" \
+    "${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
     "${PROTOCOL_FEE_BPS}" \
     "${RESOLUTION_FEE_BPS}"
 )"
@@ -77,6 +80,7 @@ PROOF_OF_AUDIT_TREASURY_ADDRESS="${TREASURY_ADDRESS}" \
 PROOF_OF_AUDIT_REQUIRED_STAKE_WEI="${REQUIRED_STAKE_WEI}" \
 PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI="${REQUIRED_CHALLENGE_BOND_WEI}" \
 PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS="${CHALLENGE_WINDOW_SECONDS}" \
+PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS="${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
 PROOF_OF_AUDIT_PROTOCOL_FEE_BPS="${PROTOCOL_FEE_BPS}" \
 PROOF_OF_AUDIT_RESOLUTION_FEE_BPS="${RESOLUTION_FEE_BPS}" \
 forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit \
@@ -123,6 +127,7 @@ cd "${ROOT_DIR}"
   --required-stake-wei "${REQUIRED_STAKE_WEI}" \
   --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
   --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}" \
+  --challenge-resolution-window-seconds "${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
   --protocol-fee-bps "${PROTOCOL_FEE_BPS}" \
   --resolution-fee-bps "${RESOLUTION_FEE_BPS}" \
   --deployment-tx-hash "${DEPLOYMENT_TX_HASH}" \
