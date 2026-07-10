@@ -630,14 +630,14 @@ The topics from the previously scattered docs are covered here as follows:
 | `ERC8004_ROADMAP.md` | [Roadmap Status](#roadmap-status) |
 | `PLUGGABLE_AUDITOR_INTEGRATION.md` | [Pluggable Auditors](#pluggable-auditors) |
 | `DEPLOYMENT.md` | [Development and Operations](#development-and-operations) |
-| `SUBMISSION_UX.md` | [Web Frontend](#web-frontend) |
+| `archive/hackathon-2026/SUBMISSION_UX.md` | [Web Frontend](#web-frontend) |
 | `ROADMAP.md` | [Roadmap Status](#roadmap-status) |
-| `STRATEGIC_ALIGNMENT.md` | [Overview](#overview), [Standards and Compliance](#standards-and-compliance) |
-| `PITCH.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
+| `archive/hackathon-2026/STRATEGIC_ALIGNMENT.md` | [Overview](#overview), [Standards and Compliance](#standards-and-compliance) |
+| `archive/hackathon-2026/PITCH.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
 | `DEMO_SCRIPT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `DEMO_NARRATIVE.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `ASCIINEMA_DEMO.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `RELEASE_NOTES_DRAFT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
+| `archive/hackathon-2026/DEMO_NARRATIVE.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
+| `archive/hackathon-2026/ASCIINEMA_DEMO.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
+| `archive/hackathon-2026/RELEASE_NOTES_DRAFT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
 | `CHALLENGER_FEED.md` | [Challenge Feed](#challenge-feed), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
 | `MULTI_AGENT_DEMO.md` | [Multi-Agent Personas](#multi-agent-personas), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
 

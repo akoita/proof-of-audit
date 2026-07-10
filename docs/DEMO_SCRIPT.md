@@ -131,4 +131,4 @@ Those endpoints expose the same story without relying on the browser.
 
 For a reusable terminal-first version of that fallback path, see:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/ASCIINEMA_DEMO.md`
+- `/home/koita/dev/hackatons/proof-of-audit/docs/archive/hackathon-2026/ASCIINEMA_DEMO.md`
