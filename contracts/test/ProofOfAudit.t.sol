@@ -47,6 +47,26 @@ contract ProofOfAuditTest is Test {
         vm.deal(treasury, 1 ether);
     }
 
+    function testConstructorRejectsZeroArbiter() public {
+        vm.expectRevert(ProofOfAudit.InvalidArbiter.selector);
+        new ProofOfAudit(address(0), treasury, STAKE, BOND, WINDOW, 0, 0);
+    }
+
+    function testConstructorRejectsZeroStake() public {
+        vm.expectRevert(ProofOfAudit.InvalidRequiredStake.selector);
+        new ProofOfAudit(arbiter, treasury, 0, BOND, WINDOW, 0, 0);
+    }
+
+    function testConstructorRejectsZeroChallengeBond() public {
+        vm.expectRevert(ProofOfAudit.InvalidRequiredChallengeBond.selector);
+        new ProofOfAudit(arbiter, treasury, STAKE, 0, WINDOW, 0, 0);
+    }
+
+    function testConstructorRejectsZeroChallengeWindow() public {
+        vm.expectRevert(ProofOfAudit.InvalidChallengeWindow.selector);
+        new ProofOfAudit(arbiter, treasury, STAKE, BOND, 0, 0, 0);
+    }
+
     function testPublishAuditStoresRecord() public {
         vm.prank(auditor);
         uint256 auditId = registry.publishAudit{value: STAKE}(
