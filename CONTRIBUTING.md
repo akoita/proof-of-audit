@@ -2,6 +2,22 @@
 
 Thanks for your interest in improving Proof-of-Audit.
 
+## ⚠️ External contributions are paused
+
+The project is currently in a **vision-reset phase** (see [`docs/strategy/`](./docs/strategy/)):
+the product direction, contract semantics, and backlog are being redefined by the maintainer.
+Until this notice is removed:
+
+- **Unsolicited pull requests will be closed without detailed review**, regardless of quality.
+  This includes automated/agent-generated PRs responding to newly opened issues.
+- Open issues are **not** an invitation to submit implementation PRs — they are the
+  maintainer's working backlog, and their scope may change as the strategy settles.
+- If you want to get involved, **open a discussion or comment on an issue first** and wait
+  for an explicit go-ahead before writing code.
+
+This policy exists so the limited maintenance time goes into direction-setting, not PR
+management. It will be relaxed once the Phase 0 backlog stabilizes.
+
 ## Development setup
 
 1. Install Python 3.12+, Foundry, Node.js, and pnpm.
