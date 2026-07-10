@@ -1,5 +1,12 @@
 # AuditRequest Protocol
 
+> **Public network status (see [#303](https://github.com/akoita/proof-of-audit/issues/303)
+> and [DEPLOYED_VERSION.md](./DEPLOYED_VERSION.md)):** the live Base Sepolia
+> `ProofOfAudit` deployment predates this marketplace subsystem. On public
+> networks, treat `AuditRequest` / marketplace settlement as **undeployed**.
+> The design below describes **current source + local Anvil / API preview**
+> behavior, not the bytecode at `0xf2da3947d028b85e597fe1df4633a87ef4a85f24`.
+
 `#217` introduces a marketplace request primitive alongside the legacy single-auditor
 `publishAudit` flow.
 

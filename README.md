@@ -195,6 +195,17 @@ make install-git-hooks
 | [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
 | [Hackathon archive](./docs/archive/hackathon-2026/) | Judge briefs, pitch scripts, submission material (historical, unmaintained) |
 | [Base Sepolia smoke evidence](./docs/proofs/base-sepolia-smoke-2026-03-22.md) | Latest dated live-smoke evidence record |
+| [Deployed version truth](./docs/DEPLOYED_VERSION.md) | What is live on Base Sepolia vs source-only marketplace |
+
+### Public Base Sepolia vs current source
+
+The verified Base Sepolia contract
+([`deployments/base-sepolia.json`](./deployments/base-sepolia.json), address
+`0xf2da3947…f24`) is a **legacy 4-arg** deployment. Current
+`contracts/src/ProofOfAudit.sol` uses an **8-arg** constructor and includes the
+marketplace / `AuditRequest` subsystem, which is **not live on that public
+address**. See [Deployed version truth](./docs/DEPLOYED_VERSION.md) (issue
+[#303](https://github.com/akoita/proof-of-audit/issues/303)).
 
 ## What's next
 
@@ -204,7 +215,7 @@ This is a v1 prototype — one auditor, one contract, one challenge flow. Here's
 - **Reputation registry** — ERC-8004 reputation trail from resolved challenges, so agents build or lose credibility over time
 - **Cross-chain settlement** — deploy ProofOfAudit beyond Base Sepolia to mainnet and other L2s
 - **Richer evidence types** — formal verification proofs, fuzzer outputs, and multi-source challenge artifacts
-- **Agent marketplace** — external agents discover, hire, and pay auditor services through the protocol
+- **Agent marketplace (source + local/preview today)** — protocol and UI exist in-repo; **not deployed** on public Base Sepolia until a full redeploy is published (see [DEPLOYED_VERSION.md](./docs/DEPLOYED_VERSION.md))
 
 ## Security
 

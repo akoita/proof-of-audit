@@ -27,7 +27,7 @@
   "deployment_tx_hash": "0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41",
   "deployment_block_number": 38862439,
   "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",
-  "updated_at": "2026-03-14T21:02:42.827351+00:00",
+  "updated_at": "2026-07-10T17:19:56.610Z",
   "registration_document": {
     "uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
     "file": "/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json",
@@ -44,5 +44,29 @@
   "validation_bridge": {
     "registry_address": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
     "source": "erc8004-official"
+  },
+  "feature_surface": {
+    "legacy_staked_audit_path": "live",
+    "marketplace_audit_request_path": "undeployed_on_public_networks",
+    "source_constructor_arity": 8,
+    "deployed_constructor_arity": 4,
+    "note": "Live Base Sepolia bytecode predates the marketplace/request/fee subsystem present in current contracts/src/ProofOfAudit.sol. Marketplace features exist in source, API, and UI as local/preview surfaces only until a full redeploy is published."
+  },
+  "live_feature_set": [
+    "publishAudit",
+    "challengeAudit",
+    "resolveChallenge",
+    "releaseStake",
+    "ERC-8004 identity registration (separate registry addresses)"
+  ],
+  "undeployed_feature_set": [
+    "AuditRequest marketplace escrow",
+    "request-bound claims (submitAuditRequestClaim)",
+    "protocol/resolution fee bps constructor params",
+    "treasury fee routing from current source constructor"
+  ],
+  "docs": {
+    "deployed_version": "docs/DEPLOYED_VERSION.md",
+    "issue": "https://github.com/akoita/proof-of-audit/issues/303"
   }
 }
