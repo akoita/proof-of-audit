@@ -96,9 +96,9 @@ Document any new env var in `.env.example` and the relevant IaC config in `agent
 
 5. **Clean up after merge** — delete the feature branch (local + remote) and align local `main`.
 
-6. **Use the `/process-issue` workflow** when beginning and completing work on any GitHub issue. Run the steps in `.agents/workflows/process-issue.md` to create the branch, implement, test, commit, push, create PR, merge, and clean up.
+6. **Use the `process-issue` skill** when beginning work on any GitHub issue. Run the steps in `.agents/skills/process-issue/SKILL.md` to create the branch, implement, test, commit, push, create PR, merge, and clean up. (Claude Code discovers it via the `.claude/skills` symlink.)
 
-7. **Use the `/finish-issue` workflow** when completing work on an issue or any branch. Run the steps in `.agents/workflows/finish-issue.md` to verify, test, commit, push, create PR, merge, and clean up. This ensures security scans are executed and no steps are skipped.
+7. **Use the `finish-issue` skill** when completing work on an issue or any branch. Run the steps in `.agents/skills/finish-issue/SKILL.md` to verify, test, commit, push, create PR, merge, and clean up. This ensures security scans are executed and no steps are skipped.
 
 8. **Always use `--no-verify`** on `git commit` — the pre-commit security-audit hook uses a different Python version and cannot resolve project modules. Tests must be run manually with the correct pyenv environment.
 

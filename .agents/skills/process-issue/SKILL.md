@@ -1,5 +1,6 @@
 ---
-description: Process a GitHub issue — create branch, implement, commit, PR, merge
+name: process-issue
+description: Process a GitHub issue — create branch, implement, commit, PR, merge. Use when asked to "process", "work on", or "implement" a GitHub issue end to end.
 ---
 
 # Process Issue Workflow

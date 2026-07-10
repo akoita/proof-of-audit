@@ -1,1 +1,0 @@
-../../.agents/workflows/process-issue.md
