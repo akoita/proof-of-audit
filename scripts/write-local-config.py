@@ -28,6 +28,9 @@ def main() -> None:
     parser.add_argument("--required-stake-wei", default="10000000000000000")
     parser.add_argument("--required-challenge-bond-wei", default="5000000000000000")
     parser.add_argument("--challenge-window-seconds", default="86400")
+    parser.add_argument(
+        "--challenge-resolution-window-seconds", default="172800"
+    )
     parser.add_argument("--protocol-fee-bps", default="0")
     parser.add_argument("--resolution-fee-bps", default="0")
     parser.add_argument("--deployment-manifest-file")
@@ -60,6 +63,9 @@ def main() -> None:
         "required_stake_wei": args.required_stake_wei,
         "required_challenge_bond_wei": args.required_challenge_bond_wei,
         "challenge_window_seconds": int(args.challenge_window_seconds),
+        "challenge_resolution_window_seconds": int(
+            args.challenge_resolution_window_seconds
+        ),
         "protocol_fee_bps": int(args.protocol_fee_bps),
         "resolution_fee_bps": int(args.resolution_fee_bps),
     }
@@ -88,6 +94,7 @@ def main() -> None:
         "PROOF_OF_AUDIT_REQUIRED_STAKE_WEI": args.required_stake_wei,
         "PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI": args.required_challenge_bond_wei,
         "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS": args.challenge_window_seconds,
+        "PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS": args.challenge_resolution_window_seconds,
         "PROOF_OF_AUDIT_PROTOCOL_FEE_BPS": args.protocol_fee_bps,
         "PROOF_OF_AUDIT_RESOLUTION_FEE_BPS": args.resolution_fee_bps,
     }

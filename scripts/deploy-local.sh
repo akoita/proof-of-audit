@@ -17,6 +17,7 @@ CHALLENGER_PRIVATE_KEY="${LOCAL_CHALLENGER_PRIVATE_KEY:-0x59c6995e998f97a5a00449
 REQUIRED_STAKE_WEI="${PROOF_OF_AUDIT_REQUIRED_STAKE_WEI:-10000000000000000}"
 REQUIRED_CHALLENGE_BOND_WEI="${PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI:-5000000000000000}"
 CHALLENGE_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS:-86400}"
+CHALLENGE_RESOLUTION_WINDOW_SECONDS="${PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS:-172800}"
 PROTOCOL_FEE_BPS="${PROOF_OF_AUDIT_PROTOCOL_FEE_BPS:-0}"
 RESOLUTION_FEE_BPS="${PROOF_OF_AUDIT_RESOLUTION_FEE_BPS:-0}"
 MANIFEST_FILE="${LOCAL_DEPLOYMENT_MANIFEST_FILE:-${ROOT_DIR}/deployments/localhost.json}"
@@ -57,6 +58,7 @@ existing_deployment_matches() {
   local existing_stake
   local existing_bond
   local existing_window
+  local existing_resolution_window
   local existing_treasury
   local existing_protocol_fee
   local existing_resolution_fee
@@ -68,6 +70,7 @@ existing_deployment_matches() {
   existing_stake="$(cast call "${address}" "requiredStake()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
   existing_bond="$(cast call "${address}" "requiredChallengeBond()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
   existing_window="$(cast call "${address}" "challengeWindow()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
+  existing_resolution_window="$(cast call "${address}" "challengeResolutionWindow()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
   existing_treasury="$(cast call "${address}" "treasury()(address)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
   existing_protocol_fee="$(cast call "${address}" "protocolFeeBps()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
   existing_resolution_fee="$(cast call "${address}" "resolutionFeeBps()(uint256)" --rpc-url "${RPC_URL}" 2>/dev/null | awk '{print $1}' || true)"
@@ -77,6 +80,7 @@ existing_deployment_matches() {
   [[ "${existing_stake}" == "${REQUIRED_STAKE_WEI}" ]] || return 1
   [[ "${existing_bond}" == "${REQUIRED_CHALLENGE_BOND_WEI}" ]] || return 1
   [[ "${existing_window}" == "${CHALLENGE_WINDOW_SECONDS}" ]] || return 1
+  [[ "${existing_resolution_window}" == "${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" ]] || return 1
   [[ "${existing_protocol_fee}" == "${PROTOCOL_FEE_BPS}" ]] || return 1
   [[ "${existing_resolution_fee}" == "${RESOLUTION_FEE_BPS}" ]] || return 1
 }
@@ -99,6 +103,7 @@ write_local_outputs() {
     --required-stake-wei "${REQUIRED_STAKE_WEI}" \
     --required-challenge-bond-wei "${REQUIRED_CHALLENGE_BOND_WEI}" \
     --challenge-window-seconds "${CHALLENGE_WINDOW_SECONDS}" \
+    --challenge-resolution-window-seconds "${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
     --protocol-fee-bps "${PROTOCOL_FEE_BPS}" \
     --resolution-fee-bps "${RESOLUTION_FEE_BPS}" \
     --deployment-manifest-file "${MANIFEST_FILE}" \
@@ -143,6 +148,7 @@ PROOF_OF_AUDIT_TREASURY_ADDRESS="${TREASURY_ADDRESS}" \
 PROOF_OF_AUDIT_REQUIRED_STAKE_WEI="${REQUIRED_STAKE_WEI}" \
 PROOF_OF_AUDIT_REQUIRED_CHALLENGE_BOND_WEI="${REQUIRED_CHALLENGE_BOND_WEI}" \
 PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS="${CHALLENGE_WINDOW_SECONDS}" \
+PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS="${CHALLENGE_RESOLUTION_WINDOW_SECONDS}" \
 PROOF_OF_AUDIT_PROTOCOL_FEE_BPS="${PROTOCOL_FEE_BPS}" \
 PROOF_OF_AUDIT_RESOLUTION_FEE_BPS="${RESOLUTION_FEE_BPS}" \
 forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit \

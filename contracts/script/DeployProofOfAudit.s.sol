@@ -11,6 +11,7 @@ contract DeployProofOfAudit is Script {
         uint256 requiredStake;
         uint256 requiredChallengeBond;
         uint256 challengeWindow;
+        uint256 challengeResolutionWindow;
         uint256 protocolFeeBps;
         uint256 resolutionFeeBps;
     }
@@ -25,6 +26,7 @@ contract DeployProofOfAudit is Script {
             params.requiredStake,
             params.requiredChallengeBond,
             params.challengeWindow,
+            params.challengeResolutionWindow,
             params.protocolFeeBps,
             params.resolutionFeeBps
         );
@@ -46,6 +48,10 @@ contract DeployProofOfAudit is Script {
                 ),
                 challengeWindow: vm.envUint(
                     "PROOF_OF_AUDIT_CHALLENGE_WINDOW_SECONDS"
+                ),
+                challengeResolutionWindow: vm.envOr(
+                    "PROOF_OF_AUDIT_CHALLENGE_RESOLUTION_WINDOW_SECONDS",
+                    uint256(172800)
                 ),
                 protocolFeeBps: vm.envUint("PROOF_OF_AUDIT_PROTOCOL_FEE_BPS"),
                 resolutionFeeBps: vm.envUint("PROOF_OF_AUDIT_RESOLUTION_FEE_BPS")
