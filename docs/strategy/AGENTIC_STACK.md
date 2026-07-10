@@ -73,6 +73,22 @@ safe. It splits the system into layers with different technology rules:
   only becomes interesting later, as a genuinely independent second auditor
   identity staking on our own rails (which is product-honest: real independent
   engines, not personas).
+- **SARIF 2.1.0 as the findings-interchange format.** The OASIS static-analysis
+  results standard, emitted natively by Slither, Semgrep, CodeQL, and Aderyn, and
+  ingested natively by GitHub Code Scanning. Three concrete fits: (a) accepting
+  SARIF as the findings payload at the pluggable-auditor boundary cuts third-party
+  engine onboarding to "pipe us what your tool already outputs"; (b) emitting SARIF
+  from the bonded diff-audit GitHub App renders findings as native PR annotations
+  in the customer's own UI for free; (c) stable `ruleId`s and `partialFingerprints`
+  give the challenge verifier's finding-comparison a firmer substrate than the
+  current token-overlap heuristic — relevant to Phase 2's machine-checkable
+  admissibility rules. Explicitly NOT a replacement for the claim envelope: stake,
+  code hash, chain snapshot, identity, and challenge policy stay PoA-specific, with
+  the SARIF document as the committed findings artifact (`reportHash` over a
+  canonicalized serialization — SARIF's verbosity demands strict canonicalization
+  discipline before hashing). Bounded experiment: accept SARIF input when
+  integrating the first real engine (Slither emits it for free); promote to Adopt
+  if that integration confirms the fit.
 
 ### Hold (no adoption without new evidence)
 
