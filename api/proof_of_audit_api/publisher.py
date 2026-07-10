@@ -239,6 +239,12 @@ class ProofOfAuditPublisher:
         self.private_key = private_key or self._require_private_key(contract_config)
         self.web3 = web3 or self._build_web3(contract_config)
         self.account = self.web3.eth.account.from_key(self.private_key)
+        challenger_key = getattr(contract_config, "challenger_private_key", None)
+        self.challenger_account = (
+            self.web3.eth.account.from_key(challenger_key)
+            if challenger_key
+            else self.account
+        )
         self.contract = self._build_contract(contract_config)
         self.error_selectors = self._error_selectors()
 
@@ -370,6 +376,7 @@ class ProofOfAuditPublisher:
                 chain_id=runtime_chain_id,
                 action_label="open challenge",
                 error_cls=OnchainChallengeError,
+                account=self.challenger_account,
             )
         except OnchainChallengeError:
             raise
@@ -1079,10 +1086,12 @@ class ProofOfAuditPublisher:
         chain_id: int,
         action_label: str,
         error_cls: type[OnchainTransactionError],
+        account: Any = None,
     ) -> Any:
+        account = account if account is not None else self.account
         transaction = {
-            "from": self.account.address,
-            "nonce": self.web3.eth.get_transaction_count(self.account.address),
+            "from": account.address,
+            "nonce": self.web3.eth.get_transaction_count(account.address),
             "value": value_wei,
             "chainId": chain_id,
         }
@@ -1093,7 +1102,7 @@ class ProofOfAuditPublisher:
             built_transaction = contract_call.build_transaction(transaction)
             signed = self.web3.eth.account.sign_transaction(
                 built_transaction,
-                self.private_key,
+                account.key,
             )
             tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
             return self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)

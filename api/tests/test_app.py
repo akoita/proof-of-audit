@@ -2427,7 +2427,7 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         )
         self.assertEqual(
             challenge_payload["challenge"]["challenger_address"],
-            self.client.app.state.audit_service.publisher.account.address,
+            self.client.app.state.audit_service.publisher.challenger_account.address,
         )
         self.assertTrue(challenge_payload["challenge"]["challenge_tx_hash"].startswith("0x"))
         self.assertIsNone(challenge_payload["challenge"]["resolve_tx_hash"])

@@ -927,7 +927,7 @@ class AuditServiceTest(unittest.TestCase):
             )
             self.assertEqual(
                 challenged["challenge"]["challenger_address"],
-                onchain.publisher.account.address,
+                onchain.publisher.challenger_account.address,
             )
             self.assertEqual(
                 challenged["challenge"]["challenge_bond_wei"],
@@ -946,7 +946,7 @@ class AuditServiceTest(unittest.TestCase):
             )
             self.assertEqual(
                 onchain.web3.to_checksum_address(audit_record[12]),
-                onchain.publisher.account.address,
+                onchain.publisher.challenger_account.address,
             )
             self.assertEqual(
                 onchain.web3.to_hex(audit_record[13]),

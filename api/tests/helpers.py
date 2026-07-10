@@ -95,6 +95,7 @@ def build_onchain_test_context(
     arbiter_key = backend.account_keys[1]
     validator_address = tester.get_accounts()[2]
     validator_key = backend.account_keys[2]
+    challenger_key = backend.account_keys[3]
     secondary_auditor_key = backend.account_keys[4]
     secondary_auditor_address = web3.eth.account.from_key(secondary_auditor_key).address
     treasury_address = validator_address
@@ -259,6 +260,7 @@ def build_onchain_test_context(
             "PROOF_OF_AUDIT_EXPLORER_BASE_URL": "http://127.0.0.1:8545",
             "PROOF_OF_AUDIT_ARBITER": arbiter_address,
             "PROOF_OF_AUDIT_PRIVATE_KEY": deployer_key.to_hex(),
+            "PROOF_OF_AUDIT_CHALLENGER_PRIVATE_KEY": challenger_key.to_hex(),
             "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": arbiter_key.to_hex(),
             "PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY": deployer_key.to_hex(),
             "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": validator_key.to_hex(),
