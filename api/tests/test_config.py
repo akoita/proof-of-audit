@@ -3,7 +3,11 @@ import json
 from pathlib import Path
 import tempfile
 
-from proof_of_audit_api.config import ContractConfig, load_env_file
+from proof_of_audit_api.config import (
+    ContractConfig,
+    address_from_private_key,
+    load_env_file,
+)
 
 def load_base_sepolia_manifest() -> dict[str, object]:
     return json.loads(
@@ -408,3 +412,136 @@ class ContractConfigTest(unittest.TestCase):
                 config.auditor_services[1].reputation_path_template,
                 "/auditors/{id}/reputation",
             )
+
+
+# Four valid, distinct secp256k1 private keys (and their derived addresses) used
+# by the key-separation tests. Each maps to a different trust role.
+_PUBLISHER_KEY = "0x59c6995e998f97a5a0044966f094538e5d8f7c6f8b3631d8c0eb1f68d6f6c7e6"
+_ARBITER_KEY = "0x8b3a350cf5c34c9194ca3a545d0f15e3b8f1f0d0c2e5b2f5d7a9a1f6715f89fd"
+_VALIDATOR_KEY = "0x0dbbe8ebf7d0313f4fd5401397cbe8bb8d65b1b845a70d820ee7da8db36805b4"
+_REPUTATION_KEY = "0x5de4111a884cc4ff8f4b78a1810d7a2ec61b0ff7dd86e31ed5c8984f1a58dc6b"
+
+
+class KeySeparationTest(unittest.TestCase):
+    def _config(self, env: dict[str, str]) -> ContractConfig:
+        base = {
+            "PROOF_OF_AUDIT_NETWORK": "base-sepolia",
+            "PROOF_OF_AUDIT_CHAIN_ID": "84532",
+        }
+        base.update(env)
+        return ContractConfig.from_env(base)
+
+    def test_is_local_network_classification(self) -> None:
+        self.assertTrue(
+            self._config({"PROOF_OF_AUDIT_NETWORK": "anvil-local"}).is_local_network()
+        )
+        self.assertTrue(
+            self._config(
+                {"PROOF_OF_AUDIT_NETWORK": "anvil-system-e2e"}
+            ).is_local_network()
+        )
+        self.assertTrue(
+            self._config({"PROOF_OF_AUDIT_NETWORK": "eth-tester"}).is_local_network()
+        )
+        self.assertFalse(
+            self._config({"PROOF_OF_AUDIT_NETWORK": "base-sepolia"}).is_local_network()
+        )
+
+    def test_all_distinct_keys_have_no_violations(self) -> None:
+        config = self._config(
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": _PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": _ARBITER_KEY,
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": _VALIDATOR_KEY,
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": _REPUTATION_KEY,
+            }
+        )
+        self.assertEqual(config.key_separation_violations(), [])
+
+    def test_arbiter_fallback_to_publisher_is_violation(self) -> None:
+        # Arbiter key unset -> cascades to the publisher key.
+        config = self._config(
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": _PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": _VALIDATOR_KEY,
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": _REPUTATION_KEY,
+            }
+        )
+        violations = config.key_separation_violations()
+        self.assertEqual(len(violations), 1)
+        self.assertIn("arbiter and publisher share signing address", violations[0])
+        self.assertIn(
+            address_from_private_key(_PUBLISHER_KEY),
+            violations[0],
+        )
+
+    def test_reputation_operator_fallback_is_violation(self) -> None:
+        # Reputation-operator key unset -> cascades through validator/arbiter to
+        # the publisher key when those are also unset.
+        config = self._config(
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": _PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": _ARBITER_KEY,
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": _VALIDATOR_KEY,
+            }
+        )
+        violations = config.key_separation_violations()
+        # Reputation-operator falls back to validator first.
+        self.assertEqual(len(violations), 1)
+        self.assertIn(
+            "reputation-operator and validator share signing address",
+            violations[0],
+        )
+        self.assertIn(
+            address_from_private_key(_VALIDATOR_KEY),
+            violations[0],
+        )
+
+    def test_reputation_operator_fallback_all_the_way_to_publisher(self) -> None:
+        # Only the publisher key is set; arbiter, validator and
+        # reputation-operator all cascade down to it -> three pairwise
+        # violations sharing the publisher address.
+        config = self._config(
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": _PUBLISHER_KEY,
+            }
+        )
+        violations = config.key_separation_violations()
+        publisher_address = address_from_private_key(_PUBLISHER_KEY)
+        # All four trust roles cascade to the publisher key -> every pair of the
+        # four collides (C(4,2) = 6 pairwise violations).
+        self.assertEqual(len(violations), 6)
+        for violation in violations:
+            self.assertIn(publisher_address, violation)
+
+    def test_challenger_sharing_publisher_is_not_a_violation(self) -> None:
+        # Challenger is a convenience signer; sharing the publisher address must
+        # not be flagged. All four trust roles are distinct here.
+        config = self._config(
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": _PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_CHALLENGER_PRIVATE_KEY": _PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": _ARBITER_KEY,
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": _VALIDATOR_KEY,
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": _REPUTATION_KEY,
+            }
+        )
+        self.assertEqual(config.key_separation_violations(), [])
+
+    def test_unset_role_keys_are_skipped_without_crashing(self) -> None:
+        # No keys configured at all -> nothing to compare, no violations.
+        config = self._config({})
+        self.assertEqual(config.key_separation_violations(), [])
+
+        # Only validator and reputation-operator set (distinct). Publisher and
+        # arbiter have no key and no cascade source, so they resolve to None and
+        # are simply skipped -- no crash, no violation.
+        partial = self._config(
+            {
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": _VALIDATOR_KEY,
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": _REPUTATION_KEY,
+            }
+        )
+        self.assertIsNone(partial.publisher_private_key)
+        self.assertIsNone(partial.arbiter_private_key)
+        self.assertEqual(partial.key_separation_violations(), [])

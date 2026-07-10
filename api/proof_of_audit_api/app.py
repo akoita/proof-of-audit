@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from contextlib import asynccontextmanager
+import logging
 import os
 from pathlib import Path
 
@@ -60,7 +61,42 @@ from proof_of_audit_api.source_bundle_storage import (
 from proof_of_audit_api.store import CloudSqlPostgresConfig
 
 
+logger = logging.getLogger(__name__)
+
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+
+
+def _enforce_key_separation(contract_config: ContractConfig) -> None:
+    """Refuse to start when trust roles share signing keys on a real network.
+
+    The publisher, arbiter, validator and reputation-operator must be distinct
+    addresses: the party staking behind verdicts must not be the party
+    resolving disputes. On local development networks a single shared key is
+    tolerated (with a loud warning); everywhere else it is a fatal
+    misconfiguration.
+    """
+    violations = contract_config.key_separation_violations()
+    if not violations:
+        return
+    if contract_config.is_local_network():
+        logger.warning(
+            "Trust roles share signing addresses on local network %r: %s. "
+            "Single-key mode is acceptable ONLY for local development; set "
+            "distinct role keys before deploying to a real network.",
+            contract_config.network,
+            "; ".join(violations),
+        )
+        return
+    raise RuntimeError(
+        "Key role separation violated on network "
+        f"{contract_config.network!r}: "
+        + "; ".join(violations)
+        + ". The publisher, arbiter, validator and reputation-operator must be "
+        "distinct addresses. Set PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY, "
+        "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY and "
+        "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY to keys distinct from "
+        "the publisher key (PROOF_OF_AUDIT_PRIVATE_KEY)."
+    )
 
 
 def create_app(
@@ -114,6 +150,8 @@ def create_app(
     if audit_service is not None:
         contract_config = audit_service.contract_config
     app.state.contract_config = contract_config
+
+    _enforce_key_separation(contract_config)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(

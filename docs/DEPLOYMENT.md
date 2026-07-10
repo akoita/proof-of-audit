@@ -304,6 +304,36 @@ The API can target the deployed contract with:
 - `PROOF_OF_AUDIT_PRIVATE_KEY`
 - `PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY`
 
+### Key roles and separation
+
+The challenge game depends on four trust roles being **distinct signing
+addresses**. The party staking behind published verdicts must not also be the
+party resolving disputes or writing reputation, otherwise the economic checks
+collapse.
+
+| Role | Env var | Purpose |
+| --- | --- | --- |
+| Publisher | `PROOF_OF_AUDIT_PRIVATE_KEY` | Signs and stakes behind published audit verdicts. |
+| Arbiter | `PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY` | Resolves challenges / disputes. |
+| Validator | `PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY` | Signs ERC-8004 validation-registry attestations. |
+| Reputation operator | `PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY` | Records reputation claims and resolutions. |
+
+On any **non-local** network these four must resolve to different addresses. If
+any two of them share an address (for example because a role key is unset and
+falls back through the env cascade to `PROOF_OF_AUDIT_PRIVATE_KEY`), the API
+**refuses to start** and reports which roles collide and which env vars to set.
+
+On **local** development networks (network names containing `anvil`,
+`localhost`, `eth-tester`, or equal to `local`/`tester`, including the
+`anvil-system-e2e` stack) a single shared key is tolerated: the API logs one
+prominent warning and continues. Single-key mode is acceptable only for local
+development.
+
+`PROOF_OF_AUDIT_CHALLENGER_PRIVATE_KEY` and
+`PROOF_OF_AUDIT_AUDITOR_OWNER_PRIVATE_KEY` are convenience signers and are
+**not** part of the separation requirement; they may share an address with any
+trust role.
+
 ## API container image
 
 The repository now includes a deployable API image definition at `api/Dockerfile`.

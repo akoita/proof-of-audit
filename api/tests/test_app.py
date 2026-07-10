@@ -10,7 +10,8 @@ import tempfile as tempfile_module
 import httpx
 from fastapi.testclient import TestClient
 
-from proof_of_audit_api.app import create_app
+from proof_of_audit_api.app import _enforce_key_separation, create_app
+from proof_of_audit_api.config import ContractConfig
 from proof_of_audit_api.service import AuditService
 from proof_of_audit_agent.challenge_verifier import ChallengeVerificationResult, EvidenceContext
 from helpers import build_onchain_test_context
@@ -2984,3 +2985,58 @@ class AuditApiOnchainPublishTest(unittest.TestCase):
         )
         self.assertEqual(challenged.status_code, 422)
         self.assertEqual(challenged.json()["error"], "validation_error")
+
+
+class StartupKeySeparationTest(unittest.TestCase):
+    # Valid, distinct secp256k1 keys mapped to individual trust roles.
+    _PUBLISHER_KEY = "0x59c6995e998f97a5a0044966f094538e5d8f7c6f8b3631d8c0eb1f68d6f6c7e6"
+    _ARBITER_KEY = "0x8b3a350cf5c34c9194ca3a545d0f15e3b8f1f0d0c2e5b2f5d7a9a1f6715f89fd"
+    _VALIDATOR_KEY = "0x0dbbe8ebf7d0313f4fd5401397cbe8bb8d65b1b845a70d820ee7da8db36805b4"
+    _REPUTATION_KEY = "0x5de4111a884cc4ff8f4b78a1810d7a2ec61b0ff7dd86e31ed5c8984f1a58dc6b"
+
+    def _config(self, network: str, env: dict[str, str]) -> ContractConfig:
+        base = {
+            "PROOF_OF_AUDIT_NETWORK": network,
+            "PROOF_OF_AUDIT_CHAIN_ID": "84532" if network == "base-sepolia" else "31337",
+        }
+        base.update(env)
+        return ContractConfig.from_env(base)
+
+    def test_shared_keys_on_real_network_refuse_to_start(self) -> None:
+        # Arbiter/validator/reputation-operator keys unset -> cascade to the
+        # publisher key on a non-local network.
+        config = self._config(
+            "base-sepolia",
+            {"PROOF_OF_AUDIT_PRIVATE_KEY": self._PUBLISHER_KEY},
+        )
+        with self.assertRaises(RuntimeError) as ctx:
+            _enforce_key_separation(config)
+        message = str(ctx.exception)
+        self.assertIn("share signing address", message)
+        self.assertIn("PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY", message)
+        self.assertIn("PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY", message)
+        self.assertIn("PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY", message)
+
+    def test_distinct_keys_on_real_network_start_cleanly(self) -> None:
+        config = self._config(
+            "base-sepolia",
+            {
+                "PROOF_OF_AUDIT_PRIVATE_KEY": self._PUBLISHER_KEY,
+                "PROOF_OF_AUDIT_ARBITER_PRIVATE_KEY": self._ARBITER_KEY,
+                "PROOF_OF_AUDIT_VALIDATOR_PRIVATE_KEY": self._VALIDATOR_KEY,
+                "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": self._REPUTATION_KEY,
+            },
+        )
+        # Must not raise.
+        _enforce_key_separation(config)
+
+    def test_shared_keys_on_local_network_only_warn(self) -> None:
+        config = self._config(
+            "anvil-local",
+            {"PROOF_OF_AUDIT_PRIVATE_KEY": self._PUBLISHER_KEY},
+        )
+        with self.assertLogs("proof_of_audit_api.app", level="WARNING") as captured:
+            _enforce_key_separation(config)  # must not raise
+        self.assertTrue(
+            any("local development" in line for line in captured.output)
+        )

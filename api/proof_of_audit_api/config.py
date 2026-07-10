@@ -1036,6 +1036,66 @@ class ContractConfig:
     def deployment_ready(self) -> bool:
         return bool(self.contract_address and self.rpc_url)
 
+    def is_local_network(self) -> bool:
+        """Return True for local development networks (anvil, eth-tester, etc.).
+
+        Role-key separation is enforced only on real (non-local) networks; local
+        networks may share a single key. The system-e2e stack network name
+        ``anvil-system-e2e`` classifies as local. ``service.py`` delegates its
+        local-network checks here so the semantics stay in one place.
+        """
+        normalized = str(self.network or "").strip().lower()
+        return (
+            "anvil" in normalized
+            or "localhost" in normalized
+            or "eth-tester" in normalized
+            or normalized == "eth_tester"
+            or normalized == "tester"
+            or normalized == "local"
+        )
+
+    def key_separation_violations(self) -> list[str]:
+        """Report pairs of trust roles that share a signing address.
+
+        The challenge game depends on the four trust roles -- publisher,
+        arbiter, validator and reputation-operator -- being distinct
+        addresses: the party staking behind verdicts must not be the party
+        resolving disputes. When role keys fall back to the publisher key
+        (``PROOF_OF_AUDIT_PRIVATE_KEY``) through the env cascade, that
+        separation collapses.
+
+        Returns a human-readable violation string for every pair among those
+        four roles whose keys are both set and resolve to the same address.
+        Roles with no key configured are skipped. Challenger and
+        auditor-owner are convenience signers and are intentionally excluded.
+        """
+        roles = (
+            ("publisher", self.publisher_private_key),
+            ("arbiter", self.arbiter_private_key),
+            ("validator", self.validator_private_key),
+            ("reputation-operator", self.reputation_operator_private_key),
+        )
+        resolved = [
+            (name, address_from_private_key(key))
+            for name, key in roles
+            if key
+        ]
+        violations: list[str] = []
+        for i in range(len(resolved)):
+            name_a, addr_a = resolved[i]
+            if not addr_a:
+                continue
+            for j in range(i + 1, len(resolved)):
+                name_b, addr_b = resolved[j]
+                if not addr_b:
+                    continue
+                if addr_a == addr_b:
+                    first, second = sorted((name_a, name_b))
+                    violations.append(
+                        f"{first} and {second} share signing address {addr_a}"
+                    )
+        return violations
+
     def transaction_url(self, tx_hash: str) -> str:
         return f"{self.explorer_base_url}/tx/{tx_hash}"
 

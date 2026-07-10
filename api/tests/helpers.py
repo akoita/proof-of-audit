@@ -98,6 +98,14 @@ def build_onchain_test_context(
     challenger_key = backend.account_keys[3]
     secondary_auditor_key = backend.account_keys[4]
     secondary_auditor_address = web3.eth.account.from_key(secondary_auditor_key).address
+    # Account index 5 is a dedicated reputation-operator signer so the four
+    # trust roles (publisher/deployer, arbiter, validator, reputation-operator)
+    # all resolve to distinct addresses -- keeping role separation intact even
+    # if this env is ever used to build a non-local config.
+    reputation_operator_key = backend.account_keys[5]
+    reputation_operator_address = web3.eth.account.from_key(
+        reputation_operator_key
+    ).address
     treasury_address = validator_address
 
     contract_factory = web3.eth.contract(
@@ -231,7 +239,7 @@ def build_onchain_test_context(
     )
     reputation_deployment = reputation_factory.constructor(
         identity_receipt["contractAddress"],
-        validator_address,
+        reputation_operator_address,
     ).build_transaction(
         {
             "from": deployer_address,
@@ -280,8 +288,8 @@ def build_onchain_test_context(
             "PROOF_OF_AUDIT_VALIDATION_BRIDGE_SOURCE": "project-local-custom",
             "PROOF_OF_AUDIT_REPUTATION_REGISTRY_ADDRESS": reputation_receipt["contractAddress"],
             "PROOF_OF_AUDIT_REPUTATION_BRIDGE_SOURCE": "project-local-custom",
-            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": validator_key.to_hex(),
-            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_ADDRESS": validator_address,
+            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_PRIVATE_KEY": reputation_operator_key.to_hex(),
+            "PROOF_OF_AUDIT_REPUTATION_OPERATOR_ADDRESS": reputation_operator_address,
             "PROOF_OF_AUDIT_RUNTIME_API_URL": "http://127.0.0.1:8080",
         }
     )
