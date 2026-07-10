@@ -1,5 +1,6 @@
 ---
-description: Finish working on a GitHub issue — verify, test, commit, push, PR, merge, and clean up branches
+name: finish-issue
+description: Finish working on a GitHub issue — verify, test, commit, push, PR, merge, and clean up branches. Use when asked to "finish issue", "close issue", "wrap up", or finalize the current branch.
 ---
 
 When the user says "finish issue", "close issue", "wrap up", or wants to finalize work on the current branch, follow these steps.

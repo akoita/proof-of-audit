@@ -28,3 +28,6 @@ deployments/auditor-catalog*.json
 api/data/*
 !api/data/.gitkeep
 .tmp/security-audit/
+
+# Claude Code local settings
+.claude/settings.local.json

@@ -1,6 +1,42 @@
 > This file is read by AI coding assistants (GitHub Copilot, Gemini Code Assist, Claude, etc.)
 > to enforce project-wide conventions. Keep it up to date.
 
+## Product Vision Governance
+
+All strategic and product decisions are governed by the documents in `docs/strategy/`:
+[VISION.md](./docs/strategy/VISION.md) (what the product is and is NOT),
+[PRODUCT_STRATEGY.md](./docs/strategy/PRODUCT_STRATEGY.md),
+[ROADMAP.md](./docs/strategy/ROADMAP.md) (phased, with exit criteria), and
+[BACKLOG_TRIAGE.md](./docs/strategy/BACKLOG_TRIAGE.md).
+
+Binding rules for AI assistants and human contributors:
+
+1. **Check alignment before building.** Before proposing or implementing any new feature,
+   scope change, or architectural pivot, verify it against the "What Proof-of-Audit is not"
+   section of `docs/strategy/VISION.md` and the current phase of `docs/strategy/ROADMAP.md`.
+   If it doesn't map to the current phase, say so instead of building it.
+2. **Respect phase ordering.** Do not start a later phase's headline work before the current
+   phase's exit criterion is met. Phase 0 (truth & hygiene) blocks everything else.
+3. **Parked items stay parked.** Multi-agent persona demos, marketplace UI as a headline
+   surface, TEE evidence execution, a proprietary frontier audit engine, and cross-chain
+   expansion are explicitly parked. Do not reopen them without new external evidence, and
+   never silently.
+4. **Deviations require a docs-first decision record.** If a decision genuinely deviates from
+   the vision, update the relevant `docs/strategy/` document **in the same PR** with the
+   decision and rationale. The strategy docs are the source of truth; code must not diverge
+   from them silently.
+5. **Never overstate the trust model.** Public claims (README, pitches, docs, UI copy) must
+   match the current rung of the decentralization ladder in `docs/strategy/VISION.md`.
+   Today that means: disclose single-arbiter adjudication and advisory-only verification.
+6. **Technology adoption follows the radar.** New frameworks/protocols (agentic or
+   otherwise) enter only per [AGENTIC_STACK.md](./docs/strategy/AGENTIC_STACK.md): update the
+   radar ring with a rationale in the same PR. The containment boundary is non-negotiable —
+   **no agent frameworks in the trust & settlement layer** (contracts, escrow, evidence
+   verification, on-chain publishing). Upskilling/branding is a valid, citable adoption
+   reason in the intelligence and interop layers — disguising it as a product reason is not.
+
+---
+
 **NEVER hardcode** URLs, ports, secrets, API keys, private keys, RPC endpoints, contract addresses,
 or any environment-dependent values directly in source code.
 
@@ -66,9 +102,9 @@ Document any new env var in `.env.example` and the relevant IaC config in `agent
 
 5. **Clean up after merge** — delete the feature branch (local + remote) and align local `main`.
 
-6. **Use the `/process-issue` workflow** when beginning and completing work on any GitHub issue. Run the steps in `.agents/workflows/process-issue.md` to create the branch, implement, test, commit, push, create PR, merge, and clean up.
+6. **Use the `process-issue` skill** when beginning work on any GitHub issue. Run the steps in `.agents/skills/process-issue/SKILL.md` to create the branch, implement, test, commit, push, create PR, merge, and clean up. (Claude Code discovers it via the `.claude/skills` symlink.)
 
-7. **Use the `/finish-issue` workflow** when completing work on an issue or any branch. Run the steps in `.agents/workflows/finish-issue.md` to verify, test, commit, push, create PR, merge, and clean up. This ensures security scans are executed and no steps are skipped.
+7. **Use the `finish-issue` skill** when completing work on an issue or any branch. Run the steps in `.agents/skills/finish-issue/SKILL.md` to verify, test, commit, push, create PR, merge, and clean up. This ensures security scans are executed and no steps are skipped.
 
 8. **Always use `--no-verify`** on `git commit` — the pre-commit security-audit hook uses a different Python version and cannot resolve project modules. Tests must be run manually with the correct pyenv environment.
 
