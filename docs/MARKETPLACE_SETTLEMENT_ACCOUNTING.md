@@ -244,6 +244,21 @@ is charged on it.
 
 No other ETH sink or source is allowed inside the request settlement path.
 
+### Invariant coverage
+
+The conservation guarantee is enforced continuously by a handler-based Foundry
+invariant suite in `contracts/test/ProofOfAuditInvariant.t.sol`, which fuzzes
+both settlement flows and asserts, after every call sequence:
+
+```text
+address(escrow).balance == totalDeposited - totalWithdrawn
+```
+
+`totalDeposited` sums every accepted stake, bond and bounty; `totalWithdrawn`
+sums each payout by the recipient's observed balance delta. A companion
+`invariant_solvency` check guarantees the escrow always holds at least its
+accrued protocol and resolution fees plus every outstanding expired-bond refund.
+
 ## Pull-withdrawal model
 
 The settlement path should be implemented with three withdrawal families:

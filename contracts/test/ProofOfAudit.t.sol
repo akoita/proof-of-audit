@@ -24,6 +24,30 @@ contract RevertingReceiver {
     }
 }
 
+/// @dev A recipient that rejects plain ETH transfers but can still initiate
+///      calls to the escrow (publish, challenge, submit, withdraw) via `exec`.
+///      Used to drive pull-based payout paths where the reverting party must
+///      trigger its own withdrawal.
+contract RevertingCaller {
+    function exec(
+        address callTarget,
+        uint256 value,
+        bytes calldata data
+    ) external returns (bytes memory ret) {
+        bool ok;
+        (ok, ret) = callTarget.call{value: value}(data);
+        if (!ok) {
+            assembly {
+                revert(add(ret, 0x20), mload(ret))
+            }
+        }
+    }
+
+    receive() external payable {
+        revert("RevertingCaller: rejected");
+    }
+}
+
 contract ProofOfAuditTest is Test {
     ProofOfAudit internal registry;
     MockIdentityRegistry internal identityRegistry;
@@ -1083,6 +1107,409 @@ contract ProofOfAuditTest is Test {
         vm.prank(address(revertingChallenger));
         vm.expectRevert(ProofOfAudit.TransferFailed.selector);
         registry.withdrawExpiredChallengeBond();
+    }
+
+    // ---------------------------------------------------------------------
+    // Malicious-recipient coverage for every _sendValue payout path.
+    // ---------------------------------------------------------------------
+
+    // _sendValue @ resolveChallenge (direct flow): payout to the challenger.
+    function testResolveChallengeRevertsWhenRecipientRejectsPayout() public {
+        RevertingCaller badChallenger = new RevertingCaller();
+        vm.deal(address(badChallenger), 1 ether);
+
+        uint256 auditId = _publishDefaultAudit();
+        badChallenger.exec(
+            address(registry),
+            BOND,
+            abi.encodeCall(registry.challengeAudit, (auditId, keccak256("poc")))
+        );
+
+        vm.prank(arbiter);
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        registry.resolveChallenge(auditId, true);
+    }
+
+    // _sendValue @ resolveAuditRequestClaimChallenge: payout to the challenger.
+    function testResolveAuditRequestClaimChallengeRevertsWhenRecipientRejectsPayout()
+        public
+    {
+        RevertingCaller badChallenger = new RevertingCaller();
+        vm.deal(address(badChallenger), 1 ether);
+        identityRegistry.setOwner(3, address(badChallenger));
+
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        badChallenger.exec(
+            address(registry),
+            BOND,
+            abi.encodeCall(
+                registry.challengeAuditRequestClaim,
+                (claimId, address(identityRegistry), 3, keccak256("poc"))
+            )
+        );
+
+        vm.prank(arbiter);
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        registry.resolveAuditRequestClaimChallenge(claimId, true);
+    }
+
+    // _sendValue @ releaseStake: payout to the auditor.
+    function testReleaseStakeRevertsWhenRecipientRejectsPayout() public {
+        RevertingCaller badAuditor = new RevertingCaller();
+        vm.deal(address(badAuditor), 1 ether);
+
+        bytes memory ret = badAuditor.exec(
+            address(registry),
+            STAKE,
+            abi.encodeCall(
+                registry.publishAudit,
+                (target, keccak256("report"), keccak256("metadata"), 3, 2)
+            )
+        );
+        uint256 auditId = abi.decode(ret, (uint256));
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        registry.releaseStake(auditId);
+    }
+
+    // _sendValue @ refundExpiredAuditRequest: refund to the requester.
+    function testRefundExpiredAuditRequestRevertsWhenRecipientRejectsPayout()
+        public
+    {
+        RevertingCaller badRequester = new RevertingCaller();
+        vm.deal(address(badRequester), 1 ether);
+
+        bytes memory ret = badRequester.exec(
+            address(registry),
+            BOUNTY,
+            abi.encodeCall(
+                registry.createAuditRequest,
+                (
+                    target,
+                    uint96(BOUNTY),
+                    uint64(WINDOW),
+                    _defaultEligibility(),
+                    new address[](0)
+                )
+            )
+        );
+        uint256 requestId = abi.decode(ret, (uint256));
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.expireAuditRequest(requestId);
+
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        badRequester.exec(
+            address(registry),
+            0,
+            abi.encodeCall(registry.refundExpiredAuditRequest, (requestId))
+        );
+    }
+
+    // _sendValue @ withdrawExpiredChallengeBond is already covered by
+    // testExpiryWithRevertingChallengerReceiverStillUnfreezes.
+
+    // _sendValue @ withdrawAuditRequestClaimSettlement: payout to the auditor.
+    function testWithdrawAuditRequestClaimSettlementRevertsWhenRecipientRejectsPayout()
+        public
+    {
+        RevertingCaller badAuditor = new RevertingCaller();
+        vm.deal(address(badAuditor), 1 ether);
+        identityRegistry.setOwner(3, address(badAuditor));
+
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        bytes memory ret = badAuditor.exec(
+            address(registry),
+            STAKE,
+            abi.encodeCall(
+                registry.submitAuditRequestClaim,
+                (
+                    requestId,
+                    address(identityRegistry),
+                    3,
+                    keccak256("report"),
+                    keccak256("metadata"),
+                    3,
+                    2
+                )
+            )
+        );
+        uint256 claimId = abi.decode(ret, (uint256));
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.finalizeAuditRequestSettlement(requestId);
+
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        registry.withdrawAuditRequestClaimSettlement(claimId);
+    }
+
+    // _sendValue @ withdrawAuditRequestRefund: refund to the requester.
+    function testWithdrawAuditRequestRefundRevertsWhenRecipientRejectsPayout()
+        public
+    {
+        RevertingCaller badRequester = new RevertingCaller();
+        vm.deal(address(badRequester), 1 ether);
+
+        bytes memory ret = badRequester.exec(
+            address(registry),
+            BOUNTY,
+            abi.encodeCall(
+                registry.createAuditRequest,
+                (
+                    target,
+                    uint96(BOUNTY),
+                    uint64(WINDOW),
+                    _defaultEligibility(),
+                    new address[](0)
+                )
+            )
+        );
+        uint256 requestId = abi.decode(ret, (uint256));
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        // Slash the only claim so no auditor is eligible and the full bounty is
+        // refundable to the requester.
+        vm.prank(secondAuditor);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("claim-poc")
+        );
+        vm.prank(arbiter);
+        registry.resolveAuditRequestClaimChallenge(claimId, true);
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        registry.classifyAuditRequestClaims(requestId, 1);
+        registry.finalizeAuditRequestSettlement(requestId);
+
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        badRequester.exec(
+            address(registry),
+            0,
+            abi.encodeCall(registry.withdrawAuditRequestRefund, (requestId))
+        );
+    }
+
+    // _sendValue @ withdrawFees: payout to the treasury.
+    function testWithdrawFeesRevertsWhenRecipientRejectsPayout() public {
+        RevertingCaller badTreasury = new RevertingCaller();
+        ProofOfAudit feeRegistry = new ProofOfAudit(
+            arbiter,
+            address(badTreasury),
+            STAKE,
+            BOND,
+            WINDOW,
+            RESOLUTION_WINDOW,
+            FEE_BPS,
+            0
+        );
+
+        uint256 requestId = _createAuditRequestForWithRegistry(feeRegistry, challenger);
+
+        vm.prank(auditor);
+        feeRegistry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        feeRegistry.classifyAuditRequestClaims(requestId, 1);
+        feeRegistry.finalizeAuditRequestSettlement(requestId);
+        assertGt(feeRegistry.accruedProtocolFees(), 0);
+
+        vm.prank(address(badTreasury));
+        vm.expectRevert(ProofOfAudit.TransferFailed.selector);
+        feeRegistry.withdrawFees();
+    }
+
+    // ---------------------------------------------------------------------
+    // Targeted fuzz tests.
+    // ---------------------------------------------------------------------
+
+    function testFuzz_publishRejectsWrongStake(uint256 value) public {
+        value = bound(value, 0, 1 ether);
+        if (value == STAKE) {
+            value = STAKE + 1;
+        }
+        vm.deal(auditor, value);
+
+        vm.prank(auditor);
+        vm.expectRevert(ProofOfAudit.IncorrectStake.selector);
+        registry.publishAudit{value: value}(
+            target,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+    }
+
+    function testFuzz_challengeWindowBoundary(uint64 delta) public {
+        uint256 auditId = _publishDefaultAudit();
+        uint256 publishedAt = block.timestamp;
+        uint256 offset = bound(delta, 0, 2 * WINDOW);
+        vm.warp(publishedAt + offset);
+
+        vm.prank(challenger);
+        if (offset <= WINDOW) {
+            // At or before publishedAt + challengeWindow the challenge is valid.
+            registry.challengeAudit{value: BOND}(auditId, keccak256("poc"));
+            ProofOfAudit.AuditRecord memory audit = registry.getAudit(auditId);
+            assertEq(
+                uint256(audit.state),
+                uint256(ProofOfAudit.AuditState.Challenged)
+            );
+        } else {
+            vm.expectRevert(ProofOfAudit.ChallengeWindowClosed.selector);
+            registry.challengeAudit{value: BOND}(auditId, keccak256("poc"));
+        }
+    }
+
+    function testFuzz_proRataSharesNeverExceedBounty(
+        uint96 stakeA,
+        uint96 stakeB
+    ) public {
+        ProofOfAudit feeRegistry = _newFeeRegistry(FEE_BPS, 0);
+
+        uint256 sA = bound(stakeA, STAKE, 1 ether);
+        uint256 sB = bound(stakeB, STAKE, 1 ether);
+        if (sB == sA) {
+            sB = sA == 1 ether ? sA - 1 : sA + 1;
+        }
+        vm.deal(auditor, 2 ether);
+        vm.deal(secondAuditor, 2 ether);
+
+        vm.prank(challenger);
+        uint256 requestId = feeRegistry.createAuditRequest{value: BOUNTY}(
+            target,
+            uint96(BOUNTY),
+            uint64(WINDOW),
+            _defaultEligibility(),
+            new address[](0)
+        );
+
+        vm.prank(auditor);
+        uint256 firstClaimId = feeRegistry.submitAuditRequestClaim{value: sA}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report-1"),
+            keccak256("metadata-1"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        uint256 secondClaimId = feeRegistry.submitAuditRequestClaim{value: sB}(
+            requestId,
+            address(identityRegistry),
+            2,
+            keccak256("report-2"),
+            keccak256("metadata-2"),
+            2,
+            1
+        );
+
+        vm.warp(block.timestamp + WINDOW + 1);
+        feeRegistry.classifyAuditRequestClaims(requestId, 2);
+        feeRegistry.finalizeAuditRequestSettlement(requestId);
+
+        ProofOfAudit.AuditRequestSettlement memory settlement = feeRegistry
+            .getAuditRequestSettlement(requestId);
+
+        uint256 firstBalanceBefore = auditor.balance;
+        uint256 secondBalanceBefore = secondAuditor.balance;
+        uint256 requesterBalanceBefore = challenger.balance;
+
+        feeRegistry.withdrawAuditRequestClaimSettlement(firstClaimId);
+        feeRegistry.withdrawAuditRequestClaimSettlement(secondClaimId);
+
+        vm.prank(challenger);
+        feeRegistry.withdrawAuditRequestRefund(requestId);
+
+        uint256 firstShare = (auditor.balance - firstBalanceBefore) - sA;
+        uint256 secondShare = (secondAuditor.balance - secondBalanceBefore) - sB;
+        uint256 requesterRefund = challenger.balance - requesterBalanceBefore;
+
+        // The bounty is split exactly: auditor shares + protocol fee + refund.
+        assertEq(
+            firstShare + secondShare + settlement.protocolFeeAmount + requesterRefund,
+            BOUNTY
+        );
+        // No auditor share may exceed the distributable bounty.
+        assertLe(firstShare + secondShare, uint256(settlement.distributableBountyAmount));
+    }
+
+    function testFuzz_expiryBoundary(uint64 delta) public {
+        uint256 requestId = _createAuditRequestFor(challenger);
+
+        vm.prank(auditor);
+        uint256 claimId = registry.submitAuditRequestClaim{value: STAKE}(
+            requestId,
+            address(identityRegistry),
+            1,
+            keccak256("report"),
+            keccak256("metadata"),
+            3,
+            2
+        );
+
+        vm.prank(secondAuditor);
+        registry.challengeAuditRequestClaim{value: BOND}(
+            claimId,
+            address(identityRegistry),
+            2,
+            keccak256("stuck-poc")
+        );
+        uint256 challengedAt = block.timestamp;
+
+        uint256 offset = bound(delta, 0, 2 * RESOLUTION_WINDOW);
+        vm.warp(challengedAt + offset);
+
+        if (offset <= RESOLUTION_WINDOW) {
+            // At or before challengedAt + resolutionWindow expiry is not allowed.
+            vm.expectRevert(ProofOfAudit.ChallengeResolutionWindowOpen.selector);
+            registry.expireAuditRequestClaimChallenge(claimId);
+        } else {
+            registry.expireAuditRequestClaimChallenge(claimId);
+            ProofOfAudit.AuditRequestClaim memory claim = registry
+                .getAuditRequestClaim(claimId);
+            assertEq(
+                uint256(claim.state),
+                uint256(ProofOfAudit.AuditRequestClaimState.Submitted)
+            );
+        }
     }
 
     function _publishDefaultAudit() internal returns (uint256 auditId) {
