@@ -34,7 +34,7 @@ test-contracts:
 	forge test --root contracts
 
 test-formal:
-	PYENV_VERSION=proof-of-audit-3.12 pyenv exec halmos --root contracts --contract ProofOfAuditFormalTest
+	FOUNDRY_PROFILE=formal PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api pyenv exec halmos --root contracts --contract ProofOfAuditFormalTest
 
 test-python:
 	PYTHONPATH=agent:api $(PYTHON) -m pytest -m "not system_e2e"

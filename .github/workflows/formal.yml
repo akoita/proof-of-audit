@@ -11,6 +11,9 @@ on:
 jobs:
   halmos:
     runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROFILE: formal
+      PYTHONPATH: agent:api
     permissions:
       contents: read
     steps:
