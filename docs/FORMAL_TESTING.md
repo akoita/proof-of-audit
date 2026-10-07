@@ -8,7 +8,7 @@ counterexample.
 
 - Spec: [`contracts/test/formal/ProofOfAudit.formal.t.sol`](../contracts/test/formal/ProofOfAudit.formal.t.sol)
 - Contract under test: `contracts/src/ProofOfAudit.sol`
-- Tracking issue: [#314](https://github.com/) (author Halmos symbolic property tests)
+- Tracking issue: [#314](https://github.com/akoita/proof-of-audit/issues/314) (author Halmos symbolic property tests)
 
 ## What's covered
 
@@ -45,12 +45,21 @@ The suite depends on the `halmos-cheatcodes` submodule at
 make test-formal
 
 # Or directly:
-PYENV_VERSION=proof-of-audit-3.12 pyenv exec halmos \
+FOUNDRY_PROFILE=formal PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api pyenv exec halmos \
   --root contracts --contract ProofOfAuditFormalTest
 ```
 
-Each property discharges in well under a second; the full suite runs in a
-couple of seconds.
+The `formal` Foundry profile disables
+[dynamic test linking](https://github.com/foundry-rs/foundry/issues/11978).
+Foundry's default linking can rewrite the `new` expression in these tests to
+`vm.deployCode(string,bytes)`, which Halmos 0.3.3 does not support. The Makefile
+target and CI job select this profile so both the contract build and Halmos's
+internal rebuild use the same setting; the default profile keeps its normal
+linking behavior.
+
+Halmos reports symbolic execution time separately from the build. The first
+invocation also compiles the test contracts, which can take longer than the
+property checks.
 
 ## Limitations
 
@@ -63,5 +72,5 @@ couple of seconds.
   solver can discharge fast. Heavier protocol-wide rules — multi-claim bounty
   distribution and fee conservation across the full settlement lifecycle — are
   deferred to the Certora spec tracked in
-  [#316](https://github.com/). Mutation testing (Gambit) is tracked in
-  [#315](https://github.com/).
+  [#316](https://github.com/akoita/proof-of-audit/issues/316). Mutation testing
+  (Gambit) is tracked in [#315](https://github.com/akoita/proof-of-audit/issues/315).

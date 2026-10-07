@@ -563,6 +563,33 @@ cd contracts && forge test
 | Testnet smoke | Gated Base Sepolia validation |
 | UI e2e | Browser coverage of the workbench |
 
+### Live Testnet Evidence
+
+Use the strict runner when collecting Base Sepolia evidence:
+
+```bash
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api pyenv exec python \
+  scripts/run_testnet_smoke.py --artifacts-dir .tmp/testnet-smoke --require-live-env
+```
+
+Configure `PROOF_OF_AUDIT_TESTNET_API_URL`, `PROOF_OF_AUDIT_TESTNET_RPC_URL`,
+`PROOF_OF_AUDIT_TESTNET_PRIVATE_KEY`, and `PROOF_OF_AUDIT_TESTNET_CHAIN_ID` in
+the process environment. The private key must belong to a funded testnet
+account. In GitHub Actions, store the key in a repository secret; the API and
+RPC URLs can use secrets or repository variables. The smoke workflow defaults
+the chain ID to Base Sepolia (`84532`).
+
+The runner writes JSON and Markdown reports under the artifacts directory. It
+returns a failure with status `blocked` when required configuration is missing,
+and also fails if required live tests are skipped or absent from the results.
+`make test-testnet-smoke` runs the gated pytest suite directly, which can skip
+without failing; its exit code alone does not establish live evidence.
+
+[Issue #293](https://github.com/akoita/proof-of-audit/issues/293) remains open
+until a real publish, challenge, resolve, and payout cycle is recorded with
+transaction links. A blocked run demonstrates the configuration guard, but
+provides no evidence that the deployed lifecycle works.
+
 ### Security Audit Workflow
 
 The repo includes a local pre-commit security gate for Solidity and
