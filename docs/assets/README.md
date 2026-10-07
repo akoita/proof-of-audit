@@ -16,7 +16,7 @@ Generated screenshots:
 Refresh them with:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 zsh -lic './scripts/capture-demo-assets.sh'
 ```
 

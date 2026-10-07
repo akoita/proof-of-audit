@@ -1,10 +1,16 @@
 # Multi-Agent Demo
 
-This document describes the multi-agent demo architecture for Proof-of-Audit. It covers the agent persona manifest, capability profiles, on-chain identity registration, and cross-agent challenge workflows.
+## Status
+
+This is a legacy fixture and persona showcase. Its personas share the same
+auditor implementation with different runtime settings; they are not
+independent audit engines. The persona demo is parked under the current product
+strategy ([vision](strategy/VISION.md), [roadmap](strategy/ROADMAP.md)).
 
 ## Overview
 
-The multi-agent demo deploys 5 independent auditor agents, each with distinct specialization, runtime mode, and on-chain identity. The agents can:
+The legacy showcase configures five auditor personas with distinct detector
+profiles, runtime settings, and on-chain identities. The personas can:
 
 - Audit contracts using different detector profiles
 - Publish stake-backed claims independently

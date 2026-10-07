@@ -1,5 +1,10 @@
 # Deployment
 
+The commands below describe source-controlled deployment procedures. They are
+not evidence that a public deployment currently runs this source; see the
+[recorded project state](strategy/STATE_OF_THE_PROJECT.md) for deployment
+evidence and known limits.
+
 ## Localhost with Anvil
 
 The fastest local development loop is:
@@ -16,7 +21,7 @@ The automated E2E and system-E2E stack scripts now generate their own isolated e
 
 ```bash
 # 0. Start the local chain
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/start-anvil.sh
 
 # 1. Deploy the ProofOfAudit contract to Anvil and sync local app config
@@ -29,14 +34,15 @@ cd /home/koita/dev/hackatons/proof-of-audit
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 
 # 4. Start the frontend in a separate terminal (loads web/.env.local automatically)
-cd /home/koita/dev/hackatons/proof-of-audit/web
+# Run from the repository root
+cd web
 pnpm dev
 ```
 
 ### Start Anvil
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/start-anvil.sh
 ```
 
@@ -50,7 +56,7 @@ Defaults:
 ### Deploy locally and sync config
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/deploy-local.sh
 ```
 
@@ -79,7 +85,7 @@ It only handles the on-chain localhost deployment plus local config synchronizat
 ### Deploy local demo fixtures
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/deploy-demo-fixtures.sh
 ```
 
@@ -103,7 +109,7 @@ It only handles local demo fixture deployment and fixture manifest synchronizati
 ### Run the API against the generated local config
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 ```
 
@@ -112,7 +118,8 @@ The API automatically loads `api/.env.local` if it exists.
 ### Run the frontend against the generated local config
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit/web
+# Run from the repository root
+cd web
 pnpm dev
 ```
 
@@ -217,7 +224,7 @@ fixture suite to Base Sepolia and commit the resulting manifest instead of expos
 workbench fixtures.
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 PROOF_OF_AUDIT_FIXTURE_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
 PROOF_OF_AUDIT_FIXTURE_PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY" \
 BASESCAN_API_KEY="$BASESCAN_API_KEY" \
@@ -256,7 +263,7 @@ See [TESTNET_FIXTURES.md](./TESTNET_FIXTURES.md) for the manifest shape and usag
 ### Regenerate the published registration document without redeploying
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 python3 scripts/write-published-registration.py \
   --manifest-file agent/proof_of_audit_agent/auditor_manifest.json \
   --deployment-manifest-file deployments/base-sepolia.json \
@@ -385,14 +392,14 @@ The repository now includes a deployable API image definition at `api/Dockerfile
 Build the Cloud Run-ready image from the repository root so the Docker build can include the Python packages, deployment metadata, registration document, and generated contract ABI artifact:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 docker build -f api/Dockerfile -t proof-of-audit-api .
 ```
 
 Run it locally with the API bound to `0.0.0.0:8080`:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 docker run --rm -p 8080:8080 proof-of-audit-api
 ```
 
@@ -450,7 +457,7 @@ The web app builds with Next.js standalone output so the runtime image only need
 Build the image from the repository root:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 docker build \
   -f web/Dockerfile \
   -t proof-of-audit-web .
@@ -461,7 +468,7 @@ At runtime, set `PROOF_OF_AUDIT_API_URL` on the Cloud Run service. The Next.js s
 Run it locally on port `3000` mapped to the container's Cloud Run port `8080`:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 docker run --rm -p 3000:8080 \
   -e PROOF_OF_AUDIT_API_URL=http://127.0.0.1:8080 \
   proof-of-audit-web
@@ -531,7 +538,7 @@ For a remote runner deployment, the API can instead switch advisory Foundry exec
 
 Recommended Cloud Run backend notes:
 
-- deploy the dedicated runner service from [infra/evidence-runner/cloudbuild.yaml](/home/koita/dev/hackatons/proof-of-audit/infra/evidence-runner/cloudbuild.yaml)
+- deploy the dedicated runner service from [infra/evidence-runner/cloudbuild.yaml](../infra/evidence-runner/cloudbuild.yaml)
 - keep the runner service authenticated by default and grant the API service account `run.invoker`
 - if the API runs on GCP, prefer `..._AUDIENCE` over a static bearer token so the backend can mint per-request identity tokens from metadata
 - prefer a dedicated staging bucket so the backend can upload the evidence archive to GCS and send the runner only a `gs://` reference
@@ -541,35 +548,36 @@ Recommended Cloud Run backend notes:
 ## Dry run
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit/contracts
+# Run from the repository root
+cd contracts
 forge script script/DeployProofOfAudit.s.sol:DeployProofOfAudit --rpc-url base_sepolia
 ```
 
 ## Live deploy
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/deploy-base-sepolia.sh
 ```
 
 ### Verify an existing deployment
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/verify-base-sepolia.sh
 ```
 
 ### Optional one-command deploy + verify
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 PROOF_OF_AUDIT_DEPLOY_VERIFY=1 ./scripts/deploy-base-sepolia.sh
 ```
 
 ### Deploy the on-chain auditor identity
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/deploy-base-sepolia-identity.sh
 ```
 

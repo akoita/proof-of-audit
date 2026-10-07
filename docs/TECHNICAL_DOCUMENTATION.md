@@ -1,10 +1,14 @@
 # Technical Documentation
 
-This document is the canonical technical reference for Proof-of-Audit.
+This cross-domain reference describes the repository's protocol model, runtime,
+interfaces and verification layers. The [architecture overview](./architecture/overview.md)
+is the authoritative system view; focused references own detailed procedures and
+contracts. Use the [documentation map](./README.md) to choose the relevant guide.
 
-It consolidates the system design, protocol model, contracts, agent runtime,
-frontend behavior, standards alignment, deployment, testing, and roadmap notes
- that were previously spread across many focused markdown files in `docs/`.
+Descriptions of current source do not establish public deployment availability.
+See [the current inventory](./strategy/STATE_OF_THE_PROJECT.md#source-versus-recorded-deployment)
+for the legacy Base Sepolia distinction. The [strategy roadmap](./strategy/ROADMAP.md)
+governs planned work; proposals and historical delivery plans are not released behavior.
 
 ## Reading Order
 
@@ -29,40 +33,24 @@ when read as a lifecycle:
 - generate a draft claim
 - publish the claim with stake
 - open a challenge with evidence
-- resolve deterministically when possible
-- fall back to manual arbitration when necessary
-- mirror the lifecycle into validation and reputation trails
+- inspect advisory executable verification or plain proof-URI evidence
+- resolve through the operator-held arbiter key
+- mirror the lifecycle into configured validation and reputation trails
 
-### Core Product Claims
+### Implemented capabilities and boundaries
 
 - audit judgments are visible and inspectable
 - publication is economically accountable
 - challengers have a first-class dispute path
-- outcomes affect auditor reputation over time
-- identity and validation are exposed through ERC-8004-aligned artifacts
+- outcomes feed explainable reputation summaries and optional configured mirrors
+- identity and validation are exposed through ERC-8004-aligned artifacts;
+  registration does not certify audit correctness
 
 ### System Shape
 
-```mermaid
-flowchart LR
-    User["User / auditor / challenger"] --> Web["Next.js workbench"]
-    User --> API["FastAPI API"]
-    Web --> API
-    API --> Worker["Auditor worker (multi-agent)"]
-    API --> Verifier["Challenge verifier"]
-    API --> Store["Audit store"]
-    API --> Contract["ProofOfAudit contract"]
-    API --> Validation["Validation bridge"]
-    API --> Reputation["Reputation bridge"]
-    API --> Feed["Challenger feed"]
-    Feed --> Watcher["Cross-agent claim watcher"]
-    Watcher --> API
-    Worker --> Evidence["Execution backends"]
-    Catalog["agents.json → auditor-catalog.json"] --> Worker
-    Contract --> Chain["Anvil or Base Sepolia"]
-    Validation --> Chain
-    Reputation --> Chain
-```
+The [component diagram and execution boundaries](./architecture/overview.md)
+are maintained in the architecture overview. The API coordinates worker
+execution and transaction clients; the audit worker is not the settlement signer.
 
 ### Key Concepts
 
@@ -72,7 +60,7 @@ flowchart LR
 | `draft` | A local claim that exists off-chain only. |
 | `published` | A claim that has been staked and committed on-chain. |
 | `challenge` | A dispute opened against a published claim with counter-evidence. |
-| `deterministic resolution` | An automatic verifier-driven outcome. This now exists only for non-advisory verifier paths, not the retired curated benchmark lookup. |
+| `deterministic resolution` | An extension path for a verified, non-advisory result; current executable verification is advisory and does not activate it. |
 | `manual fallback` | A still-open challenge requiring an arbiter decision. |
 | `validation trail` | ERC-8004-aligned request/response artifacts mirrored from the claim lifecycle. |
 | `reputation trail` | On-chain reputation claim and resolution artifacts derived from the same lifecycle. |
@@ -105,14 +93,11 @@ sequenceDiagram
     U->>API: POST /audits/{id}/challenge
     API->>C: challengeAudit
     API->>V: verify evidence
-    alt deterministic outcome
-        API->>C: resolveChallenge
-        C-->>API: resolution
-    else ambiguous outcome
-        API-->>U: challenged record on manual fallback path
-        A->>API: POST /audits/{id}/resolve
-        API->>C: resolveChallenge
-    end
+    V-->>API: advisory dossier or manual review required
+    API-->>U: challenged record, still unresolved
+    A->>API: POST /audits/{id}/resolve
+    Note over API: current generic API-key guard; no separate arbiter API role
+    API->>C: resolveChallenge using arbiter signer
     API-->>U: final resolved record
 ```
 
@@ -162,9 +147,10 @@ This split is deliberate:
 Challenges are intentionally conservative.
 
 - plain proof-URI evidence is accepted but does not auto-resolve
-- executable evidence is advisory-first
-- automatic resolution is only allowed when a non-advisory verifier can justify the outcome
-- ambiguity falls to manual fallback
+- current executable evidence produces advisory verification and a dossier
+- automatic resolution is an extension for concrete, verified non-advisory results;
+  it is not active for the current executable verifier
+- current plain-URI and executable disputes require arbiter resolution
 
 Challenge records include:
 
@@ -300,7 +286,8 @@ The auditor worker is intentionally opinionated:
 
 - deterministic fixtures are first-class
 - live repository/source-bundle execution can run through Agent Forge when enabled
-- safe deterministic fallback remains available
+- fixture fallback is configuration-dependent and must not be interpreted as
+  successful live analysis; deployed-address execution is validated
 - **multi-agent runtime overrides**: when a submission targets a specific `service_id`, the worker scopes its detectors and profile based on the agent's persona from `auditor-catalog.json`
 
 The runtime modes are:
@@ -311,26 +298,24 @@ The runtime modes are:
 
 ### Multi-Agent Personas
 
-The platform supports 5 agent personas defined in `demo/agents.json`, each with distinct specialization and challenge strategy:
+[demo/agents.json](../demo/agents.json) defines five fixture/persona configurations.
+Detector scoping can remove findings from a shared fixture report; it does not
+demonstrate independent audit engines or real disagreements. Provider labels
+require a functioning configured backend to execute live work.
 
-| Persona | Profile | Detectors | LLM | Strategy |
-|---|---|---|---|---|
-| Reentrancy Hawk | reentrancy-specialist | `reentrancy` | — | silent-monitor |
-| Access Control Sentinel | access-control-specialist | `access_control` | — | flag-for-review |
-| Full Spectrum Auditor | full-spectrum-auditor | all families | — | auto-challenge |
-| Gemini Deep Analysis | llm-deep-auditor | `*` | Gemini | auto-challenge |
-| OpenAI Deep Analysis | llm-deep-auditor | `*` | OpenAI | auto-challenge |
-
-See [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md) for full details.
+The [legacy persona guide](./MULTI_AGENT_DEMO.md) preserves the tooling details.
+Showcase expansion is parked under the [strategy roadmap](./strategy/ROADMAP.md).
 
 ### Cross-Agent Claim Watcher
 
-The claim watcher (`agent/proof_of_audit_agent/claim_watcher.py`) enables autonomous cross-agent dispute resolution:
+The [claim watcher](../agent/proof_of_audit_agent/claim_watcher.py) can detect
+report differences and initiate challenge workflows; it does not replace arbiter
+adjudication:
 
 1. Polls `GET /challenger-feed` for `audit_published` events
 2. Filters events by `service_id` (ignores own claims)
 3. Re-analyzes the same contract using the watcher agent's detector profile
-4. Compares findings and detects divergences (missed vulnerabilities)
+4. Compares findings and flags differences that require evidence and review
 5. Reacts based on `challenge_strategy`: auto-challenge, flag-for-review, or silent-monitor
 
 See [docs/CHALLENGER_FEED.md](CHALLENGER_FEED.md) for feed details and watcher CLI usage.
@@ -416,22 +401,10 @@ Example executable challenge:
 
 ### Demo Orchestration
 
-The multi-agent demo is run end-to-end with a single command:
-
-```bash
-./scripts/run-multi-agent-demo.sh
-```
-
-The shell orchestrator (`run-multi-agent-demo.sh`) handles infrastructure: Anvil, contract deployment, fixture deployment, on-chain identity registration, catalog generation, and API startup.
-
-The Python orchestrator (`run-multi-agent-demo.py`) handles the audit lifecycle: submitting audits from each agent, publishing claims, then printing a colored summary table with findings, severities, and publish status.
-
-Modes:
-
-- `local` (default): full local stack on Anvil
-- `hosted`: connects to a GCP-deployed API via `PROOF_OF_AUDIT_API_URL`
-
-See [docs/MULTI_AGENT_DEMO.md](MULTI_AGENT_DEMO.md) for full usage.
+Use the [README fixture workflow](../README.md#try-the-local-fixture-workflow)
+for the supported entry path. [Multi-agent demo tooling](./MULTI_AGENT_DEMO.md)
+is a retained persona showcase, not the product's release gate or proof of
+independent auditors. Hosted mode requires an actually operated API and engine.
 
 ## Web Frontend
 
@@ -447,6 +420,10 @@ It supports:
 - claim comparison
 - trust context around the selected auditor
 - a docs view that links back to this technical reference
+
+The current browser helper does not integrate API credentials for protected
+mutations. Displayed numeric security scores are mappings from confidence labels,
+not calibrated safety measurements. See [the readiness inventory](./strategy/STATE_OF_THE_PROJECT.md#remaining-readiness-gaps).
 
 ### Main Views
 
@@ -518,14 +495,18 @@ The project exposes:
 
 ### Roadmap Status
 
-Completed standards-adjacent work includes:
+Implemented standards-adjacent surfaces include:
 
 - registration alignment
 - stable publication path
 - official on-chain identity registration
 - validation bridge
 
-Optional future work includes:
+Configured mirrors must use compatible registry contracts; a source integration
+does not establish that its public-network counterpart is live. The project
+uses ERC-8004-aligned interfaces, not a claim of final-standard compliance.
+
+Later roadmap work includes:
 
 - deeper reputation registry integration
 - additional chain registrations
@@ -615,14 +596,9 @@ Deployment guidance covers:
 
 ### Demo and Presentation Material
 
-The project also includes demo and pitch assets. These are not the core
-technical spec, but they remain useful for operator workflows:
-
-- terminal demo runbook
-- live demo script
-- narrative framing
-- pitch script
-- release notes draft
+The [fixture demo guide](./DEMO_SCRIPT.md) describes the current walkthrough.
+Pitch scripts, judge instructions and submission material are
+[historical records](./archive/hackathon-2026/README.md), not operational authority.
 
 ## Appendices
 
@@ -640,38 +616,17 @@ Important runtime knobs include:
 
 ### Legacy Document Map
 
-The topics from the previously scattered docs are covered here as follows:
-
-| Existing doc | Covered in this reference |
-| ------------ | ------------------------- |
-| `ARCHITECTURE.md` | [Overview](#overview), [Agent System](#agent-system), [Standards and Compliance](#standards-and-compliance) |
-| `AGENT_API.md` | [Agent System](#agent-system) |
-| `AGENT_INTERACTION_FLOW.md` | [Protocol Design](#protocol-design), [Agent System](#agent-system) |
-| `SEQUENCE_DIAGRAM.md` | [Audit Lifecycle](#audit-lifecycle), [Claim State Machine](#claim-state-machine) |
-| `SECURITY_AUDIT_WORKFLOW.md` | [Security Audit Workflow](#security-audit-workflow) |
-| `EXECUTABLE_EVIDENCE_BUNDLE.md` | [Evidence Bundles](#evidence-bundles) |
-| `CHALLENGE_VERIFIER_V2.md` | [Challenge Resolution](#challenge-resolution), [Challenge Feed](#challenge-feed), [Roadmap Status](#roadmap-status) |
-| `REPUTATION_MODEL.md` | [Reputation Model](#reputation-model) |
-| `ERC8004_ALIGNMENT.md` | [ERC-8004 Positioning](#erc-8004-positioning) |
-| `ERC8004_REGISTRATION.md` | [Registration](#registration) |
-| `ERC8004_ROADMAP.md` | [Roadmap Status](#roadmap-status) |
-| `PLUGGABLE_AUDITOR_INTEGRATION.md` | [Pluggable Auditors](#pluggable-auditors) |
-| `DEPLOYMENT.md` | [Development and Operations](#development-and-operations) |
-| `archive/hackathon-2026/SUBMISSION_UX.md` | [Web Frontend](#web-frontend) |
-| `ROADMAP.md` | [Roadmap Status](#roadmap-status) |
-| `archive/hackathon-2026/STRATEGIC_ALIGNMENT.md` | [Overview](#overview), [Standards and Compliance](#standards-and-compliance) |
-| `archive/hackathon-2026/PITCH.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `DEMO_SCRIPT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `archive/hackathon-2026/DEMO_NARRATIVE.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `archive/hackathon-2026/ASCIINEMA_DEMO.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `archive/hackathon-2026/RELEASE_NOTES_DRAFT.md` | [Demo and Presentation Material](#demo-and-presentation-material) |
-| `CHALLENGER_FEED.md` | [Challenge Feed](#challenge-feed), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
-| `MULTI_AGENT_DEMO.md` | [Multi-Agent Personas](#multi-agent-personas), [Cross-Agent Claim Watcher](#cross-agent-claim-watcher) |
+Earlier topic documents remain at their established paths. They are classified
+by role in [the documentation map](./README.md), rather than superseded by this
+summary. [ARCHITECTURE.md](./ARCHITECTURE.md) is a compatibility entry for the
+current architecture overview. [The original roadmap](./ROADMAP.md) and
+[hackathon archive](./archive/hackathon-2026/README.md) preserve history; the
+[strategy roadmap](./strategy/ROADMAP.md) governs current planning.
 
 ### Focused References
 
-This document is the canonical entry point. The focused docs remain useful when
-you need implementation detail or presentation material:
+The [documentation map](./README.md) is the entry point. Focused documents own
+the detailed procedures and contracts; this reference summarizes their role:
 
 - [Architecture](./ARCHITECTURE.md)
 - [Agent API](./AGENT_API.md)

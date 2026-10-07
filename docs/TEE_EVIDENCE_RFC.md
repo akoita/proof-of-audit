@@ -2,7 +2,8 @@
 
 ## Status
 
-Research note only. No implementation is recommended at this stage.
+Parked research note. No implementation is recommended in the current product
+scope; see the [product vision](strategy/VISION.md).
 
 ## Question
 

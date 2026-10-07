@@ -169,7 +169,7 @@ fastest loop.
 1. start the local chain and API prerequisites
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/start-anvil.sh
 ./scripts/deploy-local.sh
 ./scripts/deploy-demo-fixtures.sh
@@ -183,9 +183,9 @@ cd /home/koita/dev/hackatons/proof-of-audit
 3. run Proof-of-Audit against that service
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 export PROOF_OF_AUDIT_WORKER_RUNTIME_MODE=hybrid
-export PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL=http://127.0.0.1:8090
+export PROOF_OF_AUDIT_AGENT_FORGE_SERVICE_URL=http://127.0.0.1:8000
 export PROOF_OF_AUDIT_SOURCE_BUNDLE_STORAGE_KIND=local
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 ```
@@ -212,7 +212,7 @@ export PROOF_OF_AUDIT_SOURCE_BUNDLE_GCS_PREFIX=agent-forge
 2. start the API
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
 ```
 

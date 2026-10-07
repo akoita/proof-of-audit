@@ -4,7 +4,7 @@ This note documents the current ERC-8004 alignment for the Proof-of-Audit audito
 
 For the exact public claim language and the full identity-versus-settlement boundary, see:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ALIGNMENT.md`
+- [ERC-8004 alignment](ERC8004_ALIGNMENT.md)
 
 ## Scope
 
@@ -28,7 +28,7 @@ The auditor registration document lives at:
 
 The stable published copy lives at:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json`
+- [published registration file](registrations/proof-of-audit-auditor.json)
 
 The default canonical URI is:
 
@@ -48,7 +48,7 @@ The document follows an ERC-8004-shaped structure with these top-level fields:
 
 This shape is backed by:
 
-- `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json`
+- [source manifest](../agent/proof_of_audit_agent/auditor_manifest.json)
 
 The source manifest is the editable source of truth. The published registration file is generated from that source manifest during release or deploy flows.
 

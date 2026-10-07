@@ -7,7 +7,7 @@ This document is the final evaluation index for Proof-of-Audit.
 1. Read the [Judge brief](./JUDGE_BRIEF.md) for the 2-minute product summary.
 2. Use the [Judge evaluation path](./JUDGE_EVALUATION.md) for the one-command local walkthrough.
 3. Use the [Submission pack](./SUBMISSION_PACK.md) for demo copy and canonical assets.
-4. Inspect the latest [Base Sepolia smoke evidence](./proofs/base-sepolia-smoke-2026-03-22.md) for the dated live-path record.
+4. Inspect the latest [Base Sepolia smoke evidence](../../proofs/base-sepolia-smoke-2026-03-22.md) for the dated live-path record.
 
 ## Readiness checklist
 
@@ -22,7 +22,7 @@ This document is the final evaluation index for Proof-of-Audit.
 - Highest signal: local end-to-end demo via [Judge evaluation path](./JUDGE_EVALUATION.md)
 - Fastest narrative: [Judge brief](./JUDGE_BRIEF.md)
 - Canonical submission copy: [Submission pack](./SUBMISSION_PACK.md)
-- Live chain evidence: [Base Sepolia smoke evidence](./proofs/base-sepolia-smoke-2026-03-22.md)
+- Live chain evidence: [Base Sepolia smoke evidence](../../proofs/base-sepolia-smoke-2026-03-22.md)
 
 ## Known limits
 

@@ -7,7 +7,7 @@ Use the local one-command stack. There is not yet a stable public web/API deploy
 ## One command
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/run-judge-stack.sh
 ```
 

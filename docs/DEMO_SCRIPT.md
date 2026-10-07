@@ -22,7 +22,7 @@ Show one complete trust loop:
 For local mode:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/start-anvil.sh
 ./scripts/deploy-local.sh
 ./scripts/deploy-demo-fixtures.sh
@@ -32,7 +32,8 @@ PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_
 In a second terminal:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit/web
+# Run from the repository root
+cd web
 pnpm dev
 ```
 
@@ -131,4 +132,4 @@ Those endpoints expose the same story without relying on the browser.
 
 For a reusable terminal-first version of that fallback path, see:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/archive/hackathon-2026/ASCIINEMA_DEMO.md`
+- [ASCIINEMA_DEMO.md](archive/hackathon-2026/ASCIINEMA_DEMO.md)

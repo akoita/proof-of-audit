@@ -142,7 +142,11 @@ proof-of-audit/
 │   ├── cross_agent_watcher.py       # Cross-agent claim watcher CLI
 │   ├── register-multi-agent-identities.py
 │   └── ...
-├── docs/                            # Documentation
+├── docs/                            # Documentation; start at docs/README.md
+│   ├── architecture/                # Current system overview
+│   ├── design/                      # Explicitly labeled proposals
+│   ├── strategy/                    # Governing vision and phased roadmap
+│   └── archive/                     # Historical, unmaintained material
 ├── web/                             # Frontend (Next.js)
 ├── infra/                           # Infrastructure config
 └── deployments/                     # Deployment artifacts (gitignored)
@@ -253,4 +257,3 @@ The following paths contain runtime data and must **never** be committed:
 - Agent persona changes require regenerating the auditor catalog: `python scripts/generate-auditor-catalog.py`
 - Solidity changes require `forge build` and `forge test`
 - Document new env vars in `.env.example`
-

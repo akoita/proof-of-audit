@@ -5,16 +5,23 @@
 > verdict economically bonded, independently challengeable, and objectively settled —
 > so that buyers, insurers, and other agents can rely on it.
 
+This is the adopted direction, not a catalogue of released capabilities.
+The [current inventory](./STATE_OF_THE_PROJECT.md) distinguishes implemented
+source, fixture behavior and recorded deployments. October review proposals
+are [draft material](../design/release-and-pilot-focus.md), not adopted changes.
+
 ## The problem, restated for the real world
 
-AI can now review smart contracts cheaply and continuously — but nobody can *rely*
-on the output. AI audit tools have zero accountability (Immunefi outright bans
-AI-generated reports as spam). Insured, accountable audits exist only at human-audit
-prices ($25K–$250K, weeks of lead time). The market has an empty quadrant:
-**cheap AND bonded**. Meanwhile protocols ship upgrades weekly and audit yearly,
-insurers price risk off stale PDFs, and a fast-growing agent economy (x402: ~169M
-payments in year one; ERC-8004: 100k+ registered agents) produces and consumes code
-with no trust layer at all.
+Automated reviews can produce findings quickly, but provenance, reproducible
+impact and dispute accountability remain separate requirements. Immunefi's
+[current rules](https://immunefi.com/rules/) prohibit AI/scanner reports lacking
+required impact information; [some programs explicitly welcome AI-assisted
+research](https://immunefi.com/bug-bounty/moneyonchain/information/). Policies
+vary by program, so a blanket AI-report ban is not the product premise.
+
+The thesis is that affordable, explicitly bounded and bonded claims could help
+teams reviewing frequent upgrades. Demand, pricing and insurance usefulness
+remain hypotheses to validate under [PRODUCT_STRATEGY.md](./PRODUCT_STRATEGY.md).
 
 ## What Proof-of-Audit is
 
@@ -45,9 +52,9 @@ with no trust layer at all.
 ## Core theses
 
 1. **Accountability, not intelligence, is the moat.** Audit engines are being
-   commoditized (Almanax, Savant, Sherlock AI, Octane, ChainGPT). None carry
-   consequences for being wrong. A public, on-chain record of *survived challenges*
-   is the one credential that can't be prompted into existence — and it compounds.
+   commoditized. The proposed differentiator is an engine-independent record of
+   bounded claims and reviewed challenge outcomes. Surviving a challenge window
+   is an observable event, not proof that an unchallenged verdict was correct.
 2. **Reproducible exploits are the only scalable judge.** Open jury adjudication of
    subtle technical claims fails (UMA retreated to whitelisted proposers). A PoC
    that executes against a pinned fork is near-objective evidence. The settlement
@@ -82,7 +89,7 @@ a rung we haven't reached:
 2. **Challenge** — the exploit-evidence pipeline (already the strongest code asset)
    graduated from advisory to binding for objective cases.
 3. **Reputation** — slash-tested track records, portable via ERC-8004; the
-   Immunefi-ban counter-artifact.
+   evidence of reviewed challenge outcomes rather than an unsupported claim of accuracy.
 4. **Coverage** — staking pools that scale a verdict's bond to the value at risk,
    and the fee engine of the business.
 

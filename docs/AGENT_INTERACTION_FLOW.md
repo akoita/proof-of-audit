@@ -108,9 +108,10 @@ Two expected outcomes:
   - `status == "challenged"`
   - `challenge.status == "opened"`
   - manual resolution is still required
-- non-advisory verifier path
-  - `status == "resolved"`
-  - validation response should be available
+- executable-evidence path
+  - the verifier may return an advisory recommendation and dossier
+  - the challenge remains open until a privileged resolver acts; executable
+    evidence does not resolve or settle it automatically
 
 ## Flow 5: Resolve ambiguous evidence
 
@@ -149,11 +150,14 @@ It is not the settlement source of truth.
 
 ## Verifier and resolution behavior
 
-Verifier behavior (advisory in every case):
+Current verifier behavior:
 
-- plain proof-URI evidence is recorded for manual review; nothing auto-resolves (the curated benchmark lookup is retired)
+- plain proof-URI evidence is recorded for manual review; nothing auto-resolves
 - executable evidence is hash-verified against the on-chain commitment and replayed in a sandbox, producing an advisory verdict
 - advisory verdicts inform the resolver; they never move stake on their own
+
+Automatic resolution by a non-advisory verifier remains a possible extension;
+no current executable verifier result takes that path.
 
 Resolution path:
 

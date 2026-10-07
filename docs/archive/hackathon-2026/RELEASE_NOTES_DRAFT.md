@@ -41,7 +41,7 @@ This release is best used as:
 
 ## Recommended reviewer path
 
-1. read `/home/koita/dev/hackatons/proof-of-audit/README.md`
-2. follow `/home/koita/dev/hackatons/proof-of-audit/docs/DEMO_SCRIPT.md`
-3. inspect `/home/koita/dev/hackatons/proof-of-audit/docs/ARCHITECTURE.md`
-4. run the local flow from `/home/koita/dev/hackatons/proof-of-audit/docs/DEPLOYMENT.md`
+1. read [`README.md`](../../../README.md)
+2. follow [`docs/DEMO_SCRIPT.md`](../../DEMO_SCRIPT.md)
+3. inspect [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md)
+4. run the local flow from [`docs/DEPLOYMENT.md`](../../DEPLOYMENT.md)

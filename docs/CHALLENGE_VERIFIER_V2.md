@@ -1,5 +1,15 @@
 # Challenge Verifier V2
 
+## Status
+
+This design is partially implemented. The source includes structured
+verification dossiers and a deterministic semantic comparator
+([dossier types](../agent/proof_of_audit_agent/challenge_verifier.py),
+[comparator](../agent/proof_of_audit_agent/semantic_comparison.py)). The
+comparator remains heuristic, and executable-verifier results are always
+advisory ([executable verifier](../agent/proof_of_audit_agent/executable_evidence_verifier.py));
+they do not resolve on-chain disputes.
+
 ## Purpose
 
 Challenge verification is the trust core of Proof-of-Audit.

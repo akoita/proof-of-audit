@@ -1,100 +1,114 @@
 # Contributing
 
-Thanks for your interest in improving Proof-of-Audit.
+## Contribution policy
 
-## ⚠️ External contributions are paused
+External contributions remain paused during the vision reset. Open issues are
+the maintainer's working backlog, not an invitation to submit implementation
+pull requests. Comment on an issue or open a discussion and obtain an explicit
+go-ahead before writing code. Unsolicited pull requests will be closed without
+detailed review, including automated submissions.
 
-The project is currently in a **vision-reset phase** (see [`docs/strategy/`](./docs/strategy/)):
-the product direction, contract semantics, and backlog are being redefined by the maintainer.
-Until this notice is removed:
-
-- **Unsolicited pull requests will be closed without detailed review**, regardless of quality.
-  This includes automated/agent-generated PRs responding to newly opened issues.
-- Open issues are **not** an invitation to submit implementation PRs — they are the
-  maintainer's working backlog, and their scope may change as the strategy settles.
-- If you want to get involved, **open a discussion or comment on an issue first** and wait
-  for an explicit go-ahead before writing code.
-
-This policy exists so the limited maintenance time goes into direction-setting, not PR
-management. It will be relaxed once the Phase 0 backlog stabilizes.
+Authorized work must align with the [vision](./docs/strategy/VISION.md) and
+[current roadmap phase](./docs/strategy/ROADMAP.md). Preserve local changes and
+never commit runtime data, secrets, or deployment overrides.
 
 ## Development setup
 
-1. Install Python 3.12+, Foundry, Node.js, and pnpm.
-2. Install Python dependencies with `python3 -m pip install setuptools wheel && python3 -m pip install --no-build-isolation -e '.[dev]'`.
-3. Run Python tests from the repository root with `make test-python`.
-4. Run contract tests with `cd contracts && forge test`.
-5. Run the web build with `cd web && pnpm install && pnpm build`.
-
-## Pre-commit security audit workflow
-
-Install the repository git hooks once per clone:
+Install Python 3.12+ through pyenv, Foundry, Node.js, and pnpm. The maintainer's
+Python environment is named `proof-of-audit-3.12`; create or select that
+environment before using the commands below. Run commands from the repository
+root unless a block explicitly changes directory.
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+export PYENV_VERSION=proof-of-audit-3.12
+export PYTHONPATH=agent:api
+python -m pip install setuptools wheel
+python -m pip install --no-build-isolation -e '.[dev]'
 make install-git-hooks
 ```
 
-After that, commits automatically run the changed-files security audit gate when staged files touch:
-
-- Solidity contracts under `contracts/` or `demo/contracts/`
-- security-sensitive backend code under `api/proof_of_audit_api/`, `agent/proof_of_audit_agent/`, and release/deploy scripts
-
-You can run the same gate manually before committing:
+Install frontend dependencies in a separate shell or return to the repository
+root afterward:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
-PYTHON=/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python make security-audit-staged
+cd web
+pnpm install --frozen-lockfile
+pnpm build
 ```
 
-The hook writes a local report to `.tmp/security-audit/pre-commit-report.md` and only blocks commits when the relevant audit commands fail. See [Security audit workflow](/home/koita/dev/hackatons/proof-of-audit/docs/SECURITY_AUDIT_WORKFLOW.md) for the trigger map and trusted source policy.
+Use the [README walkthrough](./README.md#try-the-local-fixture-workflow) to start
+the fixture stack. Use [deployment](./docs/DEPLOYMENT.md) for configuration and
+[Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md) for live engine integration.
 
-## Issue-driven workflow
+## Verification
 
-Work should start from a GitHub issue that is already assigned to a roadmap phase.
-
-1. Pick or assign a GitHub issue.
-2. Create a task branch from `main`.
-3. Implement the change with focused commits.
-4. Push the branch and open a pull request.
-5. Wait for CI to pass before merge.
-6. Merge the pull request.
-7. Delete the task branch after merge.
-
-### Branch naming
-
-Use the repository branch convention:
-
-- `codex/feature/<issue-number>-<short-slug>`
-- `codex/fix/<issue-number>-<short-slug>`
-- `codex/chore/<issue-number>-<short-slug>`
-
-Example:
+Run the required Python suite before committing:
 
 ```bash
-git checkout main
-git pull --ff-only
-./scripts/start-issue-branch.sh 8 feature fastapi-migration
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api \
+  python -m pytest agent/tests/ api/tests/ -x -q \
+  --ignore=agent/tests/test_executable_evidence_resolver.py
 ```
 
-## Pull request guidelines
+The excluded resolver module requires its separate Foundry setup under the
+repository instructions. Live testnet tests require explicit configuration;
+skips do not prove that a deployment works. Additional checks depend on the change:
 
-- Keep changes focused and easy to review.
-- Add or update tests when changing behavior.
-- Document user-facing API or workflow changes in `README.md`.
-- Avoid committing generated artifacts, local data, or secrets.
-- Reference the related GitHub issue in the pull request description.
-- Do not merge until CI is green.
+| Change or verification goal | Command from the repository root |
+| --- | --- |
+| Solidity build and tests | `forge build --root contracts` and `make test-contracts` |
+| Symbolic contract properties | `make test-formal` |
+| API/chain integration | `PYENV_VERSION=proof-of-audit-3.12 make test-system-e2e PYTHON=python` |
+| Browser workflow | `PYENV_VERSION=proof-of-audit-3.12 make test-ui-e2e PYTHON=python` |
+| Configured Base Sepolia stack | `PYENV_VERSION=proof-of-audit-3.12 make test-testnet-smoke PYTHON=python` |
 
-## Commit style
+See [formal testing](./docs/FORMAL_TESTING.md) for tool versions and
+[technical test layers](./docs/TECHNICAL_DOCUMENTATION.md#test-layers) for scope.
+When test environments disagree, first check ignored local configuration and
+registry/deployment addresses; do not bypass failed checks.
 
-- Use clear, descriptive commit messages.
-- Prefer small commits that each represent one logical change.
+## Security hook
 
-## Merge and cleanup
+`make install-git-hooks` installs the pre-commit gate. It resolves the project
+Python environment and checks staged security-sensitive changes. Never use
+`--no-verify`. To run the gate manually after staging:
 
-After a pull request is merged:
+```bash
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api \
+  make security-audit-staged PYTHON=python
+```
 
-1. delete the remote branch
-2. delete the local task branch
-3. return to `main` and pull the latest changes
+The report is written to `.tmp/security-audit/pre-commit-report.md`. Review the
+[security audit workflow](./docs/SECURITY_AUDIT_WORKFLOW.md) for triggers and
+commands. The gate complements the required test suite; it does not replace it.
+
+## Branches and pull requests
+
+Follow [AGENTS.md](./AGENTS.md) for branch conventions: `issue-<number>-<slug>`
+for issue work, `feat/<slug>` for untracked features, and `fix/<slug>` for
+untracked fixes. The existing `start-issue-branch.sh` helper creates a legacy
+`codex/...` name; use an explicit branch name to follow the current convention.
+
+Work from a feature branch, add focused changes and relevant tests, update the
+affected documentation, and submit a pull request targeting `main`. Reference
+the issue when applicable. Obtain approval before committing or pushing under
+the repository completion workflow. Merge only after CI passes and the
+maintainer explicitly requests it. Never push directly to `main`.
+
+After merge, delete the feature branch locally and remotely and align local
+`main` with the remote. Use the repository's `process-issue` and `finish-issue`
+skills for the applicable workflow.
+
+## Documentation maintenance
+
+Use [docs/README.md](./docs/README.md) to find the authoritative document for a
+subject. Keep current behavior separate from draft designs, planned work, and
+historical records. Update living guides alongside behavior changes; do not
+turn a proposal into a current-state claim before delivery.
+
+Use repository-relative Markdown links and portable commands. Preserve familiar
+paths or leave a compatibility entry when moving externally referenced material.
+Check local links and heading anchors, referenced commands/configuration, and
+paragraph structure before submitting. Add a decision record only when a
+consequential decision has actually been made; supersede accepted records
+rather than rewriting their history.
