@@ -23,9 +23,11 @@ Make every public claim true before making new claims.
   `TECHNICAL_DOCUMENTATION.md`. Archive judge/submission-era docs to `docs/archive/`.
 - **Record a real Base Sepolia publish→challenge→resolve cycle** with tx links,
   replacing the "green no-op" smoke evidence.
-- Contract truth: the deployed contract predates the bounty/fee subsystem. Either
-  deploy the current source (after Phase-0 fixes below) or clearly mark the
-  marketplace surface as undeployed.
+- Contract truth: the 8 October 2026 redeployment contains the current bounty/fee
+  subsystem and hardening, with creation and runtime bytecode matching source.
+  BaseScan verification is complete. Publish the recovered release record;
+  separately prove the live application cycle. See the
+  [deployment status](../DEPLOYMENT.md#current-status).
 - Contract fixes before any redeploy: block self-challenge in the direct flow;
   validate arbiter ≠ 0; add a settlement-timeout path so one unresolved challenge
   cannot freeze a request's escrow forever; add fuzz/invariant tests.
@@ -83,7 +85,7 @@ Make the stake mean something and charge for it.
 
 - **Coverage pools**: third parties stake behind an auditor's verdicts for yield;
   verdict-level coverage scales with pool depth; protocol fee on distribution
-  (re-use the written-but-undeployed fee engine, redeployed honestly).
+  (reuse the fee engine after verification and live settlement evidence).
 - Insurance pilot: expose the bonded-verdict feed to an underwriter
   (Nexus/OpenCover ecosystem) as an underwriting input; paid data pilot.
 - Mainnet/Base mainnet deployment of the settlement contract after external review

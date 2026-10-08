@@ -11,19 +11,14 @@
     {
       "name": "registration",
       "endpoint": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json"
-    },
-    {
-      "name": "api",
-      "endpoint": "http://127.0.0.1:8080/auditor",
-      "version": "v0.1.0"
     }
   ],
   "x402Support": false,
   "active": true,
   "registrations": [
     {
-      "agentId": 1,
-      "agentRegistry": "0x0165878a594ca255338adfa4d48449f69242eb8f"
+      "agentId": 1862,
+      "agentRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e"
     }
   ],
   "supportedTrust": [
@@ -58,8 +53,10 @@
       "advisory_verifier",
       "manual_fallback"
     ],
-    "network": "anvil-local",
-    "chainId": 31337,
-    "settlementContractAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+    "network": "base-sepolia",
+    "chainId": 84532,
+    "settlementContractAddress": "0x10eb28034c2b8f77400c3c2eaa1984b019655ae6",
+    "validationRegistryAddress": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+    "validationSource": "erc8004-official"
   }
 }

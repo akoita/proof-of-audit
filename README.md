@@ -19,11 +19,12 @@ The default `deterministic` demo returns prewritten fixture reports. Live
 execution requires a configured backend; see [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md).
 Persona demos are not independent audit engines.
 
-The checked-in Base Sepolia manifest records a **legacy deployment**. Current
-source includes hardening and request/fee features that cannot be assumed to
-exist at that address. A recorded live settlement cycle is still outstanding.
-See [current project state](./docs/strategy/STATE_OF_THE_PROJECT.md) for the
-source/deployment distinction and evidence links.
+The current contract was deployed to Base Sepolia on 8 October 2026 at
+[`0x10eb28034c2b8f77400c3c2eaa1984b019655ae6`](https://sepolia.basescan.org/address/0x10eb28034c2b8f77400c3c2eaa1984b019655ae6).
+Its creation and runtime bytecode match source commit `c7c2544`, including the
+eight constructor parameters and request/fee features. **BaseScan source
+verification is complete**; a recorded live settlement cycle is still
+outstanding. See the [deployment record and recovery steps](./docs/DEPLOYMENT.md#current-status).
 
 ## Try the local fixture workflow
 

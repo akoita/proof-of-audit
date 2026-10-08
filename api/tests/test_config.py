@@ -30,7 +30,7 @@ class ContractConfigTest(unittest.TestCase):
         self.assertEqual(config.required_stake_wei, 10**16)
         self.assertEqual(config.required_challenge_bond_wei, 5 * 10**15)
         self.assertEqual(config.challenge_window_seconds, 86400)
-        self.assertIsNone(config.treasury_address)
+        self.assertEqual(config.treasury_address, manifest.get("treasury_address"))
         self.assertEqual(config.protocol_fee_bps, 0)
         self.assertEqual(config.resolution_fee_bps, 0)
         self.assertEqual(

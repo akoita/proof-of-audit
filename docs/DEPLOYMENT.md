@@ -203,6 +203,32 @@ The verify script:
 - runs `forge verify-contract`
 - writes verification status back into the manifest when verification succeeds
 
+For GitHub Actions, run **Contract Deployment (Base Sepolia)** with `preflight`
+before `deploy`. Deployment credentials belong in the `base-sepolia`
+environment. Arbiter and treasury must be nonzero Ethereum addresses; an unset
+treasury uses the arbiter. The public registration omits the API service unless
+a public API URL is configured. Supply an identity explicitly when generating
+the registration; the local demo identity is not a public registration.
+
+If deployment succeeds but verification fails, **do not rerun `deploy`**.
+Recover the manifest and registration from the run's artifacts, confirm the
+transaction receipt and constructor arguments, and place the records on a
+feature branch. Run `verify` on that branch to verify the recorded address.
+Review the updated records and deployment documentation in a PR before merging.
+If artifacts are unavailable, reconstruct the manifest from the successful
+deployment transaction and receipt, compare its bytecode with the deployed
+source, and leave verification marked pending until BaseScan confirms it.
+Published workflow records omit the RPC URL to keep provider credentials out
+of artifacts and Git. Configure the running API's RPC through
+`PROOF_OF_AUDIT_RPC_URL`.
+
+Automatic PR creation requires the repository's Actions policy to allow
+GitHub Actions to create pull requests. If that policy blocks the final step,
+the workflow has already retained the release records and pushed its branch.
+Create the PR from that branch with an authorized GitHub account, and check
+verification status in the manifest rather than treating the overall workflow
+conclusion as the deployment or verification result.
+
 The identity deploy script:
 
 - registers the auditor against the published registration document URI
@@ -621,14 +647,34 @@ If you need to redeploy with the same bytecode but different constructor inputs:
 
 ## Current status
 
-Live Base Sepolia deployment:
+The current contract was deployed on 8 October 2026 from source commit
+`c7c25443c24349015a85b96723225151c634e181`:
 
-- contract: `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
-- deploy tx: `0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41`
-- arbiter: `0x9Ed13E9b9FC135D35CE78C35866412dB08897E29`
-- explorer: `https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24`
-- canonical ERC-8004 Base Sepolia identity registry: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
-- canonical ERC-8004 Base Sepolia validation registry: `0x8004B663056A597Dffe9eCcC1965A193B7388713`
-- auditor agent id: see `deployments/base-sepolia.json`
+- contract: [`0x10eb28034c2b8f77400c3c2eaa1984b019655ae6`](https://sepolia.basescan.org/address/0x10eb28034c2b8f77400c3c2eaa1984b019655ae6)
+- transaction: [`0x4b276b8e239a4cfcfe0b6aeb61a0be89522ee64842f9da33ee841a23b3b78eac`](https://sepolia.basescan.org/tx/0x4b276b8e239a4cfcfe0b6aeb61a0be89522ee64842f9da33ee841a23b3b78eac)
+- block: `47828253`; receipt status: success
+- arbiter: `0x9ed13e9b9fc135d35ce78c35866412db08897e29`
+- treasury: `0x5005dff87271ba211f31c22b85bdcb8dfcfc9a10`
+- auditor identity: existing agent `1862` in the official ERC-8004 identity
+  registry; owner and registration URI were checked during recovery
 
-Verification has been recorded in `deployments/base-sepolia.json` and the contract is verified on BaseScan.
+Creation bytecode and deployed runtime bytecode match the compiled source,
+including all eight constructor immutables. This establishes that the deployed
+contract contains the current hardening, request, settlement, and fee code; it
+does not demonstrate a successful live settlement cycle or hosted application
+configuration. Those checks remain outstanding in [#293](https://github.com/akoita/proof-of-audit/issues/293).
+
+**BaseScan source verification completed on 8 October 2026 at 02:28 UTC.** The
+[deployment run](https://github.com/akoita/proof-of-audit/actions/runs/37715604922)
+stopped before requesting verification because the generated registration
+advertised a localhost API. The
+[verify-only run](https://github.com/akoita/proof-of-audit/actions/runs/37717943992)
+verified the existing address and retained the corrected release records.
+Its final automatic PR step was blocked by the repository's Actions policy;
+verification itself succeeded. The verified manifest is in
+[`deployments/base-sepolia.json`](../deployments/base-sepolia.json). No second
+deployment was needed during recovery.
+
+The former `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24` address remains a legacy
+deployment. Existing hosted services may still point to it until their runtime
+configuration is explicitly updated and tested.
