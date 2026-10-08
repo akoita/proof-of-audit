@@ -8,8 +8,8 @@ adopted delivery plan; Phase 0 has not exited.
 
 **Release update, 8 October 2026:** current source was deployed to Base Sepolia
 at `0x10eb28034c2b8f77400c3c2eaa1984b019655ae6`. Its creation and runtime bytecode
-match source commit `c7c2544`. BaseScan source verification remains pending after
-a registration-generation failure; see the [current deployment record](../DEPLOYMENT.md#current-status).
+match source commit `c7c2544`. BaseScan source verification is complete after
+recovering from a registration-generation failure; see the [current deployment record](../DEPLOYMENT.md#current-status).
 The inventory below retains the 7 October review evidence. A live settlement
 cycle and the other Phase 0 gaps remain outstanding.
 

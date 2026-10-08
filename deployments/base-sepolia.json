@@ -24,9 +24,10 @@
     "status": "verified",
     "provider": "basescan",
     "command": "forge verify-contract --chain 84532 --watch --constructor-args 0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e290000000000000000000000005005dff87271ba211f31c22b85bdcb8dfcfc9a10000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 --etherscan-api-key \\<redacted\\> 0x10eb28034c2b8f77400c3c2eaa1984b019655ae6 src/ProofOfAudit.sol:ProofOfAudit ",
-    "verified_at": "2026-10-08T02:28:07.194733+00:00"
+    "verified_at": "2026-10-08T02:28:07.194733+00:00",
+    "workflow_run": "https://github.com/akoita/proof-of-audit/actions/runs/37717943992"
   },
-  "notes": "Deployed from source c7c25443c24349015a85b96723225151c634e181 in workflow run 37715604922. Transaction creation bytecode and deployed runtime bytecode, including all eight constructor immutables, match the locally compiled source. BaseScan verification was not requested because the generated registration contained a localhost API endpoint; recover with verify-only, not another deployment. Existing identity #1862 owner and tokenURI were checked on Base Sepolia during recovery.",
+  "notes": "Deployed from source c7c25443c24349015a85b96723225151c634e181 in workflow run 37715604922. Creation bytecode and deployed runtime bytecode, including all eight constructor immutables, match the compiled source. BaseScan verification completed in verify-only run 37717943992 after correcting the generated registration. Existing identity #1862 owner and tokenURI were checked on Base Sepolia during recovery.",
   "deployment_tx_hash": "0x4b276b8e239a4cfcfe0b6aeb61a0be89522ee64842f9da33ee841a23b3b78eac",
   "deployment_block_number": 47828253,
   "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",

@@ -25,7 +25,7 @@ Make every public claim true before making new claims.
   replacing the "green no-op" smoke evidence.
 - Contract truth: the 8 October 2026 redeployment contains the current bounty/fee
   subsystem and hardening, with creation and runtime bytecode matching source.
-  Complete BaseScan verification and publish the recovered release record;
+  BaseScan verification is complete. Publish the recovered release record;
   separately prove the live application cycle. See the
   [deployment status](../DEPLOYMENT.md#current-status).
 - Contract fixes before any redeploy: block self-challenge in the direct flow;

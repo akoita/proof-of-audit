@@ -222,6 +222,13 @@ Published workflow records omit the RPC URL to keep provider credentials out
 of artifacts and Git. Configure the running API's RPC through
 `PROOF_OF_AUDIT_RPC_URL`.
 
+Automatic PR creation requires the repository's Actions policy to allow
+GitHub Actions to create pull requests. If that policy blocks the final step,
+the workflow has already retained the release records and pushed its branch.
+Create the PR from that branch with an authorized GitHub account, and check
+verification status in the manifest rather than treating the overall workflow
+conclusion as the deployment or verification result.
+
 The identity deploy script:
 
 - registers the auditor against the published registration document URI
@@ -657,13 +664,16 @@ contract contains the current hardening, request, settlement, and fee code; it
 does not demonstrate a successful live settlement cycle or hosted application
 configuration. Those checks remain outstanding in [#293](https://github.com/akoita/proof-of-audit/issues/293).
 
-**BaseScan source verification is pending.** The
+**BaseScan source verification completed on 8 October 2026 at 02:28 UTC.** The
 [deployment run](https://github.com/akoita/proof-of-audit/actions/runs/37715604922)
 stopped before requesting verification because the generated registration
-advertised a localhost API. Its recovered record is in
-[`deployments/base-sepolia.json`](../deployments/base-sepolia.json). Continue with
-`verify` on the recovery branch after publishing the corrected records; another
-deployment is unnecessary.
+advertised a localhost API. The
+[verify-only run](https://github.com/akoita/proof-of-audit/actions/runs/37717943992)
+verified the existing address and retained the corrected release records.
+Its final automatic PR step was blocked by the repository's Actions policy;
+verification itself succeeded. The verified manifest is in
+[`deployments/base-sepolia.json`](../deployments/base-sepolia.json). No second
+deployment was needed during recovery.
 
 The former `0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24` address remains a legacy
 deployment. Existing hosted services may still point to it until their runtime
