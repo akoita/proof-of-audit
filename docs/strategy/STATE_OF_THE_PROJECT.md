@@ -1,78 +1,105 @@
-# State of the Project — Honest Assessment (July 2026)
+# State of the project
 
-This document is a candid audit of what Proof-of-Audit actually is today, produced as the
-foundation for the post-hackathon vision reset. It separates what is genuinely built from
-what is demo-ware, because a real-world product strategy is only as good as the inventory
-it starts from. Companion documents: [VISION.md](./VISION.md),
-[PRODUCT_STRATEGY.md](./PRODUCT_STRATEGY.md), [ROADMAP.md](./ROADMAP.md),
-[BACKLOG_TRIAGE.md](./BACKLOG_TRIAGE.md).
+Reviewed on 7 October 2026 against `main` at
+`08766b1a2102938b47f8e1d1febf6a06dd2ca394`. This is a current inventory of repository
+behavior and recorded evidence, not a security certification or an independent
+reverification of public-chain state. The [roadmap](./ROADMAP.md) remains the
+adopted delivery plan; Phase 0 has not exited.
 
-## Context
+## Implemented in source
 
-Built solo in ~3.5 weeks (2026-03-12 → 2026-04-05) for the Synthesis hackathon
-(deadline 2026-03-22), then extended in two post-hackathon waves: a bounty
-marketplace + fee model (Mar 24–28) and a multi-agent demo showcase (Apr 2–5).
-223 commits, ~150 issues (all closed), strong CI discipline throughout.
+| Capability | Evidence and boundary |
+| --- | --- |
+| Stake, challenge, resolution and payout | [ProofOfAudit](../../contracts/src/ProofOfAudit.sol) and [contract tests](../../contracts/test/ProofOfAudit.t.sol); the arbiter supplies the dispute verdict. |
+| Request escrow, claim accounting and fees | Implemented in the same contract; availability depends on the deployed version. |
+| Contract hardening | Source rejects direct self-challenges and invalid constructor parameters, includes request-claim challenge expiry, and has [fuzz/invariant coverage](../../contracts/test/ProofOfAuditInvariant.t.sol). |
+| Audit submissions and persistence | [AuditService](../../api/proof_of_audit_api/service.py), [store implementations](../../api/proof_of_audit_api/store.py), and [service tests](../../api/tests/test_service.py); audit-request persistence remains separate JSON. |
+| Source and chain provenance | [Snapshot semantics](../AUDIT_SNAPSHOT_SEMANTICS.md) and [executable evidence format](../EXECUTABLE_EVIDENCE_BUNDLE.md). Provenance does not prove report correctness. |
+| Evidence review | Integrity/execution checks, semantic comparison and structured dossiers; current executable verification stays advisory. See [verifier design status](../CHALLENGE_VERIFIER_V2.md). |
+| Identity and lifecycle mirrors | ERC-8004-aligned [registration](../ERC8004_REGISTRATION.md), validation artifacts and configurable reputation integration. Mirror availability depends on compatible configured registries. |
+| API baseline protection | [API-key guard and per-process rate limiter](../../api/proof_of_audit_api/security.py), CORS configuration, and [security tests](../../api/tests/test_security.py). This is not customer/operator role separation. |
+| Signing-role checks | [Configuration](../../api/proof_of_audit_api/config.py) and API startup reject shared trust-role keys on non-local networks. Local development permits shared test keys. |
+| Verification and hooks | Python, contract, browser and system test layers; [Halmos properties](../FORMAL_TESTING.md); [pre-commit security gate](../SECURITY_AUDIT_WORKFLOW.md). |
 
-## What is genuinely built (the real assets)
+The [CI run on this baseline](https://github.com/akoita/proof-of-audit/actions/runs/37621817505)
+passes its five jobs. The preceding local validation recorded 328 Python tests
+passing with six live-testnet skips, 63 contract tests passing, and eight Halmos
+checks passing. The executable-evidence resolver module was excluded under the
+repository test instructions. These are dated observations, not permanent test
+counts or evidence of a working public deployment.
 
-| Asset | Where | Assessment |
-| --- | --- | --- |
-| On-chain escrow & settlement rails | `contracts/src/ProofOfAudit.sol` | Clean, well-tested (28 tests) stake/challenge/resolve state machine plus a full bounty-request/pro-rata/fee subsystem. Checks-effects-interactions respected. |
-| ERC-8004 identity anchoring | official Base Sepolia IdentityRegistry, `ownerOf` enforced at claim submission | Real, early, and standards-disciplined ("aligned, not compliant" language). |
-| Executable evidence pipeline | `agent/proof_of_audit_agent/executable_evidence_runner.py`, `backends/`, `infra/evidence-runner/` | The most defensible technical asset: hash-committed evidence bundles, pinned fork-block Foundry replays, sandboxed Docker/Cloud Run execution. |
-| Validation & reputation bridges | `reputation_bridge.py`, `ValidationRegistryAdapter.sol` | Real web3 signing against ERC-8004-style registries. |
-| Ops scaffolding | CI (5 jobs incl. full-stack e2e), release images, Cloud Run + Cloud SQL path, Postgres/SQLite/JSON stores | Well beyond hackathon norms. |
-| Abstention-first verifier philosophy | `semantic_comparison.py`, Challenge Verifier V2 design | The *design instinct* (never let a weak verifier auto-slash) is correct and worth keeping. |
+## Fixture and live execution
 
-## What is demo-ware (be blunt)
+The default `deterministic` demo returns prewritten benchmark reports.
+[The worker](../../agent/proof_of_audit_agent/worker.py) can filter fixture
+findings by persona detector scope; this does not represent independent
+researchers disagreeing about a contract. Persona showcase work remains parked.
 
-| Claimed | Reality | Where |
-| --- | --- | --- |
-| "AI auditor agent" | Default mode returns 5 hand-written fixture reports; arbitrary contracts get an empty "unknown" report. Live mode is a ~300-line regex scanner (3 detector families). | `deterministic_auditor_backend.py`, `live_auditor.py` |
-| "LLM deep-analysis agents (Gemini/OpenAI)" | Config personas pointing at a hosted agent-forge HTTP contract **with no server behind it**; `--provider/--model` flags are ignored by the bundled CLI. | `agent_forge_service_client.py`, `agent_forge_cli.py`, `demo/agents.json` |
-| "Multi-agent auditors with divergent findings" | One shared worker process; per-persona "divergence" is fabricated by stripping findings by detector category. Cross-agent challenge detection compares finding *counts*. | `worker.py` (`_apply_detector_scope`), `claim_watcher.py` |
-| "Settled on-chain through transparent rules" | Every dispute is decided by a single **immutable arbiter EOA** supplying `upheld: bool`. The executable verifier is always `advisory_only` and never auto-resolves. The plain proof-URI verifier is an intentional no-op ("verifier retired"). | `ProofOfAudit.sol:544,573`, `service.py:2323`, `challenge_verifier.py:176` |
-| "Live on Base Sepolia" | The contract is deployed and verified, but the dated smoke-evidence record says all 4 live tests **skipped** ("a green no-op"). No captured live publish→challenge→resolve cycle exists. | `docs/proofs/base-sepolia-smoke-2026-03-22.md` |
-| Marketplace + fee model | The bounty/fee subsystem in source was **never deployed** — the live contract is an older 4-arg constructor version without it. | `deployments/base-sepolia.json` vs `ProofOfAudit.sol:283-302` |
+The bundled live analyzer has three regex detector families and is a reference
+implementation, not a comprehensive audit engine. Hosted engine integration
+requires an available, configured service; the repository's client contract
+alone does not prove that service is operating. The current deployed-address
+submission path validates live execution and rejects unsupported execution
+rather than treating a fixture fallback as a successful live audit.
 
-## Trust-model reality
+The [verifier benchmark](../../agent/proof_of_audit_agent/verifier_benchmark.py)
+has six replay cases with predefined runner/extractor results. It checks policy
+classification regressions, not actual exploit execution reliability or
+real-world audit accuracy.
 
-What is trustless today: escrow custody, payout arithmetic, challenge-window timing,
-identity ownership. What is centralized: **everything that determines who wins** —
-the arbiter key, the operator-run API (no auth, open CORS, no rate limits), the
-operator-controlled evidence execution and RPC, and an env-var key cascade where the
-publisher, arbiter, auditor-owner, validator, and reputation-operator can all fall
-back to the **same private key** (`config.py:711-912`), collapsing the very
-separation the challenge game depends on.
+## Source versus recorded deployment
 
-Additional mechanism gaps found in review:
+[The Base Sepolia manifest](../../deployments/base-sepolia.json) records the
+legacy four-argument deployment at
+`0xf2da3947d028b85e597fe1df4633a87ef4a85f24`. It does not establish deployment of
+the current request/fee subsystem or later hardening. No newer deployment was
+verified in this review. Source-level guarantees must not be attributed to the
+recorded address without matching release and bytecode evidence.
 
-- Flow A (deployed) allows **self-challenge** (no `auditor == msg.sender` guard).
-- A single unresolved challenge can **freeze an entire bounty request's settlement**
-  indefinitely (no timeout fallback in `classifyAuditRequestClaims`).
-- The arbiter address is never validated non-zero at construction; a dead arbiter
-  permanently locks challenged escrow.
-- Stakes are economic theater: 0.01 ETH stake / 0.005 ETH bond (~$25/$12).
-- No pause, no recovery path, no fuzz/invariant tests.
+[Issue #303](https://github.com/akoita/proof-of-audit/issues/303) tracks redeploying
+or disclosing the divergence. [PR #323](https://github.com/akoita/proof-of-audit/pull/323)
+proposes disclosure and remained open at review. Its existence is not evidence
+that the disclosure has landed or that the contract was redeployed.
 
-## Documentation debt
+The [22 March smoke record](../proofs/base-sepolia-smoke-2026-03-22.md) contains
+skipped live tests. [Issue #293](https://github.com/akoita/proof-of-audit/issues/293)
+still tracks a real publish → challenge → resolve → payout record. A local
+end-to-end run or a green skipped smoke run does not satisfy that requirement.
+See [deployment](../DEPLOYMENT.md) for procedures.
 
-- `ARCHITECTURE.md` and `AGENT_INTERACTION_FLOW.md` still describe the retired
-  benchmark-lookup auto-resolution that `TECHNICAL_DOCUMENTATION.md` says was removed.
-- Judge/submission-era docs (JUDGE_BRIEF, JUDGE_EVALUATION, EVALUATION_READINESS,
-  SUBMISSION_PACK, PITCH, STRATEGIC_ALIGNMENT, demo runbooks) dominate `docs/` and
-  frame the project for a contest that ended in March.
-- Marketing language ("not a platform's discretion") overstates the trust model;
-  single-arbiter adjudication is under-disclosed.
-- `AGENTS.md` institutionalizes `git commit --no-verify`, i.e. the security
-  pre-commit gate is bypassed by design.
+## Remaining readiness gaps
 
-## Net verdict
+Manual resolution is backed by the operator's arbiter key. Submission and
+resolution currently share the generic mutating API guard; API keys are not
+scoped into customer and arbiter roles. The frontend helper has no credential
+integration for protected requests. Treat these as limitations before sharing
+an operated instance with customers, not as implemented authorization controls.
 
-The project contains a real, differentiated primitive — **staked, identified,
-challengeable audit claims with working escrow and a reproducible-evidence
-pipeline** — wrapped in a hackathon presentation layer that fabricates the parts
-that don't exist yet (audit intelligence, independent agents, autonomous
-settlement). The productization path is to keep the primitive, delete the theater,
-and buy/borrow the intelligence rather than build it. See [VISION.md](./VISION.md).
+Audit-request persistence rewrites a whole JSON catalogue and can lose concurrent
+updates. [Issue #300](https://github.com/akoita/proof-of-audit/issues/300) tracks
+migration into the transactional store layer. Execution occurs before a draft
+record is persisted; durable jobs, restart recovery and transaction reconciliation
+remain work to evaluate before a hosted pilot.
+
+The worker temporarily mutates a shared backend for runtime overrides. Concurrent
+submissions need isolated per-job execution and a concurrency check. The UI also
+maps confidence labels to uncalibrated numeric security scores; these should not
+be interpreted as a measurement of contract safety.
+
+The arbiter, runner and RPC remain trusted boundaries. Binding objective
+settlement, meaningful coverage, independent engine demand, and commercial pilot
+value have not been established. See the [decentralization ladder](./VISION.md#the-decentralization-ladder-trust-model-north-star)
+and [backlog snapshot](./BACKLOG_TRIAGE.md).
+
+## Documentation and proposed direction
+
+The [documentation map](../README.md) separates current system descriptions,
+reference, operational guidance, proposals, and history. Hackathon packaging is
+[archived](../archive/hackathon-2026/README.md). Earlier claims that the API had no
+protection, contract source had no invariant tests, or hook bypassing was policy
+are superseded by the implemented work above.
+
+The October review proposes a narrower pilot workflow and earlier demand
+validation in [release and pilot focus](../design/release-and-pilot-focus.md).
+That document is a draft. Its suggested sequencing and gates have not replaced
+[Roadmap v2](./ROADMAP.md).

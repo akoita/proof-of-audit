@@ -4,8 +4,8 @@ This note records the ERC-8004 integration plan as it exists in the repository t
 
 Use it as the roadmap/status companion to:
 
-- [/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ALIGNMENT.md](/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ALIGNMENT.md)
-- [/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_REGISTRATION.md](/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_REGISTRATION.md)
+- [ERC-8004 alignment](ERC8004_ALIGNMENT.md)
+- [ERC-8004 registration](ERC8004_REGISTRATION.md)
 
 ## Status snapshot
 
@@ -26,8 +26,8 @@ Status: complete
 
 Implemented:
 
-- source manifest in `/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json`
-- stable published registration file in `/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json`
+- source manifest in `agent/proof_of_audit_agent/auditor_manifest.json`
+- stable published registration file in `docs/registrations/proof-of-audit-auditor.json`
 - API surfaces:
   - `GET /auditor`
   - `GET /auditor/registration`
@@ -58,7 +58,7 @@ Status: complete
 Implemented:
 
 - official Base Sepolia `IdentityRegistry` is now the canonical public registry
-- recorded auditor `agentId` and registry address in `/home/koita/dev/hackatons/proof-of-audit/deployments/base-sepolia.json`
+- recorded auditor `agentId` and registry address in `deployments/base-sepolia.json`
 - localhost keeps the custom `AgentIdentityRegistry` only as a development fallback
 
 Result:

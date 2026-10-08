@@ -18,7 +18,7 @@ Keep these contracts out of the public testnet UI. Public users should still sub
 ## Deployment flow
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 PROOF_OF_AUDIT_FIXTURE_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
 PROOF_OF_AUDIT_FIXTURE_PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY" \
 BASESCAN_API_KEY="$BASESCAN_API_KEY" \

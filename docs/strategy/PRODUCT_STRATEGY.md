@@ -1,24 +1,28 @@
 # Product Strategy (July 2026)
 
-Companion to [VISION.md](./VISION.md). Grounded in the market research summarized
-below; sources cited inline.
+Companion to [VISION.md](./VISION.md). The wedge sequence remains the adopted
+July 2026 strategy. Market figures and pricing below are research assumptions,
+not current measurements or validated customer demand. The October 2026 factual
+corrections distinguish current platform policies from that original research;
+they do not adopt the [draft sequencing proposal](../design/release-and-pilot-focus.md).
 
 ## 1. Market picture
 
-**The audit market's empty quadrant.** Human audits: $5K–$250K+, typical DeFi
-engagement $25K–$100K (Sherlock 2026 pricing reference). Contest pools: $100K–$2M+
-(Code4rena, Sherlock, Cantina, CodeHawks). AI tools price 10–100x below human
-audits but carry **zero accountability** — Immunefi bans AI-generated reports as
-spam. Only one established player sells accountability: **Sherlock**, whose audits
-carry up to $2M repayment backed by staking pools — at human-audit prices, and its
-AI product is uninsured. Nobody sells *cheap and bonded*. That is our quadrant.
+**Market hypothesis.** An engine-independent, bounded bonded verdict may provide
+value beyond a report. This is not an established empty market. Sherlock's
+[current service documentation](https://github.com/sherlock-protocol/sherlock-v2-docs/blob/main/README.md)
+describes AI review, human audits and optional coverage. Exact competing terms,
+prices and customer willingness to pay require further validation.
 
-**Enabling rails matured in the last 12 months:**
-- **ERC-8004** (identity/reputation/validation registries): stable v1 Oct 2025,
-  mainnet + Base canonical deployments Jan 2026, 100k+ registered agents across
-  12–16 chains, integrations announced by ENS, EigenLayer, The Graph. Caveat: still
-  Draft; almost nothing exercises the Validation Registry with real stakes — we can
-  be first, but must not depend on spec stability.
+Immunefi's [rules](https://immunefi.com/rules/) prohibit AI/scanner submissions
+that lack required impact information, while individual programs can welcome
+evidence-based AI-assisted research. A universal AI ban is not a valid premise.
+
+**Integration context and July research assumptions:**
+- **ERC-8004** (identity/reputation/validation registries) remains a
+  [draft specification](https://eips.ethereum.org/EIPS/eip-8004). Registration
+  does not certify capabilities; validation incentives and slashing are outside
+  the registry protocol. Keep the alignment boundary thin and version-aware.
 - **x402 agent payments**: ~169M payments, 590K buyers in year one; foundation
   includes Google, Visa, AWS, Circle, Anthropic. Counter-signal: mostly sub-dollar
   pings (~$50M total volume) — a distribution channel, not yet a revenue base.
@@ -27,10 +31,10 @@ AI product is uninsured. Nobody sells *cheap and bonded*. That is our quadrant.
 - **UMA's lesson**: open adjudication of subtle claims failed; Managed OO V2
   whitelisted proposers. Validates our execution-based settlement thesis.
 
-**Direct competitors doing staked, challengeable AI audit verdicts: none found.**
-Biggest fast-follow threat: Sherlock bolting coverage onto Sherlock AI. Our speed
-advantage is that we already have the on-chain challenge/settlement rails and
-ERC-8004 alignment they'd have to build.
+**Competition needs ongoing review.** Existing audit services, coverage products,
+and [Slither's CI/SARIF integration](https://github.com/crytic/slither-action/blob/main/README.md)
+address adjacent needs. Portable evidence and bounded accountability are proposed
+differentiators, not a demonstrated moat or a verified absence of competitors.
 
 ## 2. Ideal customers and wedge sequence
 

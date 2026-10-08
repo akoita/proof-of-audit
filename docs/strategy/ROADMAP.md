@@ -6,6 +6,11 @@ before the previous exit criterion is met. Rationale in
 [PRODUCT_STRATEGY.md](./PRODUCT_STRATEGY.md); current-state inventory in
 [STATE_OF_THE_PROJECT.md](./STATE_OF_THE_PROJECT.md).
 
+This is the adopted delivery sequence, not a completion checklist. Several
+Phase 0 fixes have landed; consult the [dated backlog snapshot](./BACKLOG_TRIAGE.md)
+and linked issues for status. The [October pilot proposal](../design/release-and-pilot-focus.md)
+is unapproved and does not change these gates.
+
 ## Phase 0 — Truth & hygiene (weeks, not months)
 
 Make every public claim true before making new claims.
@@ -67,7 +72,7 @@ Graduate the exploit-evidence pipeline from advisory to binding.
   open-source a claim-scanner so contest hunters can hunt our ledger.
 - Grow the verifier benchmark corpus from 6 cases to a real eval set; publish
   verifier precision/abstention metrics.
-- Public challenge-outcome ledger page (the Immunefi-ban counter-artifact).
+- Public challenge-outcome ledger page with evidence and adjudication outcomes.
 
 **Exit criterion:** a majority of settled challenges resolve by execution, not by
 the arbiter, and at least one wrong verdict has been genuinely slashed.

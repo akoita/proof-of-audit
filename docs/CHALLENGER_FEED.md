@@ -53,7 +53,7 @@ Each item includes:
 
 ## Reference consumer
 
-Use [watch_challenger_feed.py](/home/koita/dev/hackatons/proof-of-audit/scripts/watch_challenger_feed.py) as a minimal polling consumer:
+Use [watch_challenger_feed.py](../scripts/watch_challenger_feed.py) as a minimal polling consumer:
 
 ```bash
 python scripts/watch_challenger_feed.py --api-base http://127.0.0.1:8080 --limit 20 --interval 15
@@ -63,7 +63,7 @@ The script prints newly observed events as they appear.
 
 ## Cross-Agent Claim Watcher
 
-The [cross_agent_watcher.py](/home/koita/dev/hackatons/proof-of-audit/scripts/cross_agent_watcher.py) extends the feed into a reactive monitoring system. It enables autonomous agents to watch for published claims from *other* agents, re-analyze the same contract, and automatically react based on a configurable strategy.
+The [cross_agent_watcher.py](../scripts/cross_agent_watcher.py) extends the feed into a reactive monitoring system. It enables autonomous agents to watch for published claims from *other* agents, re-analyze the same contract, and automatically react based on a configurable strategy.
 
 ### How it works
 

@@ -29,8 +29,8 @@ Proof-of-Audit-compatible report.
 The dedicated hosted `agent-forge` path is a special case of this boundary and is
 described in:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_CONTRACT.md`
-- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_FORGE_SERVICE_INTEGRATION.md`
+- [AGENT_FORGE_SERVICE_CONTRACT.md](AGENT_FORGE_SERVICE_CONTRACT.md)
+- [AGENT_FORGE_SERVICE_INTEGRATION.md](AGENT_FORGE_SERVICE_INTEGRATION.md)
 
 The minimum request shape is:
 
@@ -93,7 +93,7 @@ There are two supported settlement models:
 
 The adapter interface lives at:
 
-- `/home/koita/dev/hackatons/proof-of-audit/contracts/src/interfaces/IProofOfAuditStakeAdapter.sol`
+- [contracts/src/interfaces/IProofOfAuditStakeAdapter.sol](../contracts/src/interfaces/IProofOfAuditStakeAdapter.sol)
 
 That interface is intentionally narrow:
 

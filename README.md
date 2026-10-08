@@ -4,213 +4,107 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 ![Status: Prototype](https://img.shields.io/badge/status-prototype-orange)
 
-**Trust infrastructure for AI agent code judgments.** An auditor agent reviews a smart contract, stakes ETH behind its verdict, and anyone can challenge that verdict on-chain.
+Proof-of-Audit is a prototype for publishing stake-backed smart-contract security
+claims and challenging them with evidence. It connects an auditor's report,
+source provenance, on-chain escrow, and a reviewable dispute outcome.
 
-<p align="center">
-  <img src="./docs/assets/proof-of-audit-agent-demo.svg" alt="Proof-of-Audit agent trust loop — animated terminal demo" width="100%"/>
-</p>
+## Status and trust boundary
 
-## Why this matters
+The local stack supports draft → publish → challenge → resolve. The API submits
+transactions; the operator-held arbiter key decides disputes. Executable evidence
+verification is **advisory**, and a report hash establishes provenance rather
+than correctness. A bonded claim is not a guarantee that a contract is safe.
 
-Today, when an AI agent says a smart contract is safe, you have no way to verify that claim or hold the agent accountable. Proof-of-Audit changes that:
+The default `deterministic` demo returns prewritten fixture reports. Live
+execution requires a configured backend; see [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md).
+Persona demos are not independent audit engines.
 
-| Problem                    | Solution                                                      |
-| -------------------------- | ------------------------------------------------------------- |
-| Agent claims are invisible | Claims are **published on-chain** with a transaction hash     |
-| No skin in the game        | Agent **stakes ETH** behind every judgment                    |
-| No recourse when wrong     | Anyone can **challenge** with evidence and trigger settlement |
-| No standard identity       | Agent is registered via **ERC-8004** for discovery            |
+The checked-in Base Sepolia manifest records a **legacy deployment**. Current
+source includes hardening and request/fee features that cannot be assumed to
+exist at that address. A recorded live settlement cycle is still outstanding.
+See [current project state](./docs/strategy/STATE_OF_THE_PROJECT.md) for the
+source/deployment distinction and evidence links.
 
-## How it works
+## Try the local fixture workflow
 
-```
-1. Discover   → Find the auditor agent and verify its identity
-2. Submit     → Send a contract for review
-3. Draft      → Agent produces a code judgment (not yet committed)
-4. Publish    → Agent stakes ETH and commits the claim on-chain
-5. Challenge  → Anyone (except the auditor itself) submits evidence against the claim
-6. Resolve    → The arbiter rules on the dispute; the escrow settles on-chain
-```
+Install Python 3.12+, Foundry, Node.js, and pnpm, then follow
+[development setup](./CONTRIBUTING.md#development-setup) to install dependencies.
+Commands below run from the repository root unless they change directory.
 
-### Trust model today
-
-Being precise about what is and isn't trustless at this stage (see the
-[decentralization ladder](./docs/strategy/VISION.md)):
-
-- **Enforced on-chain:** stake and bond escrow, challenge windows, payout
-  arithmetic, self-challenge rejection, and ERC-8004 identity ownership.
-- **Trusted today:** every dispute verdict comes from a single **arbiter key**
-  held by the operator. Verifier output — including executable evidence — is
-  **advisory only** and never slashes stake automatically; plain proof-URI
-  evidence always goes to manual review.
-- **Demo mode:** the default local demo runs the audit worker in
-  `deterministic` mode, which returns **pre-written benchmark reports for the
-  fixture contracts** — no live analysis. Live analysis requires the
-  `hybrid`/`agent_forge` runtime modes (see
-  [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)).
-
-## Try it
-
-> The local demo exercises the full trust loop in `deterministic` mode:
-> audits of the fixture contracts return pre-written benchmark reports, so no
-> LLM or live analysis is involved.
-
-### Quick start (3 commands)
+Start Anvil in the first terminal:
 
 ```bash
-# Terminal 1: Start the local chain and deploy contracts
 ./scripts/start-anvil.sh
-./scripts/prepare-agent-demo-stack.sh
-
-# Terminal 2: Start the API
-PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
-
-# Terminal 3: Start the web app
-cd web && pnpm dev
 ```
 
-Then open `http://localhost:3000` and follow the [Demo script](./docs/DEMO_SCRIPT.md).
-
-### Terminal-only demo
-
-No browser needed — run the full trust loop from the terminal:
+Prepare local contracts, fixtures, and identity configuration in a second terminal:
 
 ```bash
-python ./scripts/run_agent_demo.py --api-url http://127.0.0.1:8080
+export PYENV_VERSION=proof-of-audit-3.12
+export PYTHONPATH=agent:api
+PYTHON_BIN="$(pyenv which python)" ./scripts/prepare-agent-demo-stack.sh
 ```
 
-One-command full stack (chain + API + web): `./scripts/run-judge-stack.sh`, then open `http://127.0.0.1:3000`.
-
-## Demo snapshots
-
-![Challenge resolution flow](./docs/assets/workbench-challenge-resolution.png)
-
-## Architecture
-
-```
-┌──────────┐     ┌──────────┐     ┌───────────────┐     ┌────────────────────┐
-│  Web UI  │────▸│ REST API │────▸│ Audit Worker  │────▸│ ProofOfAudit.sol   │
-│ (Next.js)│     │ (FastAPI)│     │  (Python)     │     │ (Foundry/Base)     │
-└──────────┘     └──────────┘     └───────────────┘     └────────────────────┘
-                      │                                          │
-                      └────────────────────────────────────────▸ │
-                            ERC-8004 Validation Bridge           │
-```
-
-1. A user submits a contract through the web app or API
-2. The auditor agent produces a review claim
-3. The claim is published on-chain with a stake
-4. Challengers submit evidence and post a bond
-5. Plain proof-URI evidence goes to manual review; executable evidence gets an advisory verifier verdict — the operator-held arbiter key makes the final resolution call
-
-## What's in the repo
-
-| Directory    | What it does                                                       |
-| ------------ | ------------------------------------------------------------------ |
-| `contracts/` | Solidity settlement contract (Foundry) — stake, challenge, resolve |
-| `agent/`     | Python audit worker with deterministic benchmark outputs           |
-| `api/`       | FastAPI service — submit, publish, challenge, resolve              |
-| `web/`       | Next.js frontend — workbench UI                                    |
-| `demo/`      | Sample contracts for benchmark demos                               |
-| `scripts/`   | Local deployment, recording, and test harnesses                    |
-
-## API endpoints
-
-| Method | Endpoint                   | Purpose                               |
-| ------ | -------------------------- | ------------------------------------- |
-| `GET`  | `/auditor`                 | Discover the auditor identity         |
-| `GET`  | `/auditors`                | List registered auditor services and reputation |
-| `GET`  | `/auditors/:id`            | Read one auditor service record       |
-| `GET`  | `/auditors/:id/reputation` | Read one auditor reputation summary   |
-| `GET`  | `/auditor/registration`    | ERC-8004 registration document        |
-| `GET`  | `/auditors/:id/registration` | Read one auditor registration       |
-| `GET`  | `/auditor/reputation`      | Read the default auditor reputation   |
-| `GET`  | `/config`                  | Chain configuration and stake amounts |
-| `GET`  | `/fixtures`                | Available demo benchmark contracts    |
-| `GET`  | `/requests?status=`        | List file-backed open or closed audit requests |
-| `GET`  | `/requests/:id/eligibility` | Preview one auditor's request eligibility |
-| `GET`  | `/audits?contract_address=` | List claims for one target contract   |
-| `GET`  | `/targets/:address/audits` | Target-scoped claim history           |
-| `GET`  | `/targets/:address/comparison` | Comparative target claim summary   |
-| `GET`  | `/challenger-feed`         | Poll recent published/challenged/resolved lifecycle events |
-| `POST` | `/audits`                  | Create a draft audit claim            |
-| `POST` | `/audits/:id/publish`      | Stake ETH and publish on-chain        |
-| `POST` | `/audits/:id/challenge`    | Submit evidence against the claim     |
-| `POST` | `/audits/:id/resolve`      | Resolve ambiguous disputes            |
-| `GET`  | `/audits/:id/validation/*` | ERC-8004 validation trail             |
-| `GET`  | `/audits/:id/reputation/*` | On-chain reputation trail             |
-
-Interactive API docs available at `http://127.0.0.1:8080/docs` when the server is running.
-
-For detailed integration guidance, see the [Agent API](./docs/AGENT_API.md), [Agent interaction flow](./docs/AGENT_INTERACTION_FLOW.md), and [Reputation model](./docs/REPUTATION_MODEL.md).
-
-## On-chain deployment
-
-**Base Sepolia** (live):
-
-|                             |                                                                                                 |
-| --------------------------- | ----------------------------------------------------------------------------------------------- |
-| ProofOfAudit                | [`0xf2dA…F24`](https://sepolia.basescan.org/address/0xf2dA3947d028b85e597Fe1Df4633a87eF4A85F24) |
-| ERC-8004 IdentityRegistry   | `0x8004A818BFB912233c491871b3d84c89A494BD9e`                                                    |
-| ERC-8004 ValidationRegistry | `0x8004B663056A597Dffe9eCcC1965A193B7388713`                                                    |
-
-## Development
+Start the API after preparation completes:
 
 ```bash
-# Run all tests
-make test-python        # Python unit tests
-make test-system-e2e    # Full stack end-to-end
-make test-testnet-smoke # Gated Base Sepolia smoke suite
-make test-ui-e2e        # Browser end-to-end (Playwright)
-cd contracts && forge test  # Smart contract tests
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api \
+  python -m proof_of_audit_api.app
 ```
 
-Install the security pre-commit hook:
+Start the frontend in another terminal:
 
 ```bash
-make install-git-hooks
+cd web
+pnpm dev
 ```
 
-## Documentation
+Open [the local workbench](http://127.0.0.1:3000) and follow the
+[fixture walkthrough](./docs/DEMO_SCRIPT.md). Local defaults are API `8080`,
+Anvil `8545`, Agent Forge `8000`, and frontend `3000`; configuration overrides
+are documented in [the deployment guide](./docs/DEPLOYMENT.md).
 
-| Doc                                               | What it covers                      |
-| ------------------------------------------------- | ----------------------------------- |
-| [Vision v2](./docs/strategy/VISION.md)            | Post-hackathon product vision and trust-model north star |
-| [Product strategy](./docs/strategy/PRODUCT_STRATEGY.md) | Market analysis, wedges, business model |
-| [Roadmap v2](./docs/strategy/ROADMAP.md)          | Phased path from prototype to real product |
-| [State of the project](./docs/strategy/STATE_OF_THE_PROJECT.md) | Honest inventory: what's real vs demo-ware |
-| [Backlog triage](./docs/strategy/BACKLOG_TRIAGE.md) | Rulings on past threads + proposed new backlog |
-| [Agentic stack radar](./docs/strategy/AGENTIC_STACK.md) | Where agent frameworks/protocols fit (and where they never will) |
-| [Technical documentation](./docs/TECHNICAL_DOCUMENTATION.md) | Canonical end-to-end technical reference |
-| [Challenge Verifier V2](./docs/CHALLENGE_VERIFIER_V2.md) | Design for the next-generation challenge adjudication pipeline |
-| [TEE evidence RFC](./docs/TEE_EVIDENCE_RFC.md)    | Research note on TEE-backed evidence execution |
-| [Agent request participation](./docs/AGENT_REQUEST_PARTICIPATION.md) | Polling, heuristics, and replay-safe request participation |
-| [Demo script](./docs/DEMO_SCRIPT.md)              | 60-second live walkthrough          |
-| [Architecture](./docs/ARCHITECTURE.md)            | System design and data flow         |
-| [Agent API](./docs/AGENT_API.md)                  | Integration guide for agent callers |
-| [Challenger feed](./docs/CHALLENGER_FEED.md)      | Polling surface for challenger tooling |
-| [ERC-8004 alignment](./docs/ERC8004_ALIGNMENT.md) | Standards mapping                   |
-| [Reputation model](./docs/REPUTATION_MODEL.md)    | Explainable auditor scoring         |
-| [Local Agent Forge](./docs/LOCAL_AGENT_FORGE.md)  | Run with real Agent Forge locally   |
-| [Deployment guide](./docs/DEPLOYMENT.md)          | Production deployment setup         |
-| [Hackathon archive](./docs/archive/hackathon-2026/) | Judge briefs, pitch scripts, submission material (historical, unmaintained) |
-| [Formal testing (Halmos)](./docs/FORMAL_TESTING.md) | Symbolic property tests for the escrow's value-conservation invariants |
-| [Base Sepolia smoke evidence](./docs/proofs/base-sepolia-smoke-2026-03-22.md) | Latest dated live-smoke evidence record |
+For a terminal-only walkthrough against the running API:
 
-## What's next
+```bash
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api \
+  python scripts/run_agent_demo.py --api-url http://127.0.0.1:8080
+```
 
-This is a v1 prototype — one auditor, one contract, one challenge flow. Here's where it goes:
+![Local fixture challenge and resolution](./docs/assets/workbench-challenge-resolution.png)
 
-- **Multiple competing auditors** — different agents stake on the same contract, reputation tracks accuracy
-- **Reputation registry** — ERC-8004 reputation trail from resolved challenges, so agents build or lose credibility over time
-- **Cross-chain settlement** — deploy ProofOfAudit beyond Base Sepolia to mainnet and other L2s
-- **Richer evidence types** — formal verification proofs, fuzzer outputs, and multi-source challenge artifacts
-- **Agent marketplace** — external agents discover, hire, and pay auditor services through the protocol
+## System and interfaces
 
-## Security
+The Next.js workbench calls a FastAPI service. The service coordinates the audit
+worker, stores reports and evidence, and uses separate configured clients for
+publication and arbitration. `ProofOfAudit` enforces escrow, timing, and payout
+rules implemented by the selected deployment. Identity and validation bridges
+are integrations, not the settlement authority.
 
-⚠️ This is a prototype. Contract logic, API flows, and challenge verification should all be reviewed before handling real value or adversarial usage.
+Read the [architecture overview](./docs/architecture/overview.md) for component
+boundaries and persistence limitations. For integrations, use the
+[Agent API guide](./docs/AGENT_API.md) and the running service's
+[OpenAPI documentation](http://127.0.0.1:8080/docs); the API schemas are defined
+in [schemas.py](./api/proof_of_audit_api/schemas.py).
 
-## License
+## Verify and contribute
 
-MIT — see [LICENSE](./LICENSE).
+The [contributor guide](./CONTRIBUTING.md) covers dependency installation, Python
+and contract tests, browser/system checks, and the security hook. Live testnet
+checks require configured infrastructure and signing roles; a skipped run is
+not live settlement evidence. [Formal testing](./docs/FORMAL_TESTING.md) documents
+separate Halmos checks and their scope.
+
+External contributions remain paused under the contributor policy. Changes go
+through feature branches and pull requests; merging requires maintainer approval.
+
+## Documentation and planned work
+
+Start at the [documentation map](./docs/README.md) for guides, operations,
+reference material, proposals, and historical records. The
+[strategy roadmap](./docs/strategy/ROADMAP.md) governs delivery: Phase 0 truth
+and hygiene remains the current gate. Later work is planned, not a description
+of released capabilities.
+
+This prototype needs independent review before handling meaningful funds or
+adversarial use. Licensed under [MIT](./LICENSE).

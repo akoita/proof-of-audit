@@ -2,6 +2,10 @@
 
 This note describes Proof-of-Audit as an agent-callable service rather than a web app.
 
+The endpoints and marketplace behavior described here are repository-source
+capabilities. Their presence in source does not establish that they are
+available on a public deployment; see the [recorded project state](strategy/STATE_OF_THE_PROJECT.md).
+
 ## What the service does
 
 The service accepts a contract-oriented submission, produces a deterministic review claim, and optionally anchors that claim on-chain with stake.
@@ -150,10 +154,13 @@ Proxy support notes:
 
 Repository submission example:
 
+For a local checkout, provide a file URI derived from its absolute path. This
+example uses `/tmp/example-vault` as an illustrative location.
+
 ```json
 {
   "input_kind": "repository_url",
-  "repository_url": "file:///home/koita/dev/example-vault",
+  "repository_url": "file:///tmp/example-vault",
   "entry_contract": "Vault",
   "submitted_by": "agent-client"
 }

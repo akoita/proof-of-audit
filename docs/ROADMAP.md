@@ -1,5 +1,8 @@
 # Roadmap
 
+This is a superseded historical delivery plan. The canonical phased roadmap,
+including current exit criteria, is [the strategy roadmap](strategy/ROADMAP.md).
+
 This roadmap organizes Proof-of-Audit into practical delivery phases. Each phase is intended to produce a usable increment while reducing the largest product and technical risks first.
 
 ## Phase 1: On-Chain Foundations

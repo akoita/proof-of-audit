@@ -1,5 +1,10 @@
 # AuditRequest Protocol
 
+This document describes the request protocol present in repository source. The
+recorded public deployment uses an older contract constructor and does not
+establish that this request flow is live on Base Sepolia; see the
+[recorded project state](strategy/STATE_OF_THE_PROJECT.md).
+
 `#217` introduces a marketplace request primitive alongside the legacy single-auditor
 `publishAudit` flow.
 

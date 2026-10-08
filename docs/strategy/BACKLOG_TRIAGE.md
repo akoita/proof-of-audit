@@ -1,13 +1,38 @@
-# Backlog Triage (July 2026)
+# Backlog triage
 
-The tracker currently has **zero open issues and zero open PRs** — all ~150 issues
-were closed during the hackathon and the two post-hackathon waves. So this triage
-reviews the *closed strategic threads* and rules on each: **maintain** (the thread's
-direction is right — revive it as new issues), **update** (right area, wrong scope —
-rescope before reviving), or **discard** (do not reinvest). It ends with the
-proposed new backlog aligned to [ROADMAP.md](./ROADMAP.md).
+This document preserves the July 2026 strategic rulings and the backlog they
+proposed. They are planning context, not evidence that work is outstanding or
+implemented. [ROADMAP.md](./ROADMAP.md) governs phase order; use the
+[project inventory](./STATE_OF_THE_PROJECT.md) for current behavior.
 
-## Thread-by-thread rulings
+## Tracker snapshot — 7 October 2026
+
+At review, GitHub had nine open issues and one open PR. The four historical
+milestones had no open issues but remained open; the active Sprint 2 milestone
+retained its elapsed 24 July deadline. These observations are dated; consult
+the [live issues](https://github.com/akoita/proof-of-audit/issues) and
+[milestones](https://github.com/akoita/proof-of-audit/milestones) before assigning work.
+
+| Work | Recorded state |
+| --- | --- |
+| [#304 Phase 0 epic](https://github.com/akoita/proof-of-audit/issues/304) | Open; several original child fixes have landed in source. |
+| [#303 deployment truth](https://github.com/akoita/proof-of-audit/issues/303) | Open; [PR #323](https://github.com/akoita/proof-of-audit/pull/323) proposes disclosure. |
+| [#293 live settlement evidence](https://github.com/akoita/proof-of-audit/issues/293) | Open; local tests and skipped smoke records are insufficient. |
+| [#300 request persistence](https://github.com/akoita/proof-of-audit/issues/300) | Open; request records remain outside the transactional store. |
+| [#320 UI](https://github.com/akoita/proof-of-audit/issues/320), [#321 README](https://github.com/akoita/proof-of-audit/issues/321) | Open; documentation normalization does not complete the broader UI or presentation scope. |
+| [#308 SARIF trial](https://github.com/akoita/proof-of-audit/issues/308) | Open; Phase 1 interchange investigation. |
+| [#315 Gambit](https://github.com/akoita/proof-of-audit/issues/315), [#316 Certora](https://github.com/akoita/proof-of-audit/issues/316) | Open; additional contract verification work. |
+
+Source hardening, fuzz/invariant tests, signing-key separation, API baseline
+protection, hook repair, documentation reconciliation and the Halmos repair
+have landed. Their presence in the original backlog below is historical, not
+a request to reimplement them. Deployed guarantees require separate evidence.
+
+The October review's suggested backlog changes are recorded in the
+[draft release/pilot proposal](../design/release-and-pilot-focus.md). They have
+not changed GitHub assignments or the adopted roadmap.
+
+## July 2026 thread-by-thread rulings
 
 | Thread (issues) | What it was | Ruling | Why |
 | --- | --- | --- | --- |
@@ -27,7 +52,10 @@ proposed new backlog aligned to [ROADMAP.md](./ROADMAP.md).
 | UI redesign & workbench (#19, #22, #138–#143, #264) | Workbench views, marketplace/multi-agent tabs | **Update** | Keep the workbench + comparison views (they become the public challenge-outcome ledger and track-record UI). Park marketplace/multi-agent tabs. |
 | TEE research (#118) | TEE-backed evidence execution RFC | **Discard (keep the RFC)** | Its own conclusion was no-go; EigenCompute is the later, cheaper path (Phase 4). |
 
-## Proposed new backlog
+## Original July 2026 proposed backlog
+
+This list records the original scope. Check the snapshot above and linked
+issues for delivery status; completed fixes are not current action items.
 
 ### Phase 0 — Truth & hygiene
 1. Reconcile ARCHITECTURE/AGENT_INTERACTION_FLOW with TECHNICAL_DOCUMENTATION (retired benchmark auto-resolution).

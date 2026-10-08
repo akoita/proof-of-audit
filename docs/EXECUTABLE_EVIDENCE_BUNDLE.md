@@ -4,7 +4,7 @@ This note defines the current bundle shape for executable challenge evidence.
 
 It is the format companion for the advisory executable verifier introduced in:
 
-- [/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_API.md](/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_API.md)
+- [Agent API](AGENT_API.md)
 
 ## Status
 

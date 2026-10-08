@@ -13,7 +13,7 @@ Proof-of-Audit includes a local pre-commit security audit gate for staged Solidi
 Run this once per clone:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 make install-git-hooks
 ```
 
@@ -72,16 +72,16 @@ PYTHONPATH=agent:api python -m pytest \
 You can run the same workflow before committing:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
-PYTHON_BIN=/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
+# Run from the repository root
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api PYTHON_BIN=python \
   ./scripts/run-pre-commit-security-audit.sh
 ```
 
 Or preview the plan for a specific file set without running commands:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
-/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
+# Run from the repository root
+PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python \
   ./scripts/run_pre_commit_security_audit.py \
   --files contracts/src/ProofOfAudit.sol api/proof_of_audit_api/service.py \
   --skip-commands \

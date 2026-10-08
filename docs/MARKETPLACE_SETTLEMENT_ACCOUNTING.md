@@ -1,7 +1,27 @@
 # Marketplace Settlement Accounting
 
-This document freezes the payout/accounting model for the marketplace request
-path before contract implementation for:
+## Status and implementation scope
+
+This is the original accounting design record. Request-bound settlement and
+fees are implemented in the repository's
+[ProofOfAudit source](../contracts/src/ProofOfAudit.sol). The recorded Base
+Sepolia deployment manifest uses the older four-argument constructor, so it
+does not establish that these newer request-settlement rules are deployed
+publicly; see the [recorded project state](strategy/STATE_OF_THE_PROJECT.md).
+
+Current contract bounds include:
+
+- nonzero request response and challenge-resolution windows; a zero batch size
+  is rejected
+- unresolved request-claim challenges can be expired by anyone only after the
+  configured resolution window, returning the claim to `Submitted` and crediting
+  the challenge bond for pull refund
+- claim classification processes at most the caller's `maxClaims`, clamped to
+  the number of remaining claims
+- protocol and resolution fee rates cannot exceed 100%
+
+This document records the payout/accounting model originally specified before
+contract implementation for:
 
 - `#219` pro-rata bounty distribution by stake weight
 - `#222` protocol and resolution fees
@@ -140,8 +160,8 @@ For a challenged request claim:
   - beneficiary = challenged claim auditor
   - claim becomes `Resolved`
 
-Resolution fees, when implemented, are deducted from these gross payouts rather
-than added on top of them.
+Resolution fees are deducted from these gross payouts rather than added on top
+of them.
 
 ## Bounty distribution model
 

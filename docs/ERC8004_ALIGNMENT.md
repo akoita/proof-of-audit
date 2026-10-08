@@ -37,8 +37,8 @@ It is not accurate to call the current system:
 Canonical public identity path:
 
 - official Base Sepolia `IdentityRegistry`
-- recorded auditor `agentId` in `/home/koita/dev/hackatons/proof-of-audit/deployments/base-sepolia.json`
-- published registration document in `/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json`
+- recorded auditor `agentId` in [deployment manifest](../deployments/base-sepolia.json)
+- published registration document in [published registration document](registrations/proof-of-audit-auditor.json)
 
 Fallback identity path:
 
@@ -107,8 +107,8 @@ Avoid these statements unless the implementation changes materially:
 
 ## Related docs
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_REGISTRATION.md`
-- `/home/koita/dev/hackatons/proof-of-audit/docs/ERC8004_ROADMAP.md`
-- `/home/koita/dev/hackatons/proof-of-audit/docs/ARCHITECTURE.md`
-- `/home/koita/dev/hackatons/proof-of-audit/docs/DEMO_SCRIPT.md`
-- `/home/koita/dev/hackatons/proof-of-audit/docs/AGENT_API.md`
+- [ERC8004_REGISTRATION.md](ERC8004_REGISTRATION.md)
+- [ERC8004_ROADMAP.md](ERC8004_ROADMAP.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [DEMO_SCRIPT.md](DEMO_SCRIPT.md)
+- [AGENT_API.md](AGENT_API.md)

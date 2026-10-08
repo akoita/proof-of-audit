@@ -20,7 +20,7 @@ The goal is to show one complete loop without using the browser workbench:
 Local stack setup:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ./scripts/start-anvil.sh
 ./scripts/prepare-agent-demo-stack.sh
 PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_api.app
@@ -39,8 +39,8 @@ PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api python -m proof_of_audit_
 Run the terminal flow without recording first:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
-/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
+# Run from the repository root
+PYENV_VERSION=proof-of-audit-3.12 python \
   ./scripts/run_agent_demo.py \
   --api-url http://127.0.0.1:8080 \
   --fixture-id clean-vault \
@@ -66,14 +66,14 @@ Why:
 ## Record the cast
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
-PYTHON_BIN=/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
+# Run from the repository root
+PYENV_VERSION=proof-of-audit-3.12 PYTHON_BIN=python \
   ./scripts/record-agent-demo.sh
 ```
 
 Default output:
 
-- `/home/koita/dev/hackatons/proof-of-audit/docs/assets/proof-of-audit-agent-demo.cast`
+- [`docs/assets/proof-of-audit-agent-demo.cast`](../../assets/proof-of-audit-agent-demo.cast)
 
 Useful environment overrides:
 
@@ -89,16 +89,17 @@ Useful environment overrides:
 If you want the recorder to upload immediately after capture:
 
 ```bash
-cd /home/koita/dev/hackatons/proof-of-audit
+# Run from the repository root
 ASCIINEMA_UPLOAD=1 \
-PYTHON_BIN=/home/koita/.pyenv/versions/proof-of-audit-3.12/bin/python \
+PYENV_VERSION=proof-of-audit-3.12 PYTHON_BIN=python \
   ./scripts/record-agent-demo.sh
 ```
 
 Or upload later:
 
 ```bash
-asciinema upload /home/koita/dev/hackatons/proof-of-audit/docs/assets/proof-of-audit-agent-demo.cast
+# Run from the repository root
+asciinema upload docs/assets/proof-of-audit-agent-demo.cast
 ```
 
 Published recording:
@@ -108,7 +109,7 @@ Published recording:
 
 Preview asset:
 
-![Terminal demo poster](./assets/proof-of-audit-agent-demo.svg)
+![Terminal demo poster](../../assets/proof-of-audit-agent-demo.svg)
 
 ## What the terminal flow shows
 
