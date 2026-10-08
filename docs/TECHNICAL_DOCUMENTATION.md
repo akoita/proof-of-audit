@@ -96,7 +96,7 @@ sequenceDiagram
     V-->>API: advisory dossier or manual review required
     API-->>U: challenged record, still unresolved
     A->>API: POST /audits/{id}/resolve
-    Note over API: current generic API-key guard; no separate arbiter API role
+    Note over API: current generic API-key guard, no separate arbiter API role
     API->>C: resolveChallenge using arbiter signer
     API-->>U: final resolved record
 ```
