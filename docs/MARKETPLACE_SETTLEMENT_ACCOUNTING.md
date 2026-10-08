@@ -4,10 +4,11 @@
 
 This is the original accounting design record. Request-bound settlement and
 fees are implemented in the repository's
-[ProofOfAudit source](../contracts/src/ProofOfAudit.sol). The recorded Base
-Sepolia deployment manifest uses the older four-argument constructor, so it
-does not establish that these newer request-settlement rules are deployed
-publicly; see the [recorded project state](strategy/STATE_OF_THE_PROJECT.md).
+[ProofOfAudit source](../contracts/src/ProofOfAudit.sol). The 8 October 2026 Base
+Sepolia deployment contains this implementation, with creation and runtime
+bytecode matching source commit `c7c2544`. BaseScan source verification and a
+recorded live settlement cycle remain pending; see the
+[deployment record](DEPLOYMENT.md#current-status).
 
 Current contract bounds include:
 

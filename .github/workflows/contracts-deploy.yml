@@ -36,11 +36,57 @@ jobs:
       BASESCAN_API_KEY: ${{ secrets.BASESCAN_API_KEY }}
       PROOF_OF_AUDIT_ARBITER: ${{ secrets.PROOF_OF_AUDIT_ARBITER }}
       PROOF_OF_AUDIT_TREASURY_ADDRESS: ${{ secrets.PROOF_OF_AUDIT_TREASURY_ADDRESS }}
+      PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL: ${{ vars.PROOF_OF_AUDIT_AUDITOR_PUBLIC_API_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           submodules: recursive
+
+      - name: Capture checked-out manifest state
+        id: manifest_baseline
+        if: inputs.operation == 'deploy' || inputs.operation == 'verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="deployments/base-sepolia.json"
+          if [[ -f "${manifest}" ]]; then
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+            manifest_sha256="$(sha256sum "${manifest}" | cut -d ' ' -f 1)"
+            echo "sha256=${manifest_sha256}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "sha256=" >> "${GITHUB_OUTPUT}"
+          fi
+          registration="docs/registrations/proof-of-audit-auditor.json"
+          if [[ -f "${registration}" ]]; then
+            echo "registration_present=true" >> "${GITHUB_OUTPUT}"
+            registration_sha256="$(sha256sum "${registration}" | cut -d ' ' -f 1)"
+            echo "registration_sha256=${registration_sha256}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "registration_present=false" >> "${GITHUB_OUTPUT}"
+            echo "registration_sha256=" >> "${GITHUB_OUTPUT}"
+          fi
+          broadcast_state="$(python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          root = Path("contracts/broadcast")
+          files = (
+              sorted(path for path in root.rglob("*.json") if path.is_file())
+              if root.exists()
+              else []
+          )
+          digest = sha256()
+          for path in files:
+              digest.update(path.relative_to(root).as_posix().encode())
+              digest.update(b"\0")
+              digest.update(path.read_bytes())
+              digest.update(b"\0")
+          print(f"{len(files)}:{digest.hexdigest()}")
+          PY
+          )"
+          echo "broadcast_state=${broadcast_state}" >> "${GITHUB_OUTPUT}"
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -60,6 +106,25 @@ jobs:
             echo "::error::Secret BASESCAN_API_KEY is unset or still the CHANGE_ME placeholder."
             exit 1
           fi
+
+          arbiter="${PROOF_OF_AUDIT_ARBITER:-}"
+          treasury="${PROOF_OF_AUDIT_TREASURY_ADDRESS:-${arbiter}}"
+          for name in PROOF_OF_AUDIT_ARBITER PROOF_OF_AUDIT_TREASURY_ADDRESS; do
+            if [[ "${name}" == "PROOF_OF_AUDIT_ARBITER" ]]; then
+              address="${arbiter}"
+            else
+              address="${treasury}"
+            fi
+            if [[ ! "${address}" =~ ^0x[[:xdigit:]]{40}$ ]]; then
+              echo "::error::${name} must be a 20-byte 0x-prefixed hexadecimal address."
+              exit 1
+            fi
+            if [[ "${address,,}" == "0x0000000000000000000000000000000000000000" ]]; then
+              echo "::error::${name} must be nonzero."
+              exit 1
+            fi
+          done
+          printf 'PROOF_OF_AUDIT_TREASURY_ADDRESS=%s\n' "${treasury}" >> "${GITHUB_ENV}"
 
       - name: Build and run the contract suite (safety gate)
         run: |
@@ -98,6 +163,7 @@ jobs:
 
       - name: Deploy ProofOfAudit via release pipeline
         if: inputs.operation == 'deploy'
+        id: deploy_release
         shell: bash
         run: |
           set -euo pipefail
@@ -108,43 +174,156 @@ jobs:
             echo ""
             address="$(python3 -c "import json; print(json.load(open('deployments/base-sepolia.json'))['address'])")"
             echo "- ProofOfAudit: [\`${address}\`](https://sepolia.basescan.org/address/${address})"
-            echo "- manifest: \`deployments/base-sepolia.json\` (PR opened automatically)"
+            echo "- manifest: \`deployments/base-sepolia.json\`"
+            echo "- registration: \`docs/registrations/proof-of-audit-auditor.json\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify on BaseScan
         if: inputs.operation == 'deploy' || inputs.operation == 'verify'
+        id: verify_release
         shell: bash
         run: |
           set -euo pipefail
           ./scripts/verify-release.sh
 
-      - name: Upload deployment records
-        if: inputs.operation == 'deploy'
+      - name: Record release artifact provenance
+        id: release_provenance
+        if: ${{ always() && (inputs.operation == 'deploy' || inputs.operation == 'verify') }}
+        shell: bash
+        env:
+          RELEASE_OPERATION: ${{ inputs.operation }}
+          DEPLOY_OUTCOME: ${{ steps.deploy_release.outcome || 'not_run' }}
+          VERIFY_OUTCOME: ${{ steps.verify_release.outcome || 'not_run' }}
+          MANIFEST_BASELINE_PRESENT: ${{ steps.manifest_baseline.outputs.present || 'unknown' }}
+          MANIFEST_BASELINE_SHA256: ${{ steps.manifest_baseline.outputs.sha256 || '' }}
+          REGISTRATION_BASELINE_PRESENT: ${{ steps.manifest_baseline.outputs.registration_present || 'unknown' }}
+          REGISTRATION_BASELINE_SHA256: ${{ steps.manifest_baseline.outputs.registration_sha256 || '' }}
+          BROADCAST_BASELINE_STATE: ${{ steps.manifest_baseline.outputs.broadcast_state || 'unknown' }}
+        run: |
+          set -euo pipefail
+          manifest="deployments/base-sepolia.json"
+          if [[ -f "${manifest}" ]]; then
+            current_sha256="$(sha256sum "${manifest}" | cut -d ' ' -f 1)"
+            if [[ "${MANIFEST_BASELINE_PRESENT}" == "true" && "${current_sha256}" == "${MANIFEST_BASELINE_SHA256}" ]]; then
+              manifest_origin="checked-out manifest unchanged"
+            elif [[ "${MANIFEST_BASELINE_PRESENT}" == "true" ]]; then
+              manifest_origin="manifest updated during this workflow run"
+            else
+              manifest_origin="manifest created during this workflow run"
+            fi
+          else
+            manifest_origin="manifest unavailable"
+          fi
+          registration="docs/registrations/proof-of-audit-auditor.json"
+          if [[ -f "${registration}" ]]; then
+            current_registration_sha256="$(sha256sum "${registration}" | cut -d ' ' -f 1)"
+            if [[ "${REGISTRATION_BASELINE_PRESENT}" == "true" && "${current_registration_sha256}" == "${REGISTRATION_BASELINE_SHA256}" ]]; then
+              registration_origin="checked-out registration unchanged"
+            elif [[ "${REGISTRATION_BASELINE_PRESENT}" == "true" ]]; then
+              registration_origin="registration updated during this workflow run"
+            else
+              registration_origin="registration created during this workflow run"
+            fi
+          else
+            registration_origin="registration unavailable"
+          fi
+          broadcast_state="$(python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          root = Path("contracts/broadcast")
+          files = (
+              sorted(path for path in root.rglob("*.json") if path.is_file())
+              if root.exists()
+              else []
+          )
+          digest = sha256()
+          for path in files:
+              digest.update(path.relative_to(root).as_posix().encode())
+              digest.update(b"\0")
+              digest.update(path.read_bytes())
+              digest.update(b"\0")
+          print(f"{len(files)}:{digest.hexdigest()}")
+          PY
+          )"
+          if [[ "${broadcast_state}" == "${BROADCAST_BASELINE_STATE}" ]]; then
+            broadcast_origin="checked-out broadcasts unchanged"
+          else
+            broadcast_origin="broadcast records changed during this workflow run"
+          fi
+          {
+            printf 'operation=%s\n' "${RELEASE_OPERATION}"
+            printf 'deploy_step_outcome=%s\n' "${DEPLOY_OUTCOME}"
+            printf 'verify_step_outcome=%s\n' "${VERIFY_OUTCOME}"
+            printf 'manifest_record=%s\n' "${manifest_origin}"
+            printf 'registration_document=%s\n' "${registration_origin}"
+            printf 'broadcast_records=%s\n' "${broadcast_origin}"
+            printf 'rpc_url=removed from release manifest before retention\n'
+          } > "${RUNNER_TEMP}/release-record-provenance.txt"
+
+      - name: Remove RPC credentials from release manifest
+        id: sanitize_records
+        if: ${{ always() && (inputs.operation == 'deploy' || inputs.operation == 'verify') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="deployments/base-sepolia.json"
+          if [[ -f "${manifest}" ]]; then
+            python3 - "${manifest}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          manifest = Path(sys.argv[1])
+          payload = json.loads(manifest.read_text(encoding="utf-8"))
+          payload.pop("rpc_url", None)
+          manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+          fi
+
+      - name: Upload release records
+        id: upload_records
+        if: ${{ always() && (inputs.operation == 'deploy' || inputs.operation == 'verify') && steps.release_provenance.outcome == 'success' && steps.sanitize_records.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: proof-of-audit-deployment-base-sepolia-${{ github.run_id }}
+          name: proof-of-audit-${{ inputs.operation }}-records-base-sepolia-${{ github.run_id }}
           path: |
             deployments/base-sepolia.json
+            docs/registrations/proof-of-audit-auditor.json
             contracts/broadcast/**/*.json
+            ${{ runner.temp }}/release-record-provenance.txt
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Open PR with the deployment manifest
-        if: inputs.operation == 'deploy'
+      - name: Open PR with release records
+        if: ${{ !cancelled() && steps.release_provenance.outcome == 'success' && steps.sanitize_records.outcome == 'success' && ((inputs.operation == 'deploy' && steps.deploy_release.outcome == 'success') || (inputs.operation == 'verify' && steps.verify_release.outcome == 'success')) }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
           branch="deploy/base-sepolia-${{ github.run_id }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
-          git add deployments/base-sepolia.json
-          git commit -m "chore: record Base Sepolia deployment manifest (run ${{ github.run_id }})"
+          manifest="deployments/base-sepolia.json"
+          if git ls-files --error-unmatch "${manifest}" >/dev/null 2>&1; then
+            git add -- "${manifest}"
+          elif git check-ignore -q -- "${manifest}"; then
+            git add -f -- "${manifest}"
+          else
+            git add -- "${manifest}"
+          fi
+          git add -- docs/registrations/proof-of-audit-auditor.json
+          if git diff --cached --quiet; then
+            echo "No release-record changes to publish."
+            exit 0
+          fi
+          git commit -m "chore: record Base Sepolia ${RELEASE_OPERATION} results (run ${{ github.run_id }})"
           git push origin "${branch}"
           gh pr create \
             --base main \
             --head "${branch}" \
-            --title "chore: Base Sepolia deployment manifest (run ${{ github.run_id }})" \
-            --body "Automated deployment record from the Contract Deployment workflow (run ${{ github.run_id }}). Review the manifest, then merge and complete the #303 post-deploy checklist (README address table, DEPLOYMENT.md, testnet smoke)."
+            --title "chore: Base Sepolia ${RELEASE_OPERATION} records (run ${{ github.run_id }})" \
+            --body "Automated ${RELEASE_OPERATION} release records from the Contract Deployment workflow (run ${{ github.run_id }}). Review the manifest and registration document. Verification status is recorded in the manifest; this PR does not itself claim verification succeeded."

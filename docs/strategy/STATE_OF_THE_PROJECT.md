@@ -6,6 +6,13 @@ behavior and recorded evidence, not a security certification or an independent
 reverification of public-chain state. The [roadmap](./ROADMAP.md) remains the
 adopted delivery plan; Phase 0 has not exited.
 
+**Release update, 8 October 2026:** current source was deployed to Base Sepolia
+at `0x10eb28034c2b8f77400c3c2eaa1984b019655ae6`. Its creation and runtime bytecode
+match source commit `c7c2544`. BaseScan source verification remains pending after
+a registration-generation failure; see the [current deployment record](../DEPLOYMENT.md#current-status).
+The inventory below retains the 7 October review evidence. A live settlement
+cycle and the other Phase 0 gaps remain outstanding.
+
 ## Implemented in source
 
 | Capability | Evidence and boundary |
@@ -49,17 +56,19 @@ real-world audit accuracy.
 
 ## Source versus recorded deployment
 
-[The Base Sepolia manifest](../../deployments/base-sepolia.json) records the
+At the 7 October review, the Base Sepolia manifest recorded the
 legacy four-argument deployment at
 `0xf2da3947d028b85e597fe1df4633a87ef4a85f24`. It does not establish deployment of
 the current request/fee subsystem or later hardening. No newer deployment was
 verified in this review. Source-level guarantees must not be attributed to the
-recorded address without matching release and bytecode evidence.
+recorded address without matching release and bytecode evidence. The manifest
+has since been updated for the 8 October release described above.
 
 [Issue #303](https://github.com/akoita/proof-of-audit/issues/303) tracks redeploying
 or disclosing the divergence. [PR #323](https://github.com/akoita/proof-of-audit/pull/323)
 proposes disclosure and remained open at review. Its existence is not evidence
-that the disclosure has landed or that the contract was redeployed.
+that the disclosure has landed or that the contract was redeployed. PR #323 was
+subsequently closed in favor of the redeployment decision on #303.
 
 The [22 March smoke record](../proofs/base-sepolia-smoke-2026-03-22.md) contains
 skipped live tests. [Issue #293](https://github.com/akoita/proof-of-audit/issues/293)

@@ -2,36 +2,38 @@
   "network": "base-sepolia",
   "chain_id": 84532,
   "contract_name": "ProofOfAudit",
-  "address": "0xf2da3947d028b85e597fe1df4633a87ef4a85f24",
+  "address": "0x10eb28034c2b8f77400c3c2eaa1984b019655ae6",
   "status": "deployed",
-  "arbiter": "0x9Ed13E9b9FC135D35CE78C35866412dB08897E29",
-  "rpc_url": "https://base-sepolia.drpc.org",
+  "arbiter": "0x9ed13e9b9fc135d35ce78c35866412db08897e29",
+  "rpc_url": "https://sepolia.base.org",
   "explorer_base_url": "https://sepolia.basescan.org",
   "required_stake_wei": "10000000000000000",
   "required_challenge_bond_wei": "5000000000000000",
   "challenge_window_seconds": 86400,
   "constructor_args": {
-    "arbiter": "0x9Ed13E9b9FC135D35CE78C35866412dB08897E29",
+    "arbiter": "0x9ed13e9b9fc135d35ce78c35866412db08897e29",
+    "treasury": "0x5005dff87271ba211f31c22b85bdcb8dfcfc9a10",
     "required_stake_wei": "10000000000000000",
     "required_challenge_bond_wei": "5000000000000000",
     "challenge_window_seconds": 86400,
-    "encoded": "0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e29000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180"
+    "challenge_resolution_window_seconds": 172800,
+    "protocol_fee_bps": 0,
+    "resolution_fee_bps": 0,
+    "encoded": "0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e290000000000000000000000005005dff87271ba211f31c22b85bdcb8dfcfc9a10000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
   },
   "verification": {
-    "status": "verified",
-    "provider": "basescan",
-    "command": "forge verify-contract --chain 84532 --watch --constructor-args 0x0000000000000000000000009ed13e9b9fc135d35ce78c35866412db08897e29000000000000000000000000000000000000000000000000002386f26fc100000000000000000000000000000000000000000000000000000011c37937e080000000000000000000000000000000000000000000000000000000000000015180 --etherscan-api-key \\<redacted\\> 0xf2da3947d028b85e597fe1df4633a87ef4a85f24 src/ProofOfAudit.sol:ProofOfAudit ",
-    "verified_at": "2026-03-14T13:01:25.099947+00:00"
+    "status": "not_requested",
+    "provider": "basescan"
   },
-  "notes": "Deployed via scripts/deploy-release.sh",
-  "deployment_tx_hash": "0xf3896f7904443a84cedc45f64cf7259be2133c6c4d84d9a21a41e6f4321e6f41",
-  "deployment_block_number": 38862439,
+  "notes": "Deployed from source c7c25443c24349015a85b96723225151c634e181 in workflow run 37715604922. Transaction creation bytecode and deployed runtime bytecode, including all eight constructor immutables, match the locally compiled source. BaseScan verification was not requested because the generated registration contained a localhost API endpoint; recover with verify-only, not another deployment. Existing identity #1862 owner and tokenURI were checked on Base Sepolia during recovery.",
+  "deployment_tx_hash": "0x4b276b8e239a4cfcfe0b6aeb61a0be89522ee64842f9da33ee841a23b3b78eac",
+  "deployment_block_number": 47828253,
   "deployer_address": "0x3e19e4b2f22fc27b5105a6762fcc6c6f129550be",
-  "updated_at": "2026-03-14T21:02:42.827351+00:00",
+  "updated_at": "2026-10-08T02:02:30.710728+00:00",
   "registration_document": {
     "uri": "https://raw.githubusercontent.com/akoita/proof-of-audit/main/docs/registrations/proof-of-audit-auditor.json",
-    "file": "/home/koita/dev/hackatons/proof-of-audit/docs/registrations/proof-of-audit-auditor.json",
-    "source_manifest": "/home/koita/dev/hackatons/proof-of-audit/agent/proof_of_audit_agent/auditor_manifest.json"
+    "file": "docs/registrations/proof-of-audit-auditor.json",
+    "source_manifest": "agent/proof_of_audit_agent/auditor_manifest.json"
   },
   "auditor_identity": {
     "registry_address": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
@@ -44,5 +46,10 @@
   "validation_bridge": {
     "registry_address": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
     "source": "erc8004-official"
-  }
+  },
+  "treasury_address": "0x5005dff87271ba211f31c22b85bdcb8dfcfc9a10",
+  "source_commit": "c7c25443c24349015a85b96723225151c634e181",
+  "challenge_resolution_window_seconds": 172800,
+  "protocol_fee_bps": 0,
+  "resolution_fee_bps": 0
 }

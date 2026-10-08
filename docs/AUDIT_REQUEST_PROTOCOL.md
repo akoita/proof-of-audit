@@ -1,9 +1,11 @@
 # AuditRequest Protocol
 
 This document describes the request protocol present in repository source. The
-recorded public deployment uses an older contract constructor and does not
-establish that this request flow is live on Base Sepolia; see the
-[recorded project state](strategy/STATE_OF_THE_PROJECT.md).
+8 October 2026 Base Sepolia deployment contains this contract implementation;
+its creation and runtime bytecode match source commit `c7c2544`. BaseScan source
+verification and a recorded live end-to-end settlement cycle remain pending;
+see the [deployment record](DEPLOYMENT.md#current-status). Contract deployment
+alone does not establish that the hosted API or frontend uses this address.
 
 `#217` introduces a marketplace request primitive alongside the legacy single-auditor
 `publishAudit` flow.

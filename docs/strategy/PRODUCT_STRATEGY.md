@@ -63,9 +63,11 @@ monetizes the track record; wedges 3–4 scale distribution.
 
 ## 4. Business model
 
-1. **Settlement/protocol fees** — the fee engine already written into the
-   (undeployed) contract source: bps on bounty distribution and dispute payouts.
-   Keep, but re-deploy honestly.
+1. **Settlement/protocol fees** — bps on bounty distribution and dispute payouts.
+   The fee engine is present in the 8 October 2026 Base Sepolia deployment, with
+   both rates configured to zero. Source verification and a recorded live
+   settlement cycle remain pending; see the [deployment record](../DEPLOYMENT.md#current-status).
+   Deployment does not establish demand or revenue.
 2. **Coverage pool spread** — the Sherlock-proven line: stakers underwrite auditor
    verdicts for yield; protocol takes a spread. This is where stake stops being
    theater and revenue stops being hypothetical.
