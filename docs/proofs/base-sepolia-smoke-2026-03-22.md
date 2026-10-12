@@ -1,5 +1,11 @@
 # Base Sepolia Smoke Evidence - 2026-03-22
 
+**Historical failed evidence:** this run executed no live lifecycle. It must
+not be cited as proof of current deployment health. Follow the current
+[live testnet procedure](../TECHNICAL_DOCUMENTATION.md#live-testnet-evidence)
+when collecting replacement evidence for
+[issue #293](https://github.com/akoita/proof-of-audit/issues/293).
+
 ## Run target
 
 - Branch: `main`

@@ -11,7 +11,9 @@ import httpx
 import pytest
 from web3 import HTTPProvider, Web3
 from web3.contract import Contract
+from web3.logs import DISCARD
 
+from proof_of_audit_api.config import DEFAULT_DEPLOYMENTS_DIR, load_json_file
 from proof_of_audit_api.publisher import load_contract_abi
 
 
@@ -101,9 +103,9 @@ class TestnetContext:
         assert response.status_code == 200, response.text
         payload = response.json()
         tx_hash = payload.get("onchain", {}).get("publish_tx_hash")
+        self._update_audit_artifact(payload)
         if isinstance(tx_hash, str) and tx_hash:
             self.record_gas("publish", tx_hash)
-        self._update_audit_artifact(payload)
         return payload
 
     def challenge_audit(
@@ -130,12 +132,12 @@ class TestnetContext:
         assert response.status_code == 200, response.text
         result = response.json()
         tx_hash = result.get("challenge", {}).get("challenge_tx_hash")
+        self._update_audit_artifact(result)
+        resolve_tx = result.get("challenge", {}).get("resolve_tx_hash")
         if isinstance(tx_hash, str) and tx_hash:
             self.record_gas(gas_action, tx_hash)
-        resolve_tx = result.get("challenge", {}).get("resolve_tx_hash")
         if isinstance(resolve_tx, str) and resolve_tx:
             self.record_gas(f"{gas_action}_resolve", resolve_tx)
-        self._update_audit_artifact(result)
         return result
 
     def resolve_audit(
@@ -152,9 +154,9 @@ class TestnetContext:
         assert response.status_code == 200, response.text
         result = response.json()
         tx_hash = result.get("challenge", {}).get("resolve_tx_hash")
+        self._update_audit_artifact(result)
         if isinstance(tx_hash, str) and tx_hash:
             self.record_gas("manual_resolve", tx_hash)
-        self._update_audit_artifact(result)
         return result
 
     def get_audit(self, audit_id: str) -> dict[str, Any]:
@@ -166,6 +168,7 @@ class TestnetContext:
 
     def record_gas(self, action: str, tx_hash: str) -> None:
         receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+        assert int(receipt["status"]) == 1, f"{action} transaction reverted: {tx_hash}"
         self.gas_measurements.append(
             GasMeasurement(
                 action=action,
@@ -175,6 +178,169 @@ class TestnetContext:
                 status=int(receipt["status"]),
             )
         )
+
+    def record_lifecycle_evidence(self, audit_id: str) -> None:
+        """Validate and store receipt evidence for an upheld challenge lifecycle."""
+        artifact = self.audit_artifacts.get(audit_id)
+        assert isinstance(artifact, dict), f"audit artifact is missing for {audit_id}"
+
+        settlement_address = _normalized_address(
+            self.web3, self.contract.address, "context settlement address"
+        )
+        artifact_settlement = _normalized_address(
+            self.web3,
+            artifact.get("settlement_contract_address"),
+            "artifact settlement address",
+        )
+        assert artifact_settlement == settlement_address, (
+            "artifact settlement address does not match the configured contract"
+        )
+
+        published_audit_id = artifact.get("published_audit_id")
+        assert isinstance(published_audit_id, int) and published_audit_id > 0, (
+            "artifact is missing its published on-chain audit id"
+        )
+        assert int(self.chain_id) == int(artifact.get("chain_id") or 0), (
+            "artifact chain id does not match the testnet context"
+        )
+
+        target_address = artifact.get("contract_address")
+        normalized_target = _normalized_address(
+            self.web3, target_address, "artifact audited contract address"
+        )
+        tx_hashes: dict[str, str] = {}
+        receipts: dict[str, dict[str, int | str]] = {}
+        raw_receipts: dict[str, Any] = {}
+        transaction_hash_fields = {
+            "publish": "publish_tx_hash",
+            "challenge": "challenge_tx_hash",
+            "resolve": "resolve_tx_hash",
+        }
+        for action, field_name in transaction_hash_fields.items():
+            tx_hash = artifact.get(field_name)
+            assert isinstance(tx_hash, str) and tx_hash.strip(), (
+                f"artifact is missing its {action} transaction hash"
+            )
+
+            receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+            receipt_hash = Web3.to_hex(receipt["transactionHash"])
+            assert receipt_hash.casefold() == tx_hash.casefold(), (
+                f"{action} receipt transaction hash does not match the artifact"
+            )
+            status = int(receipt["status"])
+            assert status == 1, f"{action} transaction reverted: {tx_hash}"
+
+            transaction = self.web3.eth.get_transaction(tx_hash)
+            transaction_hash = Web3.to_hex(transaction["hash"])
+            assert transaction_hash.casefold() == tx_hash.casefold(), (
+                f"{action} transaction hash does not match the artifact"
+            )
+            transaction_target = _normalized_address(
+                self.web3, transaction.get("to"), f"{action} transaction target"
+            )
+            assert transaction_target == settlement_address, (
+                f"{action} transaction did not target the settlement contract"
+            )
+
+            tx_hashes[action] = receipt_hash
+            raw_receipts[action] = receipt
+            receipts[action] = {
+                "tx_hash": receipt_hash,
+                "block_number": int(receipt["blockNumber"]),
+                "status": status,
+            }
+
+        published_event = _unique_audit_event(
+            self.contract,
+            raw_receipts["publish"],
+            "AuditPublished",
+            settlement_address,
+            published_audit_id,
+        )
+        challenge_event = _unique_audit_event(
+            self.contract,
+            raw_receipts["challenge"],
+            "ChallengeOpened",
+            settlement_address,
+            published_audit_id,
+        )
+        resolved_event = _unique_audit_event(
+            self.contract,
+            raw_receipts["resolve"],
+            "ChallengeResolved",
+            settlement_address,
+            published_audit_id,
+        )
+
+        final_record = self.contract.functions.getAudit(published_audit_id).call()
+        assert int(final_record[10]) == 3, "final on-chain audit state is not resolved"
+        published_auditor = _normalized_address(
+            self.web3, published_event["auditor"], "AuditPublished auditor"
+        )
+        final_auditor = _normalized_address(
+            self.web3, final_record[0], "final on-chain auditor"
+        )
+        assert published_auditor == final_auditor, (
+            "published auditor does not match the final on-chain audit record"
+        )
+        published_target = _normalized_address(
+            self.web3, published_event["target"], "AuditPublished target"
+        )
+        assert published_target == normalized_target, (
+            "published target does not match the audit artifact"
+        )
+
+        challenger = _normalized_address(
+            self.web3, challenge_event["challenger"], "ChallengeOpened challenger"
+        )
+        final_challenger = _normalized_address(
+            self.web3, final_record[12], "final on-chain challenger"
+        )
+        assert challenger == final_challenger, (
+            "challenger does not match the final on-chain audit record"
+        )
+        stake_wei = int(published_event["stakeAmount"])
+        bond_wei = int(challenge_event["challengeBond"])
+        assert stake_wei > 0, "published stake must be positive"
+        assert bond_wei > 0, "challenge bond must be positive"
+        assert int(final_record[6]) == stake_wei, (
+            "published event stake does not match the final on-chain audit record"
+        )
+        assert int(final_record[7]) == bond_wei, (
+            "challenge event bond does not match the final on-chain audit record"
+        )
+        assert final_record[13] == challenge_event["evidenceHash"], (
+            "challenge evidence hash does not match the final on-chain audit record"
+        )
+
+        resolution = int(resolved_event["resolution"])
+        beneficiary = _normalized_address(
+            self.web3, resolved_event["beneficiary"], "ChallengeResolved beneficiary"
+        )
+        payout_wei = int(resolved_event["payout"])
+        assert resolution == 1, "challenge resolution was not upheld"
+        assert int(final_record[11]) == 1, "final on-chain resolution was not upheld"
+        assert beneficiary == final_challenger, (
+            "upheld challenge payout beneficiary does not match the challenger"
+        )
+        assert payout_wei == stake_wei + bond_wei, (
+            "upheld challenge payout does not equal the stake plus challenge bond"
+        )
+
+        artifact["lifecycle_evidence"] = {
+            "chain_id": int(self.chain_id),
+            "settlement_contract_address": self.contract.address,
+            "published_audit_id": published_audit_id,
+            "receipts": receipts,
+            "stake_wei": stake_wei,
+            "bond_wei": bond_wei,
+            "payout": {
+                "tx_hash": tx_hashes["resolve"],
+                "beneficiary": self.web3.to_checksum_address(beneficiary),
+                "amount_wei": payout_wei,
+                "resolution": resolution,
+            },
+        }
 
     def record_failed_submission(
         self,
@@ -288,6 +454,76 @@ def _checksum(web3: Web3, address: str) -> str:
     return web3.to_checksum_address(address)
 
 
+def _normalized_address(web3: Web3, address: object, label: str) -> str:
+    assert isinstance(address, str) and address.strip(), f"{label} is missing"
+    try:
+        return web3.to_checksum_address(address).casefold()
+    except (TypeError, ValueError) as exc:
+        raise AssertionError(f"{label} is not a valid address") from exc
+
+
+def _unique_audit_event(
+    contract: Contract,
+    receipt: Any,
+    event_name: str,
+    settlement_address: str,
+    published_audit_id: int,
+) -> Any:
+    decoded_events = getattr(contract.events, event_name)().process_receipt(
+        receipt, errors=DISCARD
+    )
+    matches = [
+        event["args"]
+        for event in decoded_events
+        if str(event.get("address", "")).casefold() == settlement_address
+        and int(event["args"].get("auditId", -1)) == published_audit_id
+    ]
+    assert len(matches) == 1, (
+        f"expected one {event_name} event for audit {published_audit_id} "
+        f"from settlement contract, found {len(matches)}"
+    )
+    return matches[0]
+
+
+def assert_base_sepolia_manifest_matches_api(
+    config_payload: dict[str, Any], *, manifest_file: Path | None = None
+) -> None:
+    """Assert the API settlement address matches the configured Base Sepolia manifest."""
+    if manifest_file is None:
+        configured_path = _required_env("PROOF_OF_AUDIT_DEPLOYMENT_MANIFEST_FILE")
+        manifest_file = (
+            Path(configured_path)
+            if configured_path
+            else DEFAULT_DEPLOYMENTS_DIR / "base-sepolia.json"
+        )
+
+    manifest = load_json_file(manifest_file)
+    manifest_address = str(manifest.get("address") or "").strip()
+    assert manifest_address, (
+        f"Base Sepolia deployment manifest at {manifest_file} has no address"
+    )
+    manifest_chain_id = manifest.get("chain_id")
+    configured_chain_id = config_payload.get("chain_id")
+    try:
+        normalized_manifest_chain_id = int(manifest_chain_id)  # type: ignore[arg-type]
+        normalized_configured_chain_id = int(configured_chain_id)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise AssertionError(
+            f"Base Sepolia deployment manifest at {manifest_file} has no valid chain id"
+        ) from exc
+    assert normalized_manifest_chain_id == normalized_configured_chain_id, (
+        f"Base Sepolia deployment manifest chain id {normalized_manifest_chain_id} "
+        f"does not match API chain id {normalized_configured_chain_id}"
+    )
+
+    api_address = str(config_payload.get("contract_address") or "").strip()
+    assert api_address, "API config is missing its settlement contract address"
+    assert manifest_address.casefold() == api_address.casefold(), (
+        "API settlement contract address does not match the Base Sepolia "
+        f"deployment manifest at {manifest_file}"
+    )
+
+
 def _has_code(web3: Web3, address: str) -> bool:
     code = web3.eth.get_code(_checksum(web3, address))
     return bool(code and code != b"\x00")
@@ -343,6 +579,7 @@ def testnet_context() -> TestnetContext:
             pytest.skip(
                 f"API network {config_payload.get('network')} is not the expected base-sepolia"
             )
+        assert_base_sepolia_manifest_matches_api(config_payload)
 
         operator = web3.eth.account.from_key(private_key).address
         if int(web3.eth.get_balance(operator)) <= 0:
