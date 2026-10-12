@@ -576,9 +576,14 @@ The API performs signing; the smoke operator key does not replace its publisher,
 challenger, arbiter, validation, or reputation configuration. Fund the required
 roles, use distinct signing roles, and make a deployed `clean-vault` fixture and
 the hosted Agent-Forge path available. This full smoke suite includes both
-settlement and hosted-service coverage. Configure API authentication before
-testing an authenticated deployment; the current live client has no API-key
-header support.
+settlement and hosted-service coverage. For an authenticated deployment, set
+`PROOF_OF_AUDIT_TESTNET_API_KEY` to one token allowed by the API server's
+`PROOF_OF_AUDIT_API_KEYS` setting. The smoke client sends it in `X-API-Key` and
+disables redirects while the key is present. In GitHub Actions, configure this
+value as the repository secret `PROOF_OF_AUDIT_TESTNET_API_KEY`; the workflow
+does not read it from repository variables. This request credential is never a
+signing key and must remain separate from
+`PROOF_OF_AUDIT_TESTNET_PRIVATE_KEY`.
 
 The manual-resolution evidence must identify one audit's successful publish,
 challenge, and resolution receipts. Resolution transfers the stake and bond

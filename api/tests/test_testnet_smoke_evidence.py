@@ -7,13 +7,16 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from eth_abi import encode
+import httpx
 import pytest
 from web3 import Web3
 
 from proof_of_audit_api.config import DEFAULT_DEPLOYMENTS_DIR, load_json_file
+from proof_of_audit_api.security import API_KEY_HEADER_NAME
 from helpers import build_onchain_test_context
 from testnet.conftest import (
     TestnetContext as _TestnetContext,
+    _build_testnet_client,
     assert_base_sepolia_manifest_matches_api,
 )
 
@@ -244,3 +247,83 @@ def test_manifest_preflight_rejects_chain_id_mismatch(tmp_path: Path) -> None:
             {"chain_id": 84532, "contract_address": "0x" + "11" * 20},
             manifest_file=manifest_file,
         )
+
+
+def test_testnet_client_sends_trimmed_api_key_on_mock_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PROOF_OF_AUDIT_TESTNET_API_KEY", "  smoke-token-value \t")
+    requests: list[tuple[str, str | None]] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.path, request.headers.get(API_KEY_HEADER_NAME)))
+        return httpx.Response(200, json={"status": "ok"})
+
+    with _build_testnet_client(
+        "https://smoke.example", transport=httpx.MockTransport(handle_request)
+    ) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/config").status_code == 200
+        assert client.follow_redirects is False
+
+    assert requests == [
+        ("/health", "smoke-token-value"),
+        ("/config", "smoke-token-value"),
+    ]
+
+
+def test_testnet_client_stops_redirects_when_api_key_is_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PROOF_OF_AUDIT_TESTNET_API_KEY", "smoke-token-value")
+    requests: list[tuple[str, str | None]] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.host, request.headers.get(API_KEY_HEADER_NAME)))
+        return httpx.Response(
+            302,
+            headers={"Location": "https://other-origin.example/redirected"},
+        )
+
+    with _build_testnet_client(
+        "https://smoke.example", transport=httpx.MockTransport(handle_request)
+    ) as client:
+        response = client.get("/redirect")
+
+    assert response.status_code == 302
+    assert response.history == []
+    assert requests == [("smoke.example", "smoke-token-value")]
+
+
+def test_testnet_client_keeps_redirects_when_api_key_is_unset_or_blank(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[tuple[str, str | None]] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.path, request.headers.get(API_KEY_HEADER_NAME)))
+        if request.url.path == "/redirect":
+            return httpx.Response(302, headers={"Location": "/health"})
+        return httpx.Response(200, json={"status": "ok"})
+
+    for value in (None, "", " \t "):
+        if value is None:
+            monkeypatch.delenv("PROOF_OF_AUDIT_TESTNET_API_KEY", raising=False)
+        else:
+            monkeypatch.setenv("PROOF_OF_AUDIT_TESTNET_API_KEY", value)
+        with _build_testnet_client(
+            "https://smoke.example", transport=httpx.MockTransport(handle_request)
+        ) as client:
+            response = client.get("/redirect")
+            assert client.follow_redirects is True
+            assert response.status_code == 200
+            assert len(response.history) == 1
+
+    assert requests == [
+        ("/redirect", None),
+        ("/health", None),
+        ("/redirect", None),
+        ("/health", None),
+        ("/redirect", None),
+        ("/health", None),
+    ]

@@ -536,6 +536,11 @@ When deploying the web image to Cloud Run, configure the service runtime env wit
 
 This publish step is the application-repo prerequisite for `akoita/proof-of-audit-iac`. Infra bootstrap and Cloud Run deployment expect these environment-tagged images to exist before the `testnet` or `mainnet` services can converge.
 
+The workflow also tags all three images with its application commit SHA.
+After publication, set IaC's `release_image_tag` to that SHA to select the
+reviewed source revision rather than a moving channel tag. A source tag records
+the intended revision; retain the pushed image digests when verifying a rollout.
+
 For executable evidence hardening, the API can also switch advisory Foundry execution to Docker:
 
 - `PROOF_OF_AUDIT_EXECUTABLE_EVIDENCE_BACKEND`
