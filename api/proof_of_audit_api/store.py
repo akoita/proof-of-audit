@@ -38,6 +38,37 @@ def _record_target_key(record: dict[str, Any]) -> str:
     return ""
 
 
+def _read_legacy_requests(legacy_path: Path) -> list[tuple[str, dict[str, Any]]]:
+    if not legacy_path.exists():
+        return []
+    try:
+        payload = json.loads(legacy_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        raise ValueError("legacy audit request catalog is not valid JSON") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        raise ValueError("legacy audit request catalog must contain an items list")
+
+    requests: list[tuple[str, dict[str, Any]]] = []
+    seen_ids: set[str] = set()
+    for item in payload["items"]:
+        if not isinstance(item, dict):
+            raise ValueError("legacy audit request catalog contains a malformed item")
+
+        raw_id = item.get("request_id")
+        if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
+            raw_id = item.get("id")
+        if isinstance(raw_id, bool) or not isinstance(raw_id, (str, int)):
+            raise ValueError("legacy audit request catalog item has an invalid request ID")
+        request_id = str(raw_id).strip()
+        if not request_id:
+            raise ValueError("legacy audit request catalog item has an invalid request ID")
+        if request_id in seen_ids:
+            raise ValueError("legacy audit request catalog contains duplicate request IDs")
+        seen_ids.add(request_id)
+        requests.append((request_id, item))
+    return requests
+
+
 class AuditStore(Protocol):
     def write(self, audit_id: str, payload: dict[str, Any]) -> None: ...
 
@@ -46,6 +77,22 @@ class AuditStore(Protocol):
     def list_all(self) -> list[dict[str, Any]]: ...
 
     def list_by_target_key(self, target_key: str) -> list[dict[str, Any]]: ...
+
+    def write_request(self, request_id: str, payload: dict[str, Any]) -> None:
+        """Insert or update one audit request record."""
+        ...
+
+    def read_request(self, request_id: str) -> dict[str, Any] | None:
+        """Read one audit request record by ID."""
+        ...
+
+    def list_requests(self) -> list[dict[str, Any]]:
+        """List all audit request records."""
+        ...
+
+    def import_legacy_requests(self, legacy_path: Path) -> None:
+        """Validate and import a legacy JSON request catalog."""
+        ...
 
     def close(self) -> None: ...
 
@@ -128,6 +175,8 @@ class JsonStore:
     def list_all(self) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         for path in sorted(self.root.glob("*.json")):
+            if path.name == "audit-requests.json":
+                continue
             try:
                 records.append(json.loads(path.read_text(encoding="utf-8")))
             except json.JSONDecodeError:
@@ -141,6 +190,25 @@ class JsonStore:
             for record in self.list_all()
             if _record_target_key(record) == normalized_target_key
         ]
+
+    def _request_store(self) -> "SqliteStore":
+        return SqliteStore(self.root / "audit-requests.sqlite3")
+
+    def write_request(self, request_id: str, payload: dict[str, Any]) -> None:
+        """Persist one request in the SQLite sidecar used by JSON audit mode."""
+        self._request_store().write_request(request_id, payload)
+
+    def read_request(self, request_id: str) -> dict[str, Any] | None:
+        """Read one request from the SQLite sidecar used by JSON audit mode."""
+        return self._request_store().read_request(request_id)
+
+    def list_requests(self) -> list[dict[str, Any]]:
+        """List requests from the SQLite sidecar used by JSON audit mode."""
+        return self._request_store().list_requests()
+
+    def import_legacy_requests(self, legacy_path: Path) -> None:
+        """Import a legacy request catalog into the SQLite sidecar."""
+        self._request_store().import_legacy_requests(legacy_path)
 
     def close(self) -> None:
         return None
@@ -165,6 +233,63 @@ class SqliteStore:
                 """,
                 (audit_id, encoded),
             )
+
+    def write_request(self, request_id: str, payload: dict[str, Any]) -> None:
+        """Atomically insert or update one request record."""
+        encoded = json.dumps(payload, sort_keys=True)
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO audit_requests (request_id, payload)
+                VALUES (?, ?)
+                ON CONFLICT(request_id) DO UPDATE SET payload = excluded.payload
+                """,
+                (str(request_id), encoded),
+            )
+
+    def read_request(self, request_id: str) -> dict[str, Any] | None:
+        """Read a request record by its request ID."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM audit_requests WHERE request_id = ?",
+                (str(request_id),),
+            ).fetchone()
+        if row is None:
+            return None
+        return json.loads(str(row[0]))
+
+    def list_requests(self) -> list[dict[str, Any]]:
+        """Return all stored request records in request ID order."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM audit_requests ORDER BY request_id ASC"
+            ).fetchall()
+        return [json.loads(str(row[0])) for row in rows]
+
+    def import_legacy_requests(self, legacy_path: Path) -> None:
+        """Import a validated legacy request catalog in one SQLite transaction."""
+        requests = _read_legacy_requests(legacy_path)
+        if not requests:
+            return
+        connection = self._connect()
+        try:
+            connection.executemany(
+                """
+                INSERT INTO audit_requests (request_id, payload)
+                VALUES (?, ?)
+                ON CONFLICT(request_id) DO NOTHING
+                """,
+                [
+                    (request_id, json.dumps(payload, sort_keys=True))
+                    for request_id, payload in requests
+                ],
+            )
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def read(self, audit_id: str) -> dict[str, Any] | None:
         self._import_legacy_if_needed()
@@ -197,6 +322,8 @@ class SqliteStore:
         if not root.exists():
             return
         for path in sorted(root.glob("*.json")):
+            if path.name == "audit-requests.json":
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
@@ -224,6 +351,8 @@ class SqliteStore:
         if self.legacy_root is None:
             return
         for path in sorted(self.legacy_root.glob("*.json")):
+            if path.name == "audit-requests.json":
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
@@ -240,6 +369,14 @@ class SqliteStore:
                 """
                 CREATE TABLE IF NOT EXISTS audits (
                     id TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_requests (
+                    request_id TEXT PRIMARY KEY,
                     payload TEXT NOT NULL
                 )
                 """
@@ -294,6 +431,52 @@ class PostgresStore:
     def write(self, audit_id: str, payload: dict[str, Any]) -> None:
         self._write_without_import(audit_id, payload)
 
+    def write_request(self, request_id: str, payload: dict[str, Any]) -> None:
+        """Atomically insert or update one request record."""
+        encoded = json.dumps(payload, sort_keys=True)
+        self._execute(
+            """
+            INSERT INTO audit_requests (request_id, payload)
+            VALUES (%s, %s::jsonb)
+            ON CONFLICT (request_id) DO UPDATE SET payload = EXCLUDED.payload
+            """,
+            (str(request_id), encoded),
+        )
+
+    def read_request(self, request_id: str) -> dict[str, Any] | None:
+        """Read a request record by its request ID."""
+        row = self._fetchone(
+            "SELECT payload::text FROM audit_requests WHERE request_id = %s",
+            (str(request_id),),
+        )
+        if row is None:
+            return None
+        return json.loads(str(row[0]))
+
+    def list_requests(self) -> list[dict[str, Any]]:
+        """Return all stored request records in request ID order."""
+        rows = self._fetchall(
+            "SELECT payload::text FROM audit_requests ORDER BY request_id ASC"
+        )
+        return [json.loads(str(row[0])) for row in rows]
+
+    def import_legacy_requests(self, legacy_path: Path) -> None:
+        """Import a validated legacy request catalog in one PostgreSQL transaction."""
+        requests = _read_legacy_requests(legacy_path)
+        if not requests:
+            return
+        self._execute_many(
+            """
+            INSERT INTO audit_requests (request_id, payload)
+            VALUES (%s, %s::jsonb)
+            ON CONFLICT (request_id) DO NOTHING
+            """,
+            [
+                (request_id, json.dumps(payload, sort_keys=True))
+                for request_id, payload in requests
+            ],
+        )
+
     def read(self, audit_id: str) -> dict[str, Any] | None:
         self._import_legacy_if_needed()
         row = self._fetchone(
@@ -321,6 +504,8 @@ class PostgresStore:
         if not root.exists():
             return
         for path in sorted(root.glob("*.json")):
+            if path.name == "audit-requests.json":
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
@@ -352,6 +537,8 @@ class PostgresStore:
         if self.legacy_root is None:
             return
         for path in sorted(self.legacy_root.glob("*.json")):
+            if path.name == "audit-requests.json":
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
@@ -367,6 +554,14 @@ class PostgresStore:
             """
             CREATE TABLE IF NOT EXISTS audits (
                 id TEXT PRIMARY KEY,
+                payload JSONB NOT NULL
+            )
+            """
+        )
+        self._execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_requests (
+                request_id TEXT PRIMARY KEY,
                 payload JSONB NOT NULL
             )
             """
@@ -390,16 +585,55 @@ class PostgresStore:
     def _execute(self, query: str, parameters: tuple[Any, ...] = ()) -> None:
         connection = self._connect()
         try:
-            cursor = connection.cursor()
             try:
-                cursor.execute(query, parameters)
-            finally:
-                close_cursor = getattr(cursor, "close", None)
-                if callable(close_cursor):
-                    close_cursor()
-            commit = getattr(connection, "commit", None)
-            if callable(commit):
-                commit()
+                cursor = connection.cursor()
+                try:
+                    cursor.execute(query, parameters)
+                finally:
+                    close_cursor = getattr(cursor, "close", None)
+                    if callable(close_cursor):
+                        close_cursor()
+                commit = getattr(connection, "commit", None)
+                if callable(commit):
+                    commit()
+            except BaseException:
+                rollback = getattr(connection, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception:
+                        pass
+                raise
+        finally:
+            connection.close()
+
+    def _execute_many(
+        self,
+        query: str,
+        parameters: list[tuple[Any, ...]],
+    ) -> None:
+        connection = self._connect()
+        try:
+            try:
+                cursor = connection.cursor()
+                try:
+                    for row_parameters in parameters:
+                        cursor.execute(query, row_parameters)
+                finally:
+                    close_cursor = getattr(cursor, "close", None)
+                    if callable(close_cursor):
+                        close_cursor()
+                commit = getattr(connection, "commit", None)
+                if callable(commit):
+                    commit()
+            except BaseException:
+                rollback = getattr(connection, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception:
+                        pass
+                raise
         finally:
             connection.close()
 
@@ -408,18 +642,27 @@ class PostgresStore:
     ) -> tuple[Any, ...] | None:
         connection = self._connect()
         try:
-            cursor = connection.cursor()
             try:
-                cursor.execute(query, parameters)
-                row = cursor.fetchone()
-            finally:
-                close_cursor = getattr(cursor, "close", None)
-                if callable(close_cursor):
-                    close_cursor()
-            commit = getattr(connection, "commit", None)
-            if callable(commit):
-                commit()
-            return row
+                cursor = connection.cursor()
+                try:
+                    cursor.execute(query, parameters)
+                    row = cursor.fetchone()
+                finally:
+                    close_cursor = getattr(cursor, "close", None)
+                    if callable(close_cursor):
+                        close_cursor()
+                commit = getattr(connection, "commit", None)
+                if callable(commit):
+                    commit()
+                return row
+            except BaseException:
+                rollback = getattr(connection, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception:
+                        pass
+                raise
         finally:
             connection.close()
 
@@ -428,18 +671,27 @@ class PostgresStore:
     ) -> list[tuple[Any, ...]]:
         connection = self._connect()
         try:
-            cursor = connection.cursor()
             try:
-                cursor.execute(query, parameters)
-                rows = cursor.fetchall()
-            finally:
-                close_cursor = getattr(cursor, "close", None)
-                if callable(close_cursor):
-                    close_cursor()
-            commit = getattr(connection, "commit", None)
-            if callable(commit):
-                commit()
-            return list(rows)
+                cursor = connection.cursor()
+                try:
+                    cursor.execute(query, parameters)
+                    rows = cursor.fetchall()
+                finally:
+                    close_cursor = getattr(cursor, "close", None)
+                    if callable(close_cursor):
+                        close_cursor()
+                commit = getattr(connection, "commit", None)
+                if callable(commit):
+                    commit()
+                return list(rows)
+            except BaseException:
+                rollback = getattr(connection, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception:
+                        pass
+                raise
         finally:
             connection.close()
 

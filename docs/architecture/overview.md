@@ -16,7 +16,7 @@ flowchart LR
     Worker --> Fixtures["Deterministic fixture backend"]
     Worker --> Forge["Optional Agent-Forge analysis"]
     Forge --> Sandbox["Agent runtime"]
-    Service --> Store["Audit record store"]
+    Service --> Store["Audit and request store"]
     Service --> Publisher["API transaction client"]
     Service --> Verifier["Challenge verifier"]
     Verifier --> Runner["Evidence resolver and runner"]
@@ -44,7 +44,7 @@ The worker and evidence runner produce analysis results. They do not submit nati
 | Audit service | Validates submissions, invokes the worker, stores records, and coordinates publishing and disputes | [AuditService](../../api/proof_of_audit_api/service.py) |
 | Auditor worker | Produces deterministic fixture reports or invokes the configured Agent-Forge analysis lane | [AuditWorker](../../agent/proof_of_audit_agent/worker.py) |
 | Agent-Forge backend | Runs a local command or calls the configured external service and normalizes its report | [Agent-Forge backend](../../agent/proof_of_audit_agent/agent_forge_backend.py) |
-| Audit store | Persists audit records as JSON, SQLite, or Cloud SQL PostgreSQL | [Store implementations](../../api/proof_of_audit_api/store.py) |
+| Audit store | Persists audits and request records; request state uses SQLite or PostgreSQL | [Store implementations](../../api/proof_of_audit_api/store.py) |
 | Native transaction client | Signs API-mediated publish and challenge transactions using configured credentials | [Publisher](../../api/proof_of_audit_api/publisher.py) |
 | Settlement contract | Records claims and challenge state and enforces escrow and arbiter-only resolution | [ProofOfAudit](../../contracts/src/ProofOfAudit.sol) |
 | Evidence verification | Checks challenge evidence and can run executable bundles in a bounded backend | [Challenge verifier](../../agent/proof_of_audit_agent/challenge_verifier.py) |
@@ -62,7 +62,7 @@ The API routes and response models are the source for FastAPI's generated OpenAP
 4. A publish request causes the API's publisher to sign and submit `publishAudit` or the request-bound claim call. The worker does not sign or publish to the chain.
 5. `ProofOfAudit` records claim hashes and escrow state. The API stores transaction metadata and may submit validation or reputation mirrors when those bridges are configured.
 
-The `AuditRequest` index is a separate local JSON file at `audit-requests.json` under the configured data root. It is not part of the selected audit-record store. See the [request protocol](../AUDIT_REQUEST_PROTOCOL.md) and [participation guide](../AGENT_REQUEST_PARTICIPATION.md).
+The `AuditRequest` index uses the selected `AuditStore`, with a separate request table in SQLite or PostgreSQL. Legacy JSON audit mode uses a SQLite sidecar for requests. Startup imports an existing `audit-requests.json` catalogue without overwriting newer database records; the file remains a backup. See the [migration procedure](../DEPLOYMENT.md#audit-request-persistence-and-migration), [request protocol](../AUDIT_REQUEST_PROTOCOL.md), and [participation guide](../AGENT_REQUEST_PARTICIPATION.md).
 
 ### Challenge and resolution
 
