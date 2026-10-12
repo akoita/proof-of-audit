@@ -546,11 +546,10 @@ cd contracts && forge test
 
 ### Live Testnet Evidence
 
-Use the strict runner when collecting Base Sepolia evidence:
+Use the strict Makefile command when collecting Base Sepolia evidence:
 
 ```bash
-PYENV_VERSION=proof-of-audit-3.12 PYTHONPATH=agent:api pyenv exec python \
-  scripts/run_testnet_smoke.py --artifacts-dir .tmp/testnet-smoke --require-live-env
+PYENV_VERSION=proof-of-audit-3.12 make test-testnet-smoke
 ```
 
 Configure `PROOF_OF_AUDIT_TESTNET_API_URL`, `PROOF_OF_AUDIT_TESTNET_RPC_URL`,
@@ -560,11 +559,39 @@ account. In GitHub Actions, store the key in a repository secret; the API and
 RPC URLs can use secrets or repository variables. The smoke workflow defaults
 the chain ID to Base Sepolia (`84532`).
 
-The runner writes JSON and Markdown reports under the artifacts directory. It
-returns a failure with status `blocked` when required configuration is missing,
-and also fails if required live tests are skipped or absent from the results.
-`make test-testnet-smoke` runs the gated pytest suite directly, which can skip
-without failing; its exit code alone does not establish live evidence.
+The runner writes JSON and Markdown reports under `.tmp/testnet-smoke`. It
+returns a failure with status `blocked` when required configuration is missing.
+Missing, malformed, or stale results cannot establish success; every required
+live test must pass. The ordinary Python suite still skips gated live tests
+when credentials are absent. Use the strict command for deployment evidence.
+
+Before running, compare the API's `/config` settlement address with the current
+[deployment manifest](../deployments/base-sepolia.json). The smoke fixture
+checks this match before submitting audits. In `proof-of-audit-iac`, obtain the
+API URL from `terraform -chdir=environments/testnet output -raw public_api_url`
+after applying the intended release. A checked-in release snapshot alone does
+not demonstrate an available API.
+
+The API performs signing; the smoke operator key does not replace its publisher,
+challenger, arbiter, validation, or reputation configuration. Fund the required
+roles, use distinct signing roles, and make a deployed `clean-vault` fixture and
+the hosted Agent-Forge path available. This full smoke suite includes both
+settlement and hosted-service coverage. Configure API authentication before
+testing an authenticated deployment; the current live client has no API-key
+header support.
+
+The manual-resolution evidence must identify one audit's successful publish,
+challenge, and resolution receipts. Resolution transfers the stake and bond
+within that same transaction. Its authenticated `ChallengeResolved` event
+records the beneficiary and amount; there is no separate payout transaction
+for this standalone audit flow. Retain the receipt evidence and link all three
+transactions when writing a dated proof. Verification remains advisory and
+resolution uses a single arbiter.
+
+The plain-proof test checks that the challenge stays open before manual
+resolution, then resolves it to release escrow. Published-only hosted-service
+cases leave stake locked until the contract's challenge window expires;
+operators must account for that stake when funding repeated runs.
 
 [Issue #293](https://github.com/akoita/proof-of-audit/issues/293) remains open
 until a real publish, challenge, resolve, and payout cycle is recorded with

@@ -43,7 +43,7 @@ test-system-e2e:
 	PYTHONPATH=agent:api $(PYTHON) -m pytest -m system_e2e api/tests
 
 test-testnet-smoke:
-	PYTHONPATH=agent:api $(PYTHON) -m pytest -m testnet_smoke api/tests/testnet
+	PYTHONPATH=agent:api $(PYTHON) scripts/run_testnet_smoke.py --require-live-env --python-bin $(PYTHON)
 
 test-ui-e2e:
 	cd web && CI=1 PYTHON_BIN=$${PYTHON_BIN:-$(PYTHON)} pnpm exec playwright test
