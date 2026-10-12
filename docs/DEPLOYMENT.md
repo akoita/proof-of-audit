@@ -429,6 +429,32 @@ Run it locally with the API bound to `0.0.0.0:8080`:
 docker run --rm -p 8080:8080 proof-of-audit-api
 ```
 
+## Audit-request persistence and migration
+
+SQLite and PostgreSQL store audit requests in an `audit_requests` table alongside
+audit records. SQLite remains the local default. When audit records use the
+legacy `json` store, request state uses `audit-requests.sqlite3` under the same
+data root. No new environment settings are required.
+
+On startup, the API imports an existing `audit-requests.json` catalogue from its
+data root. Import is transactional and retains existing database rows rather
+than overwriting them with older catalogue entries. The original file is left
+unchanged; subsequent request writes go to the database.
+
+To migrate an existing instance:
+
+1. Stop older API processes that still write the JSON catalogue and back up the
+   data directory and configured database.
+2. Start the updated API with the same data root and store settings. A malformed
+   catalogue or duplicate request IDs stops startup with a migration error;
+   correct the backup/input before retrying. A failed import commits no request
+   rows from that batch.
+3. Verify expected request records through `GET /requests` before archiving the
+   legacy catalogue. Keep a backup for recovery; it is no longer the live store.
+
+This migration preserves the API's existing request index. It does not add
+contract-wide event indexing or reconcile requests created outside this API.
+
 ## Cloud SQL PostgreSQL
 
 The API now supports `PROOF_OF_AUDIT_STORE_KIND=cloudsql-postgres` for deployed persistence.

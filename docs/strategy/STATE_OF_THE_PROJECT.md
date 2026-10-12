@@ -13,6 +13,11 @@ recovering from a registration-generation failure; see the [current deployment r
 The inventory below retains the 7 October review evidence. A live settlement
 cycle and the other Phase 0 gaps remain outstanding.
 
+**Persistence update, 12 October 2026:** request state now uses the configured
+transactional store, with a read-only legacy catalogue import. Request-storage
+entries below reflect this change; the other review boundaries remain. See the
+[migration procedure](../DEPLOYMENT.md#audit-request-persistence-and-migration).
+
 ## Implemented in source
 
 | Capability | Evidence and boundary |
@@ -20,7 +25,7 @@ cycle and the other Phase 0 gaps remain outstanding.
 | Stake, challenge, resolution and payout | [ProofOfAudit](../../contracts/src/ProofOfAudit.sol) and [contract tests](../../contracts/test/ProofOfAudit.t.sol); the arbiter supplies the dispute verdict. |
 | Request escrow, claim accounting and fees | Implemented in the same contract; availability depends on the deployed version. |
 | Contract hardening | Source rejects direct self-challenges and invalid constructor parameters, includes request-claim challenge expiry, and has [fuzz/invariant coverage](../../contracts/test/ProofOfAuditInvariant.t.sol). |
-| Audit submissions and persistence | [AuditService](../../api/proof_of_audit_api/service.py), [store implementations](../../api/proof_of_audit_api/store.py), and [service tests](../../api/tests/test_service.py); audit-request persistence remains separate JSON. |
+| Audit submissions and persistence | [AuditService](../../api/proof_of_audit_api/service.py), [store implementations](../../api/proof_of_audit_api/store.py), and [service tests](../../api/tests/test_service.py); request records use transactional SQLite/PostgreSQL storage, with a SQLite sidecar for legacy JSON audit mode. |
 | Source and chain provenance | [Snapshot semantics](../AUDIT_SNAPSHOT_SEMANTICS.md) and [executable evidence format](../EXECUTABLE_EVIDENCE_BUNDLE.md). Provenance does not prove report correctness. |
 | Evidence review | Integrity/execution checks, semantic comparison and structured dossiers; current executable verification stays advisory. See [verifier design status](../CHALLENGE_VERIFIER_V2.md). |
 | Identity and lifecycle mirrors | ERC-8004-aligned [registration](../ERC8004_REGISTRATION.md), validation artifacts and configurable reputation integration. Mirror availability depends on compatible configured registries. |
@@ -84,11 +89,10 @@ scoped into customer and arbiter roles. The frontend helper has no credential
 integration for protected requests. Treat these as limitations before sharing
 an operated instance with customers, not as implemented authorization controls.
 
-Audit-request persistence rewrites a whole JSON catalogue and can lose concurrent
-updates. [Issue #300](https://github.com/akoita/proof-of-audit/issues/300) tracks
-migration into the transactional store layer. Execution occurs before a draft
-record is persisted; durable jobs, restart recovery and transaction reconciliation
-remain work to evaluate before a hosted pilot.
+Execution occurs before a draft record is persisted; durable jobs, restart
+recovery and transaction reconciliation remain work to evaluate before a hosted
+pilot. Request persistence is transactional, but its index still covers requests
+created through this API rather than all contract events.
 
 The worker temporarily mutates a shared backend for runtime overrides. Concurrent
 submissions need isolated per-job execution and a concurrency check. The UI also

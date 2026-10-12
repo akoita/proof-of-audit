@@ -143,6 +143,7 @@ class AuditApiAppTest(unittest.TestCase):
             data_root,
             env_file=env_file,
         )
+        self.audit_service = app.state.audit_service
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
@@ -808,39 +809,32 @@ class AuditApiAppTest(unittest.TestCase):
         self.assertIn("API-derived previews", payload["preview_disclaimer"])
 
     def test_request_listing_and_eligibility_endpoints(self) -> None:
-        request_catalog = self.data_root / "audit-requests.json"
-        request_catalog.write_text(
-            json.dumps(
-                {
-                    "items": [
-                        {
-                            "request_id": "req-open-1",
-                            "status": "open",
-                            "contract_address": "0x1000000000000000000000000000000000000001",
-                            "chain_id": 84532,
-                            "bounty_wei": 2_000_000_000_000_000_000,
-                            "protocol_fee_wei": 100_000_000_000_000_000,
-                            "response_window_end": "2026-03-30T00:00:00Z",
-                            "created_at": "2026-03-27T10:00:00Z",
-                            "filters": {
-                                "whitelist_mode": "allowlist",
-                                "allowed_service_ids": ["proof-of-audit-auditor"],
-                            },
-                            "metadata": {
-                                "confidence_hint": "high",
-                            },
-                        },
-                        {
-                            "request_id": "req-closed-1",
-                            "status": "closed",
-                            "contract_address": "0x1000000000000000000000000000000000000002",
-                            "bounty_wei": 1_000_000_000_000_000_000,
-                        },
-                    ]
-                }
-            )
-            + "\n",
-            encoding="utf-8",
+        self.audit_service.store.write_request(
+            "req-open-1",
+            {
+                "request_id": "req-open-1",
+                "status": "open",
+                "contract_address": "0x1000000000000000000000000000000000000001",
+                "chain_id": 84532,
+                "bounty_wei": 2_000_000_000_000_000_000,
+                "protocol_fee_wei": 100_000_000_000_000_000,
+                "response_window_end": "2026-03-30T00:00:00Z",
+                "created_at": "2026-03-27T10:00:00Z",
+                "filters": {
+                    "whitelist_mode": "allowlist",
+                    "allowed_service_ids": ["proof-of-audit-auditor"],
+                },
+                "metadata": {"confidence_hint": "high"},
+            },
+        )
+        self.audit_service.store.write_request(
+            "req-closed-1",
+            {
+                "request_id": "req-closed-1",
+                "status": "closed",
+                "contract_address": "0x1000000000000000000000000000000000000002",
+                "bounty_wei": 1_000_000_000_000_000_000,
+            },
         )
 
         listed = self.client.get("/requests", params={"status": "open"})

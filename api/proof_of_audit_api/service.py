@@ -111,12 +111,24 @@ class AuditService:
         self.data_root = data_root
         self._last_created_at: datetime | None = None
         self._chain_web3: Web3 | None = None
-        self.store = store or create_store(
+        self._owns_store = store is None
+        self.store = store if store is not None else create_store(
             root=data_root,
             kind=store_kind,
             database_path=store_path,
             postgres_config=postgres_config,
         )
+        legacy_request_path = data_root / "audit-requests.json"
+        if legacy_request_path.exists():
+            try:
+                self.store.import_legacy_requests(legacy_request_path)
+            except Exception:
+                if self._owns_store:
+                    try:
+                        self.store.close()
+                    except Exception:
+                        pass
+                raise
         self.contract_config = contract_config or ContractConfig.from_env()
         self.worker = AuditWorker(
             self.contract_config.demo_fixtures_file,
@@ -898,22 +910,10 @@ class AuditService:
             "reasons": reasons or ["Matches the current preview filters."],
         }
 
-    def _audit_request_catalog_path(self) -> Path:
-        return self.data_root / "audit-requests.json"
-
     def _all_normalized_audit_requests(self) -> list[dict[str, Any]]:
-        path = self._audit_request_catalog_path()
-        if not path.exists():
-            return []
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            return []
-        items = payload.get("items")
-        if not isinstance(items, list):
-            return []
         normalized_items = [
             self._normalize_audit_request_record(item)
-            for item in items
+            for item in self.store.list_requests()
             if isinstance(item, dict)
         ]
         normalized_items = [
@@ -929,8 +929,11 @@ class AuditService:
         input_kind = str(payload.get("input_kind") or "deployed_address").strip().lower()
         if input_kind not in {"deployed_address", "source_bundle", "repository_url"}:
             input_kind = "deployed_address"
+        request_id = payload.get("request_id")
+        if request_id is None or (isinstance(request_id, str) and not request_id.strip()):
+            request_id = payload.get("id")
         return {
-            "request_id": str(payload.get("request_id") or payload.get("id") or "").strip(),
+            "request_id": str(request_id if request_id is not None else "").strip(),
             "status": str(payload.get("status") or "open").strip().lower(),
             "requester": (
                 self._normalize_target_key(payload.get("requester"))
@@ -1260,26 +1263,7 @@ class AuditService:
         }
 
     def _upsert_audit_request_record(self, record: dict[str, Any]) -> None:
-        path = self._audit_request_catalog_path()
-        items: list[dict[str, Any]] = []
-        if path.exists():
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                payload = {}
-            if isinstance(payload, dict) and isinstance(payload.get("items"), list):
-                items = [item for item in payload["items"] if isinstance(item, dict)]
-        request_id = str(record["request_id"])
-        items = [
-            item
-            for item in items
-            if str(item.get("request_id") or item.get("id") or "").strip() != request_id
-        ]
-        items.append(deepcopy(record))
-        path.write_text(
-            json.dumps({"items": items}, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        self.store.write_request(str(record["request_id"]), deepcopy(record))
 
     def _build_auditor_matches(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
         minimum_stake_wei = int(filters.get("minimum_stake_wei") or 0)

@@ -291,9 +291,12 @@ registered identity even if raw caller addresses or API paths differ.
 The contract event is the durable source of truth.
 
 In this repo, the API currently indexes requests that were created through this API
-instance and persists a local request catalog for polling clients. Each read re-syncs
+instance and persists its request index through the configured database store
+for polling clients. Each read re-syncs
 the request status and escrow metadata from the contract when chain access is
 configured.
 
-That keeps the implementation small for V1 while preserving a path toward a dedicated
-event indexer later.
+The request table provides transactional persistence and concurrent upserts;
+it does not discover every contract event. Existing JSON catalogues are imported
+at startup as described in the [migration procedure](DEPLOYMENT.md#audit-request-persistence-and-migration).
+A dedicated event indexer remains separate future work.
