@@ -15,6 +15,7 @@ from web3.logs import DISCARD
 
 from proof_of_audit_api.config import DEFAULT_DEPLOYMENTS_DIR, load_json_file
 from proof_of_audit_api.publisher import load_contract_abi
+from proof_of_audit_api.security import API_KEY_HEADER_NAME
 
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
@@ -450,6 +451,22 @@ def _required_env(name: str) -> str | None:
     return stripped or None
 
 
+def _build_testnet_client(
+    api_url: str, *, transport: httpx.BaseTransport | None = None
+) -> httpx.Client:
+    api_key = _required_env("PROOF_OF_AUDIT_TESTNET_API_KEY")
+    options: dict[str, Any] = {
+        "base_url": api_url,
+        "timeout": 30.0,
+        "follow_redirects": api_key is None,
+    }
+    if api_key is not None:
+        options["headers"] = {API_KEY_HEADER_NAME: api_key}
+    if transport is not None:
+        options["transport"] = transport
+    return httpx.Client(**options)
+
+
 def _checksum(web3: Web3, address: str) -> str:
     return web3.to_checksum_address(address)
 
@@ -549,7 +566,7 @@ def testnet_context() -> TestnetContext:
         pytest.skip(f"testnet smoke env is incomplete: missing {', '.join(missing)}")
 
     chain_id = int(chain_id_value)
-    client = httpx.Client(base_url=api_url, timeout=30.0, follow_redirects=True)
+    client = _build_testnet_client(api_url)
     try:
         health = client.get("/health")
         health.raise_for_status()
